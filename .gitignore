@@ -1,0 +1,7 @@
+.bmad-loop/runs/
+.bmad-loop/cache/
+.bmad-loop/policy.toml
+
+# Local binary DB (regenerable)
+ruvector.db
+_bmad-output/**/runs/
