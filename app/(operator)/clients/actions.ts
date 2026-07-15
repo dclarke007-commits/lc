@@ -69,7 +69,9 @@ export async function createClient(
   let ownerId: string;
   try {
     ownerId = await getOwnerId();
-  } catch {
+  } catch (err) {
+    // AR15: fail closed, but leave a trace in the platform logs.
+    console.error('[clients] getOwnerId failed', err);
     return fail('owner-unresolved');
   }
 
@@ -87,7 +89,9 @@ export async function createClient(
       .returning();
     revalidatePath('/clients');
     return ok(row);
-  } catch {
+  } catch (err) {
+    // AR15: fail closed, but leave a trace in the platform logs.
+    console.error('[clients] client write failed', err);
     return fail('client-write-failed');
   }
 }
@@ -104,7 +108,9 @@ export async function editClient(
   let ownerId: string;
   try {
     ownerId = await getOwnerId();
-  } catch {
+  } catch (err) {
+    // AR15: fail closed, but leave a trace in the platform logs.
+    console.error('[clients] getOwnerId failed', err);
     return fail('owner-unresolved');
   }
 
@@ -126,7 +132,9 @@ export async function editClient(
     if (!row) return fail('client-not-found');
     revalidatePath('/clients');
     return ok(row);
-  } catch {
+  } catch (err) {
+    // AR15: fail closed, but leave a trace in the platform logs.
+    console.error('[clients] client write failed', err);
     return fail('client-write-failed');
   }
 }

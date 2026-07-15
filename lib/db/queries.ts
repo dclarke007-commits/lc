@@ -39,6 +39,13 @@ export async function getOperatorByEmail(
 
 // --- Client reads (AD-8: every SELECT carries the owner_id FILTER value) ---
 
+// Canonical UUID shape. `client.id` is a Postgres `uuid` column, so a malformed
+// path param (e.g. /clients/not-a-uuid/edit) would make Postgres throw 22P02 and
+// surface a 500. We short-circuit to "not found" instead — the surface's stated
+// contract is notFound() for a bad/other-owner id.
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 /**
  * List the owner's clients. The `owner_id` filter is on the VALUE (not merely
  * the column) from day one, so a row belonging to any other owner is physically
@@ -60,6 +67,9 @@ export async function getClient(
   ownerId: string,
   id: string,
 ): Promise<Client | undefined> {
+  // A non-UUID id can never match a real row — treat as "not found" rather than
+  // letting Postgres throw an invalid-uuid error into RSC render.
+  if (!UUID_RE.test(id)) return undefined;
   const [row] = await db
     .select()
     .from(client)

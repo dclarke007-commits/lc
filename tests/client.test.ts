@@ -137,4 +137,45 @@ describe('Client actions + owner-scoped reads (Story 1.2)', () => {
     expect(await getClient(otherOwner, id)).toBeUndefined();
     expect(await listClients(otherOwner)).toHaveLength(0);
   });
+
+  // --- Review-added edge coverage (code review 2026-07-15) ---
+
+  it('invalid cadence → { ok:false, reason:cadence-invalid } and nothing is written', async () => {
+    const before = (await listClients(ownerId)).length;
+    const result = await createClient(
+      form({ name: 'Bad Cadence', phone: '555-3333', cadence: 'fortnightly' }),
+    );
+    expect(result).toEqual({ ok: false, reason: 'cadence-invalid' });
+    expect((await listClients(ownerId)).length).toBe(before);
+  });
+
+  it('whitespace-only name/phone are rejected after trim (nothing written)', async () => {
+    const before = (await listClients(ownerId)).length;
+
+    const blankName = await createClient(
+      form({ name: '   ', phone: '555-4444', cadence: 'weekly' }),
+    );
+    expect(blankName).toEqual({ ok: false, reason: 'name-required' });
+
+    const blankPhone = await createClient(
+      form({ name: 'Trim Me', phone: '  \t ', cadence: 'weekly' }),
+    );
+    expect(blankPhone).toEqual({ ok: false, reason: 'phone-required' });
+
+    expect((await listClients(ownerId)).length).toBe(before);
+  });
+
+  it('empty address is normalized to null on create', async () => {
+    const result = await createClient(
+      form({ name: 'No Address', phone: '555-5555', address: '', cadence: 'weekly' }),
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.data.address).toBeNull();
+  });
+
+  it('getClient with a malformed (non-UUID) id returns undefined, not a DB error', async () => {
+    expect(await getClient(ownerId, 'not-a-uuid')).toBeUndefined();
+    expect(await getClient(ownerId, '')).toBeUndefined();
+  });
 });

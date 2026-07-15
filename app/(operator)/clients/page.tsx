@@ -5,24 +5,50 @@
 // it never imports lib/db (surfaces → actions → domain → db).
 
 import Link from 'next/link';
+import { redirect } from 'next/navigation';
 import { listOwnerClients, createClient } from './actions';
+import { clientErrorMessage } from '@/lib/domain/clientErrors';
 import { ClientForm } from './ClientForm';
 
 export const dynamic = 'force-dynamic';
 
 // Thin server-action wrapper so the native <form action> gets a void return.
 // The typed { ok, data } | { ok:false, reason } contract lives in createClient.
+// On failure we redirect to ?error=<reason> so the surface can show a banner
+// with zero client JS (NFR1); on success we redirect to clear any stale error.
 async function addClient(formData: FormData): Promise<void> {
   'use server';
-  await createClient(formData);
+  const result = await createClient(formData);
+  if (!result.ok) redirect(`/clients?error=${result.reason}`);
+  redirect('/clients');
 }
 
-export default async function ClientsPage() {
+export default async function ClientsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ error?: string }>;
+}) {
   const clients = await listOwnerClients();
+  const errorMsg = clientErrorMessage((await searchParams).error);
 
   return (
     <main style={{ padding: '1.5rem', maxWidth: 640 }}>
       <h1 style={{ fontSize: '1.25rem', margin: '0 0 1rem' }}>Clients</h1>
+
+      {errorMsg && (
+        <p
+          role="alert"
+          style={{
+            color: '#b00020',
+            background: '#fde8e8',
+            padding: '0.6rem 0.8rem',
+            borderRadius: 4,
+            margin: '0 0 1rem',
+          }}
+        >
+          {errorMsg}
+        </p>
+      )}
 
       <section style={{ marginBottom: '2rem' }}>
         <h2 style={{ fontSize: '1rem' }}>Add a client</h2>

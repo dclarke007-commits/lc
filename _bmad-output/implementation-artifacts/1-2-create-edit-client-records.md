@@ -3,7 +3,7 @@ baseline_commit: e10b73a32ab47af9a47bcd91ec19e5f3297afbb2
 ---
 # Story 1.2: Create & edit client records
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -137,3 +137,17 @@ Modified:
 | Date | Change |
 |------|--------|
 | 2026-07-15 | Story 1.2 implemented: `Client` schema (owner_id FK, cadence/status enums, gone-cold excluded per AD-7), `createClient`/`editClient` actions (owner_id-scoped, AR15 contract), owner_id-filtered reads, `/clients` RSC surfaces, 6 tests. 21/21 green, no regressions. Status → review. |
+
+### Review Findings (code review 2026-07-15)
+
+Adversarial review: Blind Hunter + Edge Case Hunter + Acceptance Auditor. All 3 ACs met; no tenancy/data-integrity/injection defects. AD-8 owner_id scoping correct throughout.
+
+- [x] [Review][Decision→Patch] Surface-level silent failure — RESOLVED via redirect-param (zero-JS): `addClient`/`saveClient` now redirect to `?error=<reason>`; both surfaces render a server-side `role="alert"` banner via `lib/domain/clientErrors.ts`. [app/(operator)/clients/page.tsx, [id]/edit/page.tsx]
+- [x] [Review][Patch] Malformed non-UUID id → `notFound()` — FIXED: `getClient` short-circuits to `undefined` for non-UUID ids via `UUID_RE`, so the surface's notFound() contract holds instead of a 22P02 500. [lib/db/queries.ts]
+- [x] [Review][Patch] `catch` blocks now `console.error` before `fail()` — AR15 platform-logs half restored. [app/(operator)/clients/actions.ts]
+- [x] [Review][Patch] Test coverage added: `cadence-invalid`, whitespace-only name/phone, address empty→null, malformed-uuid getClient. 25/25 green. [tests/client.test.ts]
+- [x] [Review][Defer] No length/format bounds on name/phone/address (NFR7 minimal-rules; oversized-payload hardening later) [app/(operator)/clients/actions.ts:40-41] — deferred, out of v1 scope
+- [x] [Review][Defer] No duplicate detection on create (double-submit → dup rows) [app/(operator)/clients/actions.ts:76-89] — deferred, single-operator sees dupes in list
+- [x] [Review][Defer] Last-write-wins concurrency, no lost-update detection [app/(operator)/clients/actions.ts:114-124] — deferred, multi-device era
+- [x] [Review][Defer] Read-path throws not converted to contract on un-seeded DB (write path is) [app/(operator)/clients/actions.ts:52-61] — deferred, deploy-invariant violation only
+- Dismissed (1): cross-owner "real row" read test — unconstructible by design (operator singleton index + FK onDelete:restrict); the value-based test is equivalent proof.
