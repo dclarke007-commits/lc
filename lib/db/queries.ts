@@ -5,8 +5,8 @@
 
 import { eq, and, asc, desc } from 'drizzle-orm';
 import { db } from './client';
-import { operator, client } from './schema';
-import type { Operator, Client } from './schema';
+import { operator, client, capacitySettings } from './schema';
+import type { Operator, Client, CapacitySettingsRow } from './schema';
 
 /**
  * Resolve the single owner's id — the AD-8 owner_id value every future query
@@ -74,6 +74,24 @@ export async function getClient(
     .select()
     .from(client)
     .where(and(eq(client.ownerId, ownerId), eq(client.id, id)))
+    .limit(1);
+  return row;
+}
+
+// --- Capacity settings (Story 1.3, AD-8: owner_id FILTER value applied) ---
+
+/**
+ * Read the owner's single capacity-settings row. Owner-scoped by the owner_id
+ * VALUE (not merely the column). Returns undefined on first view (no row yet) —
+ * the action layer substitutes DEFAULT_CAPACITY so defaults live in ONE place.
+ */
+export async function getCapacitySettings(
+  ownerId: string,
+): Promise<CapacitySettingsRow | undefined> {
+  const [row] = await db
+    .select()
+    .from(capacitySettings)
+    .where(eq(capacitySettings.ownerId, ownerId))
     .limit(1);
   return row;
 }

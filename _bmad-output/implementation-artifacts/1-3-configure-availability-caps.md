@@ -1,6 +1,10 @@
+---
+baseline_commit: ecda2ab490463cdf454b3978702df44fc716a1da
+---
+
 # Story 1.3: Configure availability & caps
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -18,20 +22,20 @@ so that the book reflects how much I actually work.
 
 ## Tasks / Subtasks
 
-- [ ] **Task 1 — Capacity settings storage (AC: 1, 2)** [Source: ARCHITECTURE-SPINE.md#AD-8, #Consistency-Conventions; epics.md FR1, AR16]
-  - [ ] Persist operator capacity config in `lib/db/` (Drizzle). Fields: working-day set (default Mon–Sat), per-day cap (default 3), weekly ceiling (default 14), default job price (default $200 → **stored as 20000 integer cents, USD** — AR16, money-as-cents), operator timezone (see Task 3).
-  - [ ] Carry `owner_id` (AD-8); scope reads/writes by it. No entity for this in the ER model — dev decides table shape (see Open gaps).
-  - [ ] Default job price is operator-config, NOT a hardcoded constant anywhere downstream (AR16).
-- [ ] **Task 2 — View + edit settings surface + action (AC: 1, 2)** [Source: ARCHITECTURE-SPINE.md#AD-1, AR15, NFR1]
-  - [ ] RSC settings surface under `app/(operator)/` (auth-gated). Show current values (defaults on first load). Phone-first, minimal client JS, dynamic.
-  - [ ] Verb-first Server Action (e.g. `saveCapacitySettings`) in `app/(operator)/**/actions.ts` — sole write path (AD-1). Typed return `{ok,data}|{ok:false,reason}` (AR15); validate values (positive caps, ceiling ≥ per-day); reject invalid with a reason, write nothing.
-  - [ ] On save, config persists and becomes the single source all downstream capacity/cadence math reads (Stories 1.4/1.6/1.7 consume it — never re-hardcode 3/14/Mon–Sat).
-- [ ] **Task 3 — Operator-local clock wiring (AC: 3)** [Source: ARCHITECTURE-SPINE.md#AD-9]
-  - [ ] Store/resolve the operator's single timezone (source unspecified — see Open gaps). Establish the helper all schedule math uses.
-  - [ ] All capacity/cadence/week arithmetic computed in operator-local tz; timestamps stored UTC ISO-8601; weekly-14 boundary Mon–Sun operator-local (AD-9/FR1). Build this helper now — Stories 1.4/1.6/1.7 depend on it.
-- [ ] **Task 4 — Tests (AC: 1, 2, 3)**
-  - [ ] Defaults present on first view (Mon–Sat, 3, 14, $200/20000¢). Edit persists and reloads. Save action returns typed shape; invalid rejected.
-  - [ ] Week-boundary math resolves Mon–Sun in operator-local tz (unit test the clock helper, incl. a tz where UTC day ≠ local day).
+- [x] **Task 1 — Capacity settings storage (AC: 1, 2)** [Source: ARCHITECTURE-SPINE.md#AD-8, #Consistency-Conventions; epics.md FR1, AR16]
+  - [x] Persist operator capacity config in `lib/db/` (Drizzle). Fields: working-day set (default Mon–Sat), per-day cap (default 3), weekly ceiling (default 14), default job price (default $200 → **stored as 20000 integer cents, USD** — AR16, money-as-cents), operator timezone (see Task 3).
+  - [x] Carry `owner_id` (AD-8); scope reads/writes by it. No entity for this in the ER model — dev decides table shape (see Open gaps).
+  - [x] Default job price is operator-config, NOT a hardcoded constant anywhere downstream (AR16).
+- [x] **Task 2 — View + edit settings surface + action (AC: 1, 2)** [Source: ARCHITECTURE-SPINE.md#AD-1, AR15, NFR1]
+  - [x] RSC settings surface under `app/(operator)/` (auth-gated). Show current values (defaults on first load). Phone-first, minimal client JS, dynamic.
+  - [x] Verb-first Server Action (e.g. `saveCapacitySettings`) in `app/(operator)/**/actions.ts` — sole write path (AD-1). Typed return `{ok,data}|{ok:false,reason}` (AR15); validate values (positive caps, ceiling ≥ per-day); reject invalid with a reason, write nothing.
+  - [x] On save, config persists and becomes the single source all downstream capacity/cadence math reads (Stories 1.4/1.6/1.7 consume it — never re-hardcode 3/14/Mon–Sat).
+- [x] **Task 3 — Operator-local clock wiring (AC: 3)** [Source: ARCHITECTURE-SPINE.md#AD-9]
+  - [x] Store/resolve the operator's single timezone (source unspecified — see Open gaps). Establish the helper all schedule math uses.
+  - [x] All capacity/cadence/week arithmetic computed in operator-local tz; timestamps stored UTC ISO-8601; weekly-14 boundary Mon–Sun operator-local (AD-9/FR1). Build this helper now — Stories 1.4/1.6/1.7 depend on it.
+- [x] **Task 4 — Tests (AC: 1, 2, 3)**
+  - [x] Defaults present on first view (Mon–Sat, 3, 14, $200/20000¢). Edit persists and reloads. Save action returns typed shape; invalid rejected.
+  - [x] Week-boundary math resolves Mon–Sun in operator-local tz (unit test the clock helper, incl. a tz where UTC day ≠ local day).
 
 ## Dev Notes
 
@@ -71,8 +75,34 @@ No booking/`commitBooking` (1.4), no forecasting/room-left/day-maxed render (1.7
 
 ### Agent Model Used
 
+claude-opus-4-8[1m] (dev-story); implementation via general-purpose subagent, independently verified by the orchestrator (tsc, full suite, direct clock-value checks).
+
 ### Debug Log References
+
+- `npx tsc --noEmit` → exit 0.
+- `npx vitest run` → 38/38 passed (25 prior + 13 new), no regressions.
+- Independent clock spot-checks (America/Chicago UTC-day≠local-day, Asia/Tokyo day-flip, DST-week endpoints) all resolved to correct UTC instants.
+- Migration `drizzle/0003_low_centennial.sql` applied cleanly to Docker Postgres.
 
 ### Completion Notes List
 
+Dev decisions on the 3 open gaps: (1) `capacity_settings` single-row table, `owner_id` unique (AD-8); (2) uniform single `perDayCap` (NFR7, not per-weekday); (3) operator `timezone` text (IANA), default `America/Chicago`. Working days stored as ISO-weekday int[] 1=Mon..7=Sun, default [1..6].
+
+Business defaults live solely in `DEFAULT_CAPACITY` (`lib/domain/capacityConfig.ts`) — no DB column defaults for them, so nothing is re-hardcoded downstream (AR16). `getOwnerCapacity()` returns `DEFAULT_CAPACITY` on first view (no row), so the surface always renders editable defaults. `saveCapacitySettings` validates (positive caps, ceiling ≥ per-day, IANA tz, non-empty unique working days), converts the dollar price input to integer cents, and owner-scoped UPSERTs on `owner_id`. Typed AR15 contract; catch → console.error + fail; surface uses the `?error`/`?saved=1` redirect pattern (zero client JS, NFR1).
+
+AD-9 clock helper (`lib/domain/clock.ts`, Intl-only, no deps): `localDateKey`, `localISOWeekday`, `localWeekBounds` (Mon 00:00 local inclusive → next Mon 00:00 local exclusive, as UTC ISO), `isWorkingDay`. Zoned-walltime→UTC via guess+offset+refine so DST and UTC-day≠local-day both resolve correctly — load-bearing for Stories 1.4/1.6/1.7.
+
+Scope held: config + clock only; no cap enforcement / commitBooking (1.4), no forecasting (1.7), no lifecycle (1.5).
+
 ### File List
+
+- `lib/db/schema.ts` (modified) — `capacitySettings` table + `CapacitySettingsRow`/`NewCapacitySettings` exports, `integer` import.
+- `lib/db/queries.ts` (modified) — `getCapacitySettings(ownerId)`.
+- `lib/domain/capacityConfig.ts` (new) — `CapacityConfig`, `DEFAULT_CAPACITY`, `validateCapacity`.
+- `lib/domain/clock.ts` (new) — AD-9 operator-local clock helper.
+- `lib/domain/capacityErrors.ts` (new) — reason→human-text map.
+- `app/(operator)/settings/actions.ts` (new) — `getOwnerCapacity`, `saveCapacitySettings`.
+- `app/(operator)/settings/page.tsx` (new) — RSC settings surface.
+- `drizzle/0003_low_centennial.sql` (+ meta) (new) — capacity_settings migration.
+- `tests/capacity.test.ts` (new, 7) — defaults, persist+reload, UPSERT, rejections.
+- `tests/clock.test.ts` (new, 6) — Mon–Sun bounds incl. UTC-day≠local-day + day-flip.

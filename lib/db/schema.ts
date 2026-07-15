@@ -10,6 +10,7 @@ import {
   pgEnum,
   uuid,
   text,
+  integer,
   timestamp,
   uniqueIndex,
   index,
@@ -87,3 +88,46 @@ export const client = pgTable(
 
 export type Client = typeof client.$inferSelect;
 export type NewClient = typeof client.$inferInsert;
+
+// Capacity settings (Story 1.3, FR1) — the operator's availability model: which
+// weekdays are worked, the per-day cap, the hard weekly ceiling (14), the default
+// job price, and the single operator-local timezone (AD-9). Exactly one row per
+// owner (owner-scoped, AD-8). Business DEFAULTS are NOT DB column defaults — they
+// live in the domain (lib/domain/capacityConfig.ts) as the single source (AR16),
+// so downstream stories never re-hardcode 3/14/Mon–Sat. Money is integer cents,
+// USD (AR16). Timestamps stored UTC (AD-9).
+export const capacitySettings = pgTable(
+  'capacity_settings',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    // AD-8 tenancy seam: every settings row carries the owner_id FK, scoped on
+    // read and write. NOT NULL — an ownerless config is a cross-tenant leak.
+    ownerId: uuid('owner_id')
+      .notNull()
+      .references(() => operator.id, { onDelete: 'restrict' }),
+    // ISO weekday ints: 1=Mon .. 7=Sun. Default Mon–Sat lives in the domain.
+    workingDays: integer('working_days').array().notNull(),
+    perDayCap: integer('per_day_cap').notNull(),
+    weeklyCeiling: integer('weekly_ceiling').notNull(),
+    // Money as integer cents, USD (AR16). Default $200 = 20000 lives in domain.
+    defaultJobPriceCents: integer('default_job_price_cents').notNull(),
+    // IANA timezone name — the operator's single local clock (AD-9).
+    timezone: text('timezone').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'string' })
+      .defaultNow()
+      .notNull(),
+  },
+  (t) => [
+    // Single-row-per-owner invariant: at most one settings row per owner. The
+    // action UPSERTs on this conflict target.
+    uniqueIndex('capacity_settings_owner_uq').on(t.ownerId),
+    // Reads are always owner-scoped (AD-8); index the filter column.
+    index('capacity_settings_owner_id_idx').on(t.ownerId),
+  ],
+);
+
+export type CapacitySettingsRow = typeof capacitySettings.$inferSelect;
+export type NewCapacitySettings = typeof capacitySettings.$inferInsert;
