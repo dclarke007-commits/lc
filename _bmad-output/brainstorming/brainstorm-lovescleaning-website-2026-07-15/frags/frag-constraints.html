@@ -1,0 +1,94 @@
+<section class="lens" id="lens-constraints">
+  <div class="lens-head"><span class="lens-num">05</span><div><h2>Extreme Constraints</h2><p class="lens-blurb">Deliberate limits become forcing functions that strip the product down to only what actually books jobs and keeps the operator cleaning, not administrating.</p></div></div>
+  <div class="idea-grid">
+
+    <article class="idea">
+      <h3>The $0-Stack MVP</h3>
+      <p class="essence">Launch the entire business on free tools glued by automation before writing a line of custom code.</p>
+      <div class="meta">
+        <p><span class="k">How it works</span> A Google Sheet is the single source of truth for clients and jobs, Calendly (or Cal.com) handles route-aware slot booking, and Stripe payment links collect the money. A no-code layer like Zapier or Make stitches them together: a booking writes a row, completion fires a payment link, a paid link triggers a review text. She proves demand and workflow for pocket change before any real build.</p>
+        <p><span class="k">Why it wins solo</span> Zero back-office headcount and zero upfront tooling cost mean she can start converting visitors this week instead of waiting on development, and every dollar earned is validation, not sunk cost.</p>
+        <p><span class="k">Watch-out</span> Duct-taped stacks get brittle fast; a broken Zap can silently drop a booking or a charge, so it needs monitoring and a clear migration path before volume climbs.</p>
+        <p class="build"><span class="k">Build note</span> MVP now: Sheet + Calendly + Stripe + Make, one afternoon to wire. Later: replace the Sheet with a real DB and the Zaps with a booking backend once daily job count makes fragility expensive.</p>
+      </div>
+    </article>
+
+    <article class="idea">
+      <h3>Zero-Tutorial Rule</h3>
+      <p class="essence">If any feature needs an explanation to use, it gets cut, not documented.</p>
+      <div class="meta">
+        <p><span class="k">How it works</span> Every screen must be operable on first sight with no onboarding, no help article, no "watch this video." The design bar is that a non-technical owner and a first-time customer both succeed cold. Features that fail the test are either redesigned to self-evidence or removed entirely, keeping the surface area tiny and obvious.</p>
+        <p><span class="k">Why it wins solo</span> There is no support staff to field "how do I" questions, so a product that explains itself protects the owner's time and keeps customers from abandoning a confusing booking flow.</p>
+        <p><span class="k">Watch-out</span> The rule can starve genuinely valuable power-features; the discipline is distinguishing "needs a tutorial because it's badly designed" from "cut because it's truly non-essential."</p>
+        <p class="build"><span class="k">Build note</span> Enforce as a review checklist, not code. MVP: for each new screen, hand the phone to someone cold and watch; if they hesitate, redesign or delete before ship.</p>
+      </div>
+    </article>
+
+    <article class="idea">
+      <h3>Gloves-On Voice Control</h3>
+      <p class="essence">Run the job hands-free — "mark this job done and charge the card" — while her hands are wet or gloved.</p>
+      <div class="meta">
+        <p><span class="k">How it works</span> Core mid-job actions are voice-triggered so she never has to peel off a glove and tap a phone. A wake phrase plus a few fixed commands (complete job, charge card, add note, start next) drive the workflow. Voice-to-text also captures per-client handoff notes on the spot, spoken while she works.</p>
+        <p><span class="k">Why it wins solo</span> She is the only worker and the only admin, so collapsing "finish cleaning" and "get paid" into one spoken command means card-on-file auto-charge happens instantly at completion with no invoicing or back-office step.</p>
+        <p><span class="k">Watch-out</span> Voice charging is high-stakes; a misheard command that bills the wrong client or wrong amount erodes trust, so confirmations and an undo window are essential.</p>
+        <p class="build"><span class="k">Build note</span> Later feature, not MVP. Start with a giant one-tap "Done + Charge" button; add browser SpeechRecognition or a native shortcut once the charge flow is proven and confirmation UX is solid.</p>
+      </div>
+    </article>
+
+    <article class="idea">
+      <h3>Basement-Proof Offline Mode</h3>
+      <p class="essence">Job sheets work in dead zones — cached locally, synced when signal returns.</p>
+      <div class="meta">
+        <p><span class="k">How it works</span> The day's job sheets, gate codes, client preferences, and the completion/charge actions are cached on-device the moment the schedule loads. She can view notes and mark jobs done in a signal-less basement; the app queues the actions and syncs (including the payment charge) automatically when connectivity returns.</p>
+        <p><span class="k">Why it wins solo</span> With no office to phone and no coworker to relay information, the phone must be a self-contained operations kit; a dead zone can't be allowed to block a job completion or a payment.</p>
+        <p><span class="k">Watch-out</span> Deferred charges and edits create sync-conflict and double-charge risk; the queue needs idempotency and a clear "pending sync" indicator so she trusts what actually went through.</p>
+        <p class="build"><span class="k">Build note</span> MVP-adjacent: a PWA with service-worker caching and an IndexedDB action queue covers read + queued writes. Keep charges queued-but-confirmed rather than truly offline-final until sync succeeds.</p>
+      </div>
+    </article>
+
+    <article class="idea">
+      <h3>The 10-Second Rule</h3>
+      <p class="essence">Any customer action — book, reschedule, pay, refer — that takes over 10 seconds gets redesigned.</p>
+      <div class="meta">
+        <p><span class="k">How it works</span> Ten seconds is the hard budget for every customer-facing action. Booking defaults to "same as last time," rescheduling is a two-tap slot swap, paying is card-on-file with nothing to re-enter, and referring is a single pre-filled share link. Anything that blows the budget is a design bug to be fixed, measured against a stopwatch on real devices.</p>
+        <p><span class="k">Why it wins solo</span> Friction is the enemy of the two revenue engines she can't buy with ad spend — conversion of visitors and repeat/referral volume — so sub-10-second actions directly manufacture rebookings and referrals for free.</p>
+        <p><span class="k">Watch-out</span> Extreme speed can skip confirmations that prevent mistakes (wrong date, accidental charge); the redesign must cut steps without cutting the safety of high-consequence actions.</p>
+        <p class="build"><span class="k">Build note</span> MVP: instrument each flow with timing analytics and set a 10s alert threshold. Prioritize "one-tap rebook" and "card-on-file pay" first — they move the most money per second saved.</p>
+      </div>
+    </article>
+
+    <article class="idea">
+      <h3>One-Glance Dashboard</h3>
+      <p class="essence">The entire owner view fits one phone screen she can read between jobs.</p>
+      <div class="meta">
+        <p><span class="k">How it works</span> The owner home is a single glanceable screen: today's route in order, next job's address and access notes, money collected today, and any one thing needing attention. No tabs to hunt through, no scrolling for the essentials — everything an owner between jobs actually needs is above the fold, with detail one tap deeper only if wanted.</p>
+        <p><span class="k">Why it wins solo</span> She runs the whole operation from her phone with no back-office to consolidate reports, so a single-screen cockpit is the dashboard-as-moat compressed to something usable in a driveway between two houses.</p>
+        <p><span class="k">Watch-out</span> Cramming compounding client data onto one screen risks either hiding something important or becoming cluttered; ruthless prioritization of what earns a pixel is required.</p>
+        <p class="build"><span class="k">Build note</span> MVP: a single responsive route/money/alert card, no navigation. Design at 375px width first. Defer analytics, cohorts, and history to secondary drill-downs, never the home screen.</p>
+      </div>
+    </article>
+
+    <article class="idea">
+      <h3>Never Buy a Customer</h3>
+      <p class="essence">Every growth mechanism must be organic or referral by design — no ad budget, ever.</p>
+      <div class="meta">
+        <p><span class="k">How it works</span> Growth is engineered into the product instead of purchased: geo-weighted neighbor referrals off every completed job, auto-generated before/after portfolios, review capture at the peak satisfaction moment, and service-area SEO pages fed by real reviews. The constraint forces the per-job flywheel — each clean seeds the next street, each review feeds discovery.</p>
+        <p><span class="k">Why it wins solo</span> This is the explicit no-ad-spend goal made structural: repeat and referral revenue compound for free, keeping customer acquisition cost near zero so the solo margin stays intact without a marketing line item.</p>
+        <p><span class="k">Watch-out</span> Organic loops are slow to ignite and can stall in a sparse early client base; there's no paid lever to force volume if the referral engine underperforms in month one.</p>
+        <p class="build"><span class="k">Build note</span> MVP: bake the referral offer and review request into the post-job completion flow so they fire automatically. Later: auto-published review-fed service-area pages for compounding local SEO.</p>
+      </div>
+    </article>
+
+    <article class="idea">
+      <h3>Vacation-Proof Autopilot</h3>
+      <p class="essence">The business survives a two-week absence — auto-pause recurring jobs, notify clients, resume without losing anyone.</p>
+      <div class="meta">
+        <p><span class="k">How it works</span> She sets a date range and the system pauses recurring bookings for it, proactively texts affected clients with the gap and their return date, suppresses charges during the pause, and auto-reinstates every recurring slot when she's back — no client manually re-books and none silently churns from the interruption.</p>
+        <p><span class="k">Why it wins solo</span> With no staff to cover her absence, the software has to be the continuity plan; graceful auto-pause protects the recurring MRR base and the relationships that drive repeat revenue instead of forcing a painful manual restart.</p>
+        <p><span class="k">Watch-out</span> A poorly communicated pause reads as unreliability; the notification tone and the guaranteed-slot-on-return promise are what keep clients from booking a competitor in the gap.</p>
+        <p class="build"><span class="k">Build note</span> Later feature. MVP stub: a manual "pause all recurring" toggle with a canned client text. Full version: date-ranged pause with auto-resume and charge suppression once recurring scheduling exists.</p>
+      </div>
+    </article>
+
+  </div>
+</section>

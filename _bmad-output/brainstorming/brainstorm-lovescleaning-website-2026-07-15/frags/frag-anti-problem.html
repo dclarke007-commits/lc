@@ -1,0 +1,116 @@
+<section class="lens" id="lens-anti-problem">
+  <div class="lens-head"><span class="lens-num">07</span><div><h2>Anti-Problem</h2><p class="lens-blurb">Every way a solo cleaning business quietly dies, flipped into a guardrail the system enforces by default.</p></div></div>
+  <div class="idea-grid">
+
+    <article class="idea">
+      <h3>Kill the Phone Tag</h3>
+      <p class="essence">A booking that needs a call is a booking she'll lose while her hands are in a sink.</p>
+      <div class="meta">
+        <p><span class="k">How it works</span> The failure mode is forcing prospects to phone during business hours she can't answer. Invert it: a single self-serve link lets anyone pick a slot, put a card on file, and confirm in seconds without a human ever picking up. The phone becomes a fallback, not the front door.</p>
+        <p><span class="k">Why it wins solo</span> No back-office receptionist and no missed-call voicemail limbo means bookings close 24/7 while she's cleaning or asleep, capturing revenue that would otherwise ring out.</p>
+        <p><span class="k">Watch-out</span> Older or skeptical clients may still want to hear a voice; keep a visible "or call/text" line so self-serve never feels like a wall.</p>
+        <p class="build"><span class="k">Build note</span> MVP: a Calendly/Cal.com link with Stripe card capture, shared as her link-in-bio. Later: custom booking flow wired to the route engine.</p>
+      </div>
+    </article>
+
+    <article class="idea">
+      <h3>Never Ask Twice</h3>
+      <p class="essence">Re-asking for the gate code and the dog's name every visit signals amateur; remembering signals a pro.</p>
+      <div class="meta">
+        <p><span class="k">How it works</span> The failure is treating every clean as a cold start, forgetting preferences, no-go rooms, and access details. Invert it: a persistent client profile stores everything and surfaces it automatically as a job sheet on the day of the appointment, at the address. The relationship compounds instead of resetting.</p>
+        <p><span class="k">Why it wins solo</span> Stored preferences make each clean visibly better than a competitor's first, driving repeat bookings and referrals with zero admin effort from her.</p>
+        <p><span class="k">Watch-out</span> Stale profiles mislead; a preference changed once and never updated becomes a wrong assumption she acts on confidently.</p>
+        <p class="build"><span class="k">Build note</span> MVP: a per-client notes record surfaced on the booking. Later: geofenced job sheet that only unlocks on-site during the window.</p>
+      </div>
+    </article>
+
+    <article class="idea">
+      <h3>Payment That Chases Itself</h3>
+      <p class="essence">Weeks spent nagging for money is unpaid labor; the card should settle the moment the job is done.</p>
+      <div class="meta">
+        <p><span class="k">How it works</span> The failure is invoicing after the fact and then chasing it for weeks. Invert it: a card is captured at booking, and marking the job complete auto-charges it and texts a receipt instantly. There is no invoice to send and nothing to chase.</p>
+        <p><span class="k">Why it wins solo</span> Eliminating collections removes the single biggest back-office burden and stabilizes cash flow with no bookkeeper or reminder emails.</p>
+        <p><span class="k">Watch-out</span> Auto-charging a disputed clean creates friction; pair it with the satisfaction guarantee so a bad job routes to a re-clean, not a chargeback.</p>
+        <p class="build"><span class="k">Build note</span> MVP: Stripe card-on-file, manual "mark done → charge" button. Later: voice-triggered completion so gloved hands can close and charge.</p>
+      </div>
+    </article>
+
+    <article class="idea">
+      <h3>No Silent Goodbyes</h3>
+      <p class="essence">Recurring clients don't quit loudly; they just stop rebooking, and the revenue evaporates unnoticed.</p>
+      <div class="meta">
+        <p><span class="k">How it works</span> The failure is letting a lapsed regular slip away without anyone noticing until the income is gone. Invert it: the system watches each recurring client's cadence and, when someone misses their expected slot, auto-fires a warm "we miss you" win-back offer. Churn becomes a detected event, not a discovery months later.</p>
+        <p><span class="k">Why it wins solo</span> Reactivating an existing client costs nothing versus acquiring a new one, manufacturing repeat revenue with no ad spend and no manual tracking.</p>
+        <p><span class="k">Watch-out</span> Over-eager win-back messages read as needy or spammy; cap frequency and make the first nudge feel personal, not automated.</p>
+        <p class="build"><span class="k">Build note</span> MVP: a scheduled query flagging clients past their usual interval, triggering a templated SMS. Later: tiered win-back with an incentive escalation.</p>
+      </div>
+    </article>
+
+    <article class="idea">
+      <h3>The 40-Minute Drive Is the Enemy</h3>
+      <p class="essence">Unpaid windshield time between scattered jobs is the silent tax that caps how much a solo cleaner can earn.</p>
+      <div class="meta">
+        <p><span class="k">How it works</span> The failure is booking jobs in the order they arrive, stranding her in long cross-town drives. Invert it: the calendar only offers a new prospect the slots that fit the geographic cluster she's already serving that day, sequencing the day by address. Bookable time becomes route-aware by construction.</p>
+        <p><span class="k">Why it wins solo</span> Tighter routes mean more billable jobs per day from the same hours, and geo-clustered density feeds neighbor referrals that reinforce the cluster.</p>
+        <p><span class="k">Watch-out</span> Constraining slots too hard can reject a good client who's slightly off-route; allow override for high-value or recurring bookings.</p>
+        <p class="build"><span class="k">Build note</span> MVP: manually zone the calendar by day-of-week and area. Later: a routing/distance-matrix API that auto-filters offered slots.</p>
+      </div>
+    </article>
+
+    <article class="idea">
+      <h3>Burnout-Proof Calendar</h3>
+      <p class="essence">Saying yes to one job too many, day after day, is how a one-person business runs itself into the ground.</p>
+      <div class="meta">
+        <p><span class="k">How it works</span> The failure is overbooking out of fear of turning down money, leading to exhaustion and dropped quality. Invert it: the calendar enforces a hard daily capacity cap and simply stops offering slots once the day is full, no willpower required. Scarcity is structural, not a decision she has to make while tired.</p>
+        <p><span class="k">Why it wins solo</span> A sustainable pace protects the owner, the sole asset, and keeps quality high enough to sustain the referral and repeat engine that replaces ad spend.</p>
+        <p><span class="k">Watch-out</span> A cap set too low leaves money on the table; make it adjustable per season and pair full days with a waitlist so demand isn't lost.</p>
+        <p class="build"><span class="k">Build note</span> MVP: a max-jobs-per-day limit in the booking tool. Later: dynamic caps that flex with deep-clean vs. standard job durations.</p>
+      </div>
+    </article>
+
+    <article class="idea">
+      <h3>Never Show the Cheapest Price</h3>
+      <p class="essence">Competing on being the lowest bid is a race with no winner and no margin.</p>
+      <div class="meta">
+        <p><span class="k">How it works</span> The failure is getting dragged into a price war and undercutting until the work isn't worth doing. Invert it: the site never leads with a cheapest-in-town claim and instead foregrounds trust, reliability, and relationship, the badges, the guarantee, the before/after proof. Price is contextual to value, quoted firmly, never advertised as a bargain.</p>
+        <p><span class="k">Why it wins solo</span> Higher-trust positioning wins clients who stay and refer, producing durable repeat revenue instead of one-off deal-hunters who churn.</p>
+        <p><span class="k">Watch-out</span> Premium positioning without visible proof reads as merely expensive; the trust signals must be concrete and abundant to justify the price.</p>
+        <p class="build"><span class="k">Build note</span> MVP: copy and page layout that leads with guarantee, reviews, and insured/bonded proof. Later: a trust score with jobs-done and on-time stats.</p>
+      </div>
+    </article>
+
+    <article class="idea">
+      <h3>No Single Point of Failure</h3>
+      <p class="essence">When one big client is half your income, their cancellation isn't a setback, it's a crisis.</p>
+      <div class="meta">
+        <p><span class="k">How it works</span> The failure is letting a single account grow so large that losing it guts the business. Invert it: the owner dashboard tracks each client's share of revenue and visibly flags concentration risk when anyone crosses a threshold. The danger becomes a number she watches, prompting diversification before it's fatal.</p>
+        <p><span class="k">Why it wins solo</span> A resilient client mix keeps the whole operation stable from one glanceable dashboard, no financial analyst needed, protecting the income that funds everything.</p>
+        <p><span class="k">Watch-out</span> A flag with no suggested action is just anxiety; pair the alert with a nudge to book fill-in jobs or convert nearby neighbors.</p>
+        <p class="build"><span class="k">Build note</span> MVP: a simple percent-of-revenue-per-client calculation shown on the dashboard. Later: trend alerts as a client's share climbs over time.</p>
+      </div>
+    </article>
+
+    <article class="idea">
+      <h3>Impossible to Overlook Locally</h3>
+      <p class="essence">Being invisible when a neighbor searches "house cleaning near me" means the job goes to whoever showed up.</p>
+      <div class="meta">
+        <p><span class="k">How it works</span> The failure is having no findable local footprint and losing to competitors who rank. Invert it: the system auto-generates a service-area page per neighborhood she covers and keeps her Google Business profile always fresh with recent jobs and reviews. Local discoverability is manufactured continuously, not neglected.</p>
+        <p><span class="k">Why it wins solo</span> Organic local search brings in bookings with zero ongoing ad spend, and auto-generated content means no marketing hours stolen from cleaning.</p>
+        <p><span class="k">Watch-out</span> Thin or duplicated auto-pages can be penalized as spam; each area page needs genuine local proof (real reviews, real photos) to earn ranking.</p>
+        <p class="build"><span class="k">Build note</span> MVP: a handful of hand-seeded area pages plus a weekly Google Business post routine. Later: reviews auto-published into service-area SEO pages.</p>
+      </div>
+    </article>
+
+    <article class="idea">
+      <h3>Undeniable Before-and-After</h3>
+      <p class="essence">A cleaning with no visual record leaves prospects taking her quality on faith; photos make it a fact.</p>
+      <div class="meta">
+        <p><span class="k">How it works</span> The failure is finishing beautiful work that vanishes the moment she leaves, with nothing to show the next prospect. Invert it: every job captures before/after photos as a routine step, building an ever-growing portfolio that becomes irrefutable proof of quality. The work markets itself in perpetuity.</p>
+        <p><span class="k">Why it wins solo</span> A visual portfolio converts skeptics into bookings and feeds referral galleries and SEO pages, all from a byproduct of work she's already doing, no ad budget required.</p>
+        <p><span class="k">Watch-out</span> Photographing client homes raises privacy concerns; get consent at booking and let clients opt out or anonymize identifiable details.</p>
+        <p class="build"><span class="k">Build note</span> MVP: a two-tap in-app camera prompt at job start and finish. Later: auto-composed before/after galleries per job and per client.</p>
+      </div>
+    </article>
+
+  </div>
+</section>

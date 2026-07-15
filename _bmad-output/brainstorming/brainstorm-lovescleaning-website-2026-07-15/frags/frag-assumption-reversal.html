@@ -1,0 +1,116 @@
+<section class="lens" id="lens-assumption-reversal">
+  <div class="lens-head"><span class="lens-num">01</span><div><h2>Assumption Reversal</h2><p class="lens-blurb">Attacks the baked-in belief that a cleaning business needs a conventional website, published prices, a back-office dashboard, and human admin to convert and operate.</p></div></div>
+  <div class="idea-grid">
+
+    <article class="idea">
+      <h3>Text-First, Not Site-First</h3>
+      <p class="essence">The highest-converting asset is a phone number in a link-in-bio, not a homepage.</p>
+      <div class="meta">
+        <p><span class="k">How it works</span> Every touchpoint (Instagram bio, Google listing, yard sign) points to one SMS number. A prospect texts "hi" and an AI agent parses natural-language messages into a booked job, capturing address, date, and card on file inside the thread. No forms, no navigation, no app install.</p>
+        <p><span class="k">Why it wins solo</span> Texting has near-100% open rates and zero learning curve, so more visitors convert with no ad spend and no receptionist to answer them. The thread is the whole funnel and the whole CRM.</p>
+        <p><span class="k">Watch-out</span> AI misparses ambiguous requests; a bad first exchange kills trust. Needs a clean human-handoff fallback and confirmation step before charging.</p>
+        <p class="build"><span class="k">Build note</span> MVP: Twilio number + a GPT-function-calling webhook writing to a Sheet/Stripe. Later: WhatsApp Business + structured booking state machine.</p>
+      </div>
+    </article>
+
+    <article class="idea">
+      <h3>Route-Aware Self-Scheduling</h3>
+      <p class="essence">The calendar only offers slots that fit the route she's already driving that day.</p>
+      <div class="meta">
+        <p><span class="k">How it works</span> When a customer picks a day, the booking engine geocodes their address and compares it to jobs already scheduled nearby, surfacing only time windows that minimize added drive time. A far-flung address on a packed day either shows no slots or nudges to a day she'll already be in that area.</p>
+        <p><span class="k">Why it wins solo</span> Self-service booking removes phone tag (no back-office), while automatic clustering cuts unpaid windshield time so she fits more paid jobs per day without hiring or dispatching.</p>
+        <p><span class="k">Watch-out</span> Over-constraining slots frustrates customers who want a specific time; needs a "none of these work?" pressure-release valve.</p>
+        <p class="build"><span class="k">Build note</span> MVP: bucket bookings by zip/neighborhood and gate slots by that. Later: real distance-matrix API scoring candidate slots.</p>
+      </div>
+    </article>
+
+    <article class="idea">
+      <h3>No Prices, Instant Photo Quote</h3>
+      <p class="essence">Kill the public price list; the customer's own room photos generate a firm quote.</p>
+      <div class="meta">
+        <p><span class="k">How it works</span> Instead of a rate card, the booking flow asks for a few phone photos of each space. Vision AI estimates square footage, clutter level, and surfaces to output a firm price and duration on the spot, no site visit required. The quote is committed before booking so there are no awkward day-of surprises.</p>
+        <p><span class="k">Why it wins solo</span> Removing public prices stops the race-to-the-bottom comparison shopping and protects margin, while auto-quoting eliminates the estimate-visit and phone haggling that a back office would otherwise handle.</p>
+        <p><span class="k">Watch-out</span> AI under-estimates a genuinely filthy home and she eats the loss; needs a photographed-condition clause and a re-quote trigger on arrival.</p>
+        <p class="build"><span class="k">Build note</span> MVP: photos + a rules table (rooms x condition) she tunes manually. Later: fine-tuned vision model calibrated on her completed-job actuals.</p>
+      </div>
+    </article>
+
+    <article class="idea">
+      <h3>Own the Review Moment</h3>
+      <p class="essence">Capture a video testimonial in-app the instant payment clears, at peak satisfaction.</p>
+      <div class="meta">
+        <p><span class="k">How it works</span> The moment the card is charged on a spotless, freshly-cleaned home, the confirmation screen invites a 15-second video testimonial right there. Satisfaction and the visible result are both at their peak, so consent and quality are highest. Clips are tagged to the job and auto-added to a portfolio and social feed.</p>
+        <p><span class="k">Why it wins solo</span> A stockpile of authentic video proof is organic marketing that compounds with zero ad spend, and catching it in-flow means she never has to chase reviews later as a separate admin chore.</p>
+        <p><span class="k">Watch-out</span> Some customers hate being on camera; the ask must be one-tap skippable so it never sours the payment moment.</p>
+        <p class="build"><span class="k">Build note</span> MVP: post-payment screen with native camera capture + a photo-only fallback. Later: auto-caption and clip-to-reel stitching.</p>
+      </div>
+    </article>
+
+    <article class="idea">
+      <h3>The Clean Is the Marketing</h3>
+      <p class="essence">Every finished job leaves a QR card on the counter that neighbors see and scan.</p>
+      <div class="meta">
+        <p><span class="k">How it works</span> She leaves a small branded card on the kitchen counter after each clean; its QR opens the text-to-book link. Houseguests and neighbors who admire the spotless home scan it directly. Each completed job physically seeds the next booking at the point where the result is most visible and credible.</p>
+        <p><span class="k">Why it wins solo</span> The work itself becomes the distribution channel, so growth is a byproduct of doing the job well rather than a paid acquisition line, and no funnel management is needed.</p>
+        <p><span class="k">Watch-out</span> Cards get tossed as clutter; design must feel like a keepsake (magnet, care-card) not a flyer, and codes should be trackable to prove ROI.</p>
+        <p class="build"><span class="k">Build note</span> MVP: printed cards with a static QR to the booking link. Later: per-job unique codes tying scans back to the originating clean for attribution.</p>
+      </div>
+    </article>
+
+    <article class="idea">
+      <h3>No Dashboard, Just Her Phone</h3>
+      <p class="essence">The business runs from the phone's default calendar and texts, quietly augmented.</p>
+      <div class="meta">
+        <p><span class="k">How it works</span> Instead of a new app to learn, bookings drop into her native calendar as events and customer comms arrive as normal texts, enriched behind the scenes with job notes, addresses, and payment status. She lives in tools she already opens a hundred times a day. There is no separate system to log into.</p>
+        <p><span class="k">Why it wins solo</span> Zero new tool to learn means zero onboarding friction and no risk she abandons "the software," while everything staying in-phone keeps the whole operation running without any back-office console.</p>
+        <p><span class="k">Watch-out</span> Native calendar/text can't surface rich structured data; risk of losing job context that a real view would show. Needs deep-links back to detail when required.</p>
+        <p class="build"><span class="k">Build note</span> MVP: push events via CalDAV/Google Calendar API + SMS. Later: a thin optional web view for jobs that need more than a calendar entry holds.</p>
+      </div>
+    </article>
+
+    <article class="idea">
+      <h3>Prepaid Cleaning Membership</h3>
+      <p class="essence">Customers pre-buy clean credits and draw them down like a gym membership.</p>
+      <div class="meta">
+        <p><span class="k">How it works</span> A customer buys a block of cleans upfront (e.g. a 6- or 12-visit pack) and each booking deducts a credit automatically. Money is collected before work is done, and the customer has a standing reason to keep booking to use their balance. Auto-refill options renew the pack when it runs low.</p>
+        <p><span class="k">Why it wins solo</span> Prepayment turns lumpy job income into predictable MRR and eliminates invoice-chasing entirely, and the unused balance is working capital that funds supplies. The commitment itself manufactures repeat revenue.</p>
+        <p><span class="k">Watch-out</span> Upfront prepayment can carry refund/liability obligations and accounting complexity; terms and a clear pause/refund policy matter.</p>
+        <p class="build"><span class="k">Build note</span> MVP: Stripe one-time purchase + a credit counter she decrements. Later: Stripe subscriptions with auto-refill and balance surfaced to the customer.</p>
+      </div>
+    </article>
+
+    <article class="idea">
+      <h3>Convert the Neighbors, Not Strangers</h3>
+      <p class="essence">Target the street she just cleaned with geo-referrals, not anonymous web visitors.</p>
+      <div class="meta">
+        <p><span class="k">How it works</span> After a job, the system offers the existing client a referral link weighted toward their immediate neighbors, with a bigger discount when the referral is next-door. Marketing focuses on the specific blocks where she already has a proven, visible result rather than broad online reach.</p>
+        <p><span class="k">Why it wins solo</span> Neighbors convert cheaply on social proof (they can see the clean home) with no ad spend, and clustering new clients on one street shrinks drive time so referral growth and route efficiency become the same lever.</p>
+        <p><span class="k">Watch-out</span> Geo-targeting a small area can saturate fast and feels intrusive if overdone; density gains cap once a street is covered.</p>
+        <p class="build"><span class="k">Build note</span> MVP: post-job referral text with a shareable code and a flat neighbor discount. Later: proximity-scored referral rewards keyed to distance from an existing client.</p>
+      </div>
+    </article>
+
+    <article class="idea">
+      <h3>Secretly Built to Scale to a Crew</h3>
+      <p class="essence">A solo tool architected so a 2nd or 3rd cleaner slots in within five minutes.</p>
+      <div class="meta">
+        <p><span class="k">How it works</span> Data is modeled from day one with a "cleaner" as a distinct assignable entity rather than hard-coded to one owner, even though only she exists at launch. Jobs, routes, and calendars reference a cleaner ID, so adding a helper is inviting them and toggling availability, not re-architecting the app.</p>
+        <p><span class="k">Why it wins solo</span> She stays a lean solo operator with no upfront complexity, yet never hits a rebuild wall when demand outgrows one person, protecting the repeat-revenue base she's built from a forced migration.</p>
+        <p><span class="k">Watch-out</span> Multi-cleaner abstractions can over-engineer the MVP and slow the solo build; keep the extra entity but hide all crew UI until needed.</p>
+        <p class="build"><span class="k">Build note</span> MVP: schema carries a cleaner_id on every job even with one row. Later: invite flow, per-cleaner availability, and route splitting.</p>
+      </div>
+    </article>
+
+    <article class="idea">
+      <h3>AI Receptionist, She Only Cleans</h3>
+      <p class="essence">An AI agent handles all admin, texting, booking, reschedules, payment, reviews; she just cleans.</p>
+      <div class="meta">
+        <p><span class="k">How it works</span> A single AI agent owns the entire non-cleaning workflow: answering inbound messages, booking and rescheduling, collecting cards, auto-charging at completion, and requesting reviews. Her only job is to show up and do the physical work; the agent runs the office around her 24/7. Escalations surface only when genuinely needed.</p>
+        <p><span class="k">Why it wins solo</span> This is the literal no-back-office model: one operator plus an agent equals a full business, so every waking hour goes to billable cleaning instead of admin, and after-hours inquiries still convert without her.</p>
+        <p><span class="k">Watch-out</span> Full automation can mishandle edge cases (disputes, upset clients) and erode trust; needs guardrails, spend limits, and a clear human-escalation path.</p>
+        <p class="build"><span class="k">Build note</span> MVP: scripted flows for the top 5 admin actions with human approval on charges. Later: a fuller agent with tool access and confidence-gated autonomy.</p>
+      </div>
+    </article>
+
+  </div>
+</section>

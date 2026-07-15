@@ -5,3 +5,25 @@
 # Local binary DB (regenerable)
 ruvector.db
 _bmad-output/**/runs/
+
+# dependencies
+node_modules
+.pnp
+.pnp.*
+
+# next
+.next
+next-env.d.ts
+out
+build
+
+# env
+.env
+.env.*
+!.env.example
+
+# misc
+.DS_Store
+*.pem
+.vercel
+*.tsbuildinfo

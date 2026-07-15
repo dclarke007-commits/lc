@@ -1,0 +1,102 @@
+# generated: 2026-07-15
+# last_updated: 2026-07-15
+# project: LovesCleaning
+# project_key: NOKEY
+# tracking_system: file-system
+# story_location: _bmad-output/implementation-artifacts
+
+# STATUS DEFINITIONS:
+# ==================
+# Epic Status:
+#   - backlog: Epic not yet started
+#   - in-progress: Epic actively being worked on
+#   - done: All stories in epic completed
+#
+# Epic Status Transitions:
+#   - backlog → in-progress: Automatically when first story is created (via create-story)
+#   - in-progress → done: Manually when all stories reach 'done' status
+#
+# Story Status:
+#   - backlog: Story only exists in epic file
+#   - ready-for-dev: Story file created in stories folder
+#   - in-progress: Developer actively working on implementation
+#   - review: Ready for code review (via Dev's code-review workflow)
+#   - done: Story completed
+#
+# Retrospective Status:
+#   - optional: Can be completed but not required
+#   - done: Retrospective has been completed
+#
+# Action Item Status:
+#   - open: Committed during a retrospective, not yet addressed
+#   - in-progress: Actively being worked on
+#   - done: Completed
+#
+# WORKFLOW NOTES:
+# ===============
+# - Epic transitions to 'in-progress' automatically when first story is created
+# - Stories can be worked in parallel if team capacity allows
+# - Developer typically creates next story after previous one is 'done' to incorporate learnings
+# - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
+# - Retrospective appends its action items to action_items; sprint-status surfaces open ones
+
+generated: 2026-07-15
+last_updated: 2026-07-15
+project: LovesCleaning
+project_key: NOKEY
+tracking_system: file-system
+story_location: _bmad-output/implementation-artifacts
+
+development_status:
+  # --- Epic 1: Operator's Book — Foundation + Manual Scheduling ---
+  epic-1: in-progress
+  1-1-authenticated-shell-operator-seed: review
+  1-2-create-edit-client-records: ready-for-dev
+  1-3-configure-availability-caps: ready-for-dev
+  1-4-direct-booking-cap-enforcement-one-winner-concurrency: ready-for-dev
+  1-5-mark-job-outcome-completed-no-show: ready-for-dev
+  1-6-cancel-reschedule-capacity-release: ready-for-dev
+  1-7-forecasting-lite-room-left-day-maxed-nearest-open: ready-for-dev
+  epic-1-retrospective: optional
+
+  # --- Epic 2: Messaging Engine — Draft + Tap-to-Send ---
+  epic-2: in-progress
+  2-1-operator-editable-message-templates: ready-for-dev
+  2-2-compose-messagedraft-deep-link-delivery: ready-for-dev
+  2-3-dispatch-logging-drafted-vs-dispatched-idempotent: ready-for-dev
+  2-4-booking-confirmation-message: ready-for-dev
+  epic-2-retrospective: optional
+
+  # --- Epic 3: Rebooking & Win-Back — Plug the Revenue Leak ---
+  epic-3: in-progress
+  3-1-client-booking-surface-per-client-link: ready-for-dev
+  3-2-known-client-direct-confirm-booking: ready-for-dev
+  3-3-one-tap-rebooking-proposal-message: ready-for-dev
+  3-4-post-job-nudge-rebooking-tracking: ready-for-dev
+  3-5-lapse-detection-expected-next-date-gone-cold: ready-for-dev
+  3-6-win-back-action: ready-for-dev
+  epic-3-retrospective: optional
+
+  # --- Epic 4: Client Self-Booking — Plug the Inquiry Leak ---
+  epic-4: backlog
+  4-1-public-self-serve-link-qr: backlog
+  4-2-new-client-public-booking-provisional-record-pending-request: backlog
+  4-3-operator-approval-queue: backlog
+  4-4-log-inquiry-with-source: backlog
+  epic-4-retrospective: optional
+
+  # --- Epic 5: Cash Ledger — Plug the Payment Leak ---
+  epic-5: backlog
+  5-1-per-job-payment-status: backlog
+  5-2-outstanding-aggregation-who-owes: backlog
+  5-3-payment-reminder-draft: backlog
+  5-4-mark-paid: backlog
+  epic-5-retrospective: optional
+
+  # --- Epic 6: Leak-Detector Dashboard + Data Export ---
+  epic-6: backlog
+  6-1-single-screen-dashboard-core: backlog
+  6-2-leak-indicators: backlog
+  6-3-gone-cold-list-with-win-back-access: backlog
+  6-4-csv-export: backlog
+  epic-6-retrospective: optional

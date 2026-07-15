@@ -1,0 +1,394 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LovesCleaning — Architecture Walkthrough</title>
+<style>
+  :root{
+    --bg:#f6f7f9; --panel:#ffffff; --ink:#12151b; --muted:#5a6472;
+    --line:#e2e6ec; --accent:#2f6df6; --accent-soft:#e7effe;
+    --good:#1a8f5a; --warn:#c2410c; --crit:#b42318; --chip:#eef1f6;
+    --shadow:0 1px 2px rgba(16,20,30,.05),0 8px 24px rgba(16,20,30,.06);
+  }
+  @media (prefers-color-scheme:dark){
+    :root{
+      --bg:#0d1017; --panel:#151a23; --ink:#e8ecf2; --muted:#9aa6b6;
+      --line:#242c39; --accent:#5b8bff; --accent-soft:#16233f;
+      --good:#3ecf8e; --warn:#f59e6b; --crit:#f38b82; --chip:#1c2431;
+      --shadow:0 1px 2px rgba(0,0,0,.3),0 10px 30px rgba(0,0,0,.35);
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#0d1017; --panel:#151a23; --ink:#e8ecf2; --muted:#9aa6b6;
+    --line:#242c39; --accent:#5b8bff; --accent-soft:#16233f;
+    --good:#3ecf8e; --warn:#f59e6b; --crit:#f38b82; --chip:#1c2431;
+    --shadow:0 1px 2px rgba(0,0,0,.3),0 10px 30px rgba(0,0,0,.35);
+  }
+  :root[data-theme="light"]{
+    --bg:#f6f7f9; --panel:#ffffff; --ink:#12151b; --muted:#5a6472;
+    --line:#e2e6ec; --accent:#2f6df6; --accent-soft:#e7effe;
+    --good:#1a8f5a; --warn:#c2410c; --crit:#b42318; --chip:#eef1f6;
+    --shadow:0 1px 2px rgba(16,20,30,.05),0 8px 24px rgba(16,20,30,.06);
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font:16px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    background:var(--bg);color:var(--ink);-webkit-font-smoothing:antialiased}
+  .wrap{max-width:1000px;margin:0 auto;padding:24px 20px 96px}
+  header.top{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:8px;flex-wrap:wrap}
+  .brand{font-weight:700;letter-spacing:.2px}
+  .brand small{color:var(--muted);font-weight:500}
+  .toolbar{display:flex;gap:8px;align-items:center}
+  button.ghost{background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:8px;
+    padding:7px 12px;font:inherit;font-size:14px;cursor:pointer;box-shadow:var(--shadow)}
+  button.ghost:hover{border-color:var(--accent)}
+  .progress{height:4px;background:var(--line);border-radius:4px;overflow:hidden;margin:10px 0 18px}
+  .progress > i{display:block;height:100%;background:var(--accent);width:0;transition:width .25s ease}
+  .slide{display:none;animation:fade .3s ease}
+  .slide.active{display:block}
+  @keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:22px 24px;box-shadow:var(--shadow)}
+  h1{font-size:30px;margin:.1em 0 .3em;line-height:1.15}
+  h2{font-size:22px;margin:.1em 0 .5em}
+  h3{font-size:15px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);margin:0 0 10px}
+  p{margin:.5em 0}
+  .lead{font-size:18px;color:var(--muted)}
+  .kicker{display:inline-block;font-size:12px;font-weight:700;letter-spacing:1px;text-transform:uppercase;
+    color:var(--accent);background:var(--accent-soft);padding:4px 10px;border-radius:999px;margin-bottom:10px}
+  .grid{display:grid;gap:14px}
+  .g2{grid-template-columns:1fr 1fr}
+  .g3{grid-template-columns:1fr 1fr 1fr}
+  @media(max-width:720px){.g2,.g3{grid-template-columns:1fr}}
+  .leak{border-left:3px solid var(--warn);padding:10px 14px;background:var(--chip);border-radius:0 10px 10px 0}
+  .leak b{color:var(--ink)}
+  .stat{background:var(--chip);border-radius:12px;padding:16px;text-align:center}
+  .stat .n{font-size:28px;font-weight:800;color:var(--accent)}
+  .stat .l{font-size:13px;color:var(--muted)}
+  .ad{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:0;overflow:hidden}
+  .ad summary{cursor:pointer;padding:12px 14px;list-style:none;display:flex;gap:10px;align-items:baseline;font-weight:600}
+  .ad summary::-webkit-details-marker{display:none}
+  .ad summary .id{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;color:#fff;background:var(--accent);
+    border-radius:6px;padding:2px 7px;font-weight:700;white-space:nowrap}
+  .ad[open] summary{border-bottom:1px solid var(--line)}
+  .ad .body{padding:12px 14px;font-size:14px}
+  .ad .body div{margin:6px 0}
+  .ad .body .k{font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);font-weight:700}
+  .tag{font-size:11px;font-weight:700;border-radius:999px;padding:2px 8px;white-space:nowrap}
+  .t-crit{background:color-mix(in srgb,var(--crit) 16%,transparent);color:var(--crit)}
+  .t-core{background:color-mix(in srgb,var(--good) 16%,transparent);color:var(--good)}
+  .t-seed{background:var(--chip);color:var(--muted)}
+  table{width:100%;border-collapse:collapse;font-size:14px}
+  th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{font-size:12px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted)}
+  code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.88em;background:var(--chip);
+    padding:1px 5px;border-radius:5px}
+  .flow{overflow-x:auto}
+  svg{max-width:100%;height:auto;display:block}
+  .txt-good{color:var(--good)} .txt-crit{color:var(--crit)}
+  ul.tight{margin:.4em 0;padding-left:1.1em} ul.tight li{margin:.3em 0}
+  .nav{position:fixed;left:0;right:0;bottom:0;background:color-mix(in srgb,var(--panel) 88%,transparent);
+    backdrop-filter:blur(8px);border-top:1px solid var(--line);padding:10px 20px;display:flex;
+    align-items:center;justify-content:space-between;gap:12px}
+  .dots{display:flex;gap:6px;flex-wrap:wrap;justify-content:center}
+  .dots i{width:8px;height:8px;border-radius:50%;background:var(--line);cursor:pointer;transition:.2s}
+  .dots i.on{background:var(--accent);transform:scale(1.25)}
+  .nav .side{display:flex;gap:8px;align-items:center;min-width:120px}
+  .nav .side.r{justify-content:flex-end}
+  .muted{color:var(--muted)}
+  .foot{font-size:12px;color:var(--muted);margin-top:14px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div class="brand">LovesCleaning <small>· Architecture Spine walkthrough</small></div>
+    <div class="toolbar">
+      <button class="ghost" id="themeBtn">◐ Theme</button>
+      <span class="muted" style="font-size:13px" id="counter"></span>
+    </div>
+  </header>
+  <div class="progress"><i id="bar"></i></div>
+
+  <section class="slide active">
+    <div class="card">
+      <span class="kicker">v1 build substrate</span>
+      <h1>A booking engine that stops losing bookings already within reach</h1>
+      <p class="lead">Solo-operator booking engine + leak-detector dashboard. Greenfield, built by one operator with AI implementation agents. This deck walks the <b>invariants</b> — the calls a future builder can't read off the code — not the whole design.</p>
+      <div class="grid g3" style="margin-top:18px">
+        <div class="stat"><div class="n">5→14</div><div class="l">jobs/week — the capacity gap</div></div>
+        <div class="stat"><div class="n">~$7k</div><div class="l">/mo idle capacity, recoverable</div></div>
+        <div class="stat"><div class="n">13</div><div class="l">architecture decisions (ADs)</div></div>
+      </div>
+      <p class="foot">Source: finalized PRD (FR1–FR41, NFR1–NFR7) + addendum · Spine status: <b class="txt-good">final</b> · gate: linter clean, 4 reviewers, holes closed.</p>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="card">
+      <h3>The job to be done</h3>
+      <h2>Three revenue leaks, one that earns real engineering</h2>
+      <div class="grid" style="margin:14px 0">
+        <div class="leak"><b>Inquiry leak</b> — people ask but never get booked (phone tag). → tokenized links, QR, approval queue, inquiry logging.</div>
+        <div class="leak"><b>Rebooking leak</b> — one-time jobs never repeat. → one-tap rebook + post-job nudge.</div>
+        <div class="leak"><b>Lapse leak</b> — regulars quietly go cold. → cadence-derived "gone cold" flag.</div>
+        <div class="leak" style="border-left-color:var(--muted)"><b>Payment float</b> — ~$500/mo unpaid, untracked. → cash ledger + reminder.</div>
+      </div>
+      <p>Underneath it's <b>CRUD over a small relational model</b>. The single place that earns real engineering is one invariant:</p>
+      <p class="lead txt-crit" style="font-weight:700">Never double-book the last open slot. (NFR4)</p>
+      <p class="muted">That's why the stack choice was about corpus &amp; tooling gravity, not capability — every candidate handles a transaction. The engineering lives in <i>how</i> capacity is committed.</p>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="card">
+      <h3>Design paradigm</h3>
+      <h2>Server-first full-stack</h2>
+      <p>RSC renders every surface · <b>Server Actions</b> are the only mutation entry point · <b>Postgres is the single source of truth</b>. No separate API tier, no client-side store.</p>
+      <div class="flow" style="margin:14px 0">
+        <svg viewBox="0 0 760 250" role="img" aria-label="Layer dependency diagram">
+          <defs>
+            <marker id="ar" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto">
+              <path d="M0,0 L7,3 L0,6 Z" fill="var(--muted)"/>
+            </marker>
+          </defs>
+          <g font-family="ui-monospace,Menlo,monospace" font-size="13" text-anchor="middle">
+            <rect x="20" y="20" width="200" height="46" rx="10" fill="var(--accent-soft)" stroke="var(--accent)"/>
+            <text x="120" y="48" fill="var(--ink)">app/ — RSC surfaces</text>
+            <rect x="20" y="100" width="200" height="46" rx="10" fill="var(--panel)" stroke="var(--line)"/>
+            <text x="120" y="128" fill="var(--ink)">Server Actions</text>
+            <rect x="300" y="90" width="230" height="66" rx="10" fill="var(--panel)" stroke="var(--line)"/>
+            <text x="415" y="115" fill="var(--ink)">lib/domain</text>
+            <text x="415" y="138" fill="var(--muted)" font-size="11">capacity·lifecycle·derive·compose</text>
+            <rect x="300" y="185" width="230" height="46" rx="10" fill="var(--panel)" stroke="var(--line)"/>
+            <text x="415" y="213" fill="var(--ink)">lib/db — Postgres (only SQL)</text>
+            <rect x="590" y="90" width="150" height="46" rx="10" fill="var(--panel)" stroke="var(--line)"/>
+            <text x="665" y="118" fill="var(--ink)">lib/delivery</text>
+            <line x1="120" y1="66" x2="120" y2="100" stroke="var(--muted)" marker-end="url(#ar)"/>
+            <line x1="220" y1="123" x2="300" y2="123" stroke="var(--muted)" marker-end="url(#ar)"/>
+            <line x1="415" y1="156" x2="415" y2="185" stroke="var(--muted)" marker-end="url(#ar)"/>
+            <line x1="530" y1="118" x2="590" y2="115" stroke="var(--muted)" marker-end="url(#ar)"/>
+          </g>
+        </svg>
+      </div>
+      <p class="muted">Dependency direction: surfaces → actions → domain → db. Nothing lower imports upward; nothing bypasses actions to reach the DB from a surface. <b>This one choice pre-decides a huge slab.</b></p>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="card">
+      <h3>The invariants</h3>
+      <h2>13 decisions two units could otherwise build incompatibly</h2>
+      <p class="muted" style="margin-bottom:12px">Tap any to expand. <span class="tag t-crit">crit</span> = the double-book / integrity core · <span class="tag t-core">core</span> = a durable boundary · <span class="tag t-seed">seed</span> = de-risks the future.</p>
+      <div class="grid g2" id="adgrid"></div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="card">
+      <h3>The crux</h3>
+      <h2>Capacity has exactly one owner — <code>commitBooking()</code></h2>
+      <p>All three write paths funnel through one function that re-checks both caps inside a single locked transaction. Two cap-checkers = the double-book bug.</p>
+      <div class="flow" style="margin:14px 0">
+        <svg viewBox="0 0 760 210" role="img" aria-label="Capacity commit flow">
+          <defs>
+            <marker id="ar2" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="var(--muted)"/></marker>
+          </defs>
+          <g font-family="-apple-system,Menlo,monospace" font-size="12.5" text-anchor="middle">
+            <rect x="10" y="20" width="180" height="40" rx="9" fill="var(--panel)" stroke="var(--line)"/><text x="100" y="45" fill="var(--ink)">client confirms (FR7)</text>
+            <rect x="10" y="82" width="180" height="40" rx="9" fill="var(--panel)" stroke="var(--line)"/><text x="100" y="107" fill="var(--ink)">approve queue (FR36)</text>
+            <rect x="10" y="144" width="180" height="40" rx="9" fill="var(--panel)" stroke="var(--line)"/><text x="100" y="169" fill="var(--ink)">operator direct (FR39)</text>
+            <rect x="270" y="72" width="220" height="66" rx="12" fill="var(--accent-soft)" stroke="var(--accent)" stroke-width="2"/>
+            <text x="380" y="98" fill="var(--ink)" font-weight="700">commitBooking()</text>
+            <text x="380" y="120" fill="var(--muted)" font-size="11">FOR UPDATE · re-check caps · in tx</text>
+            <rect x="565" y="42" width="185" height="40" rx="9" fill="var(--panel)" stroke="var(--good)"/><text x="657" y="67" fill="var(--good)" font-weight="700">1 winner → Job</text>
+            <rect x="565" y="128" width="185" height="40" rx="9" fill="var(--panel)" stroke="var(--crit)"/><text x="657" y="153" fill="var(--crit)">rest → no-availability</text>
+            <line x1="190" y1="40" x2="270" y2="92" stroke="var(--muted)" marker-end="url(#ar2)"/>
+            <line x1="190" y1="102" x2="270" y2="105" stroke="var(--muted)" marker-end="url(#ar2)"/>
+            <line x1="190" y1="164" x2="270" y2="118" stroke="var(--muted)" marker-end="url(#ar2)"/>
+            <line x1="490" y1="95" x2="565" y2="64" stroke="var(--muted)" marker-end="url(#ar2)"/>
+            <line x1="490" y1="112" x2="565" y2="146" stroke="var(--muted)" marker-end="url(#ar2)"/>
+          </g>
+        </svg>
+      </div>
+      <ul class="tight">
+        <li><b>Serverless-safe lock (AD-3):</b> <code>SELECT … FOR UPDATE</code> / <code>pg_advisory_xact_lock</code> — <b>never</b> session-scoped advisory locks (they silently break under Neon/Supabase transaction-mode pooling).</li>
+        <li><b>One predicate (AD-2):</b> <code>consumesSlot()</code> — booked/completed/no-show consume, cancelled releases. Both commit <i>and</i> dashboard read it.</li>
+        <li><b>Override</b> (FR39) is a <i>flag into</i> commitBooking, never a bypass. Pending requests aren't Jobs (AD-4).</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="card">
+      <h3>Data model — the seed</h3>
+      <h2>Canonical rows; everything else is derived on read</h2>
+      <div class="flow" style="margin:12px 0">
+        <svg viewBox="0 0 760 260" role="img" aria-label="Entity relationships">
+          <g font-family="-apple-system,sans-serif" font-size="13" text-anchor="middle">
+            <rect x="300" y="14" width="160" height="40" rx="9" fill="var(--accent-soft)" stroke="var(--accent)"/><text x="380" y="39" fill="var(--ink)" font-weight="700">Operator (owner_id)</text>
+            <rect x="40" y="110" width="150" height="40" rx="9" fill="var(--panel)" stroke="var(--line)"/><text x="115" y="135" fill="var(--ink)">Client</text>
+            <rect x="215" y="110" width="150" height="40" rx="9" fill="var(--panel)" stroke="var(--line)"/><text x="290" y="135" fill="var(--ink)">Job</text>
+            <rect x="390" y="110" width="160" height="40" rx="9" fill="var(--panel)" stroke="var(--line)"/><text x="470" y="129" fill="var(--ink)">PendingRequest</text><text x="470" y="144" fill="var(--muted)" font-size="10">no capacity (AD-4)</text>
+            <rect x="575" y="110" width="150" height="40" rx="9" fill="var(--panel)" stroke="var(--line)"/><text x="650" y="135" fill="var(--ink)">Inquiry</text>
+            <rect x="130" y="200" width="160" height="40" rx="9" fill="var(--panel)" stroke="var(--line)"/><text x="210" y="225" fill="var(--ink)">MessageLog</text>
+            <rect x="470" y="200" width="150" height="40" rx="9" fill="var(--panel)" stroke="var(--line)"/><text x="545" y="225" fill="var(--ink)">Token</text>
+            <g stroke="var(--muted)" fill="none">
+              <path d="M340,54 L130,110"/><path d="M360,54 L295,110"/><path d="M400,54 L470,110"/><path d="M420,54 L640,110"/>
+              <path d="M150,150 L200,200"/><path d="M170,130 L215,130"/><path d="M290,150 L520,200" stroke-dasharray="4 3"/>
+            </g>
+          </g>
+        </svg>
+      </div>
+      <p class="muted">Every row carries <code>owner_id</code> — filter present from v1 (AD-8). Metric-critical fields: <code>Job.created_at</code>, <code>completed_at</code>, <code>overridden</code>; <code>MessageLog.drafted_at</code> vs <code>dispatched_at</code>. Gone-cold, room-left, repeat-rate &amp; counter-metrics are all computed on read (AD-7) — no stored flags, no cron.</p>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="card">
+      <h3>Operational envelope</h3>
+      <h2>Managed everything — no infra to run</h2>
+      <div class="flow" style="margin:12px 0">
+        <svg viewBox="0 0 760 190" role="img" aria-label="Deployment">
+          <defs><marker id="ar3" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="var(--muted)"/></marker></defs>
+          <g font-family="-apple-system,sans-serif" font-size="13" text-anchor="middle">
+            <rect x="20" y="30" width="150" height="44" rx="10" fill="var(--panel)" stroke="var(--line)"/><text x="95" y="50" fill="var(--ink)">Operator</text><text x="95" y="66" fill="var(--muted)" font-size="11">phone-web · session</text>
+            <rect x="20" y="110" width="150" height="44" rx="10" fill="var(--panel)" stroke="var(--line)"/><text x="95" y="130" fill="var(--ink)">Client</text><text x="95" y="146" fill="var(--muted)" font-size="11">QR/link · token</text>
+            <rect x="270" y="70" width="200" height="46" rx="10" fill="var(--accent-soft)" stroke="var(--accent)"/><text x="370" y="90" fill="var(--ink)" font-weight="700">Vercel · Next.js 16</text><text x="370" y="106" fill="var(--muted)" font-size="11">preview + prod</text>
+            <rect x="565" y="20" width="180" height="52" rx="10" fill="var(--panel)" stroke="var(--good)"/><text x="655" y="42" fill="var(--ink)">Managed Postgres</text><text x="655" y="59" fill="var(--muted)" font-size="11">Neon/Supabase · backups</text>
+            <rect x="565" y="110" width="180" height="44" rx="10" fill="var(--panel)" stroke="var(--line)"/><text x="655" y="130" fill="var(--ink)">WhatsApp / SMS</text><text x="655" y="146" fill="var(--muted)" font-size="11">deep-link (operator taps)</text>
+            <line x1="170" y1="52" x2="270" y2="86" stroke="var(--muted)" marker-end="url(#ar3)"/>
+            <line x1="170" y1="132" x2="270" y2="100" stroke="var(--muted)" marker-end="url(#ar3)"/>
+            <line x1="470" y1="86" x2="565" y2="52" stroke="var(--muted)" marker-end="url(#ar3)"/>
+            <line x1="470" y1="100" x2="565" y2="130" stroke="var(--muted)" stroke-dasharray="4 3" marker-end="url(#ar3)"/>
+          </g>
+        </svg>
+      </div>
+      <div class="grid g3">
+        <div class="stat"><div class="n">NFR5</div><div class="l">durability = managed backups</div></div>
+        <div class="stat"><div class="n">&lt;2s</div><div class="l">4G budget (AD-13)</div></div>
+        <div class="stat"><div class="n">CSV</div><div class="l">export = own your data (FR35)</div></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="card">
+      <h3>Coverage</h3>
+      <h2>Every capability has a home &amp; a governing rule</h2>
+      <table>
+        <thead><tr><th>Capability</th><th>Lives in</th><th>Governed by</th></tr></thead>
+        <tbody>
+          <tr><td>Availability + caps</td><td><code>lib/domain/capacity</code></td><td>AD-2, AD-3, AD-9</td></tr>
+          <tr><td>Booking links, QR</td><td><code>app/book/[token]</code></td><td>AD-6, AD-12</td></tr>
+          <tr><td>Approval queue + inquiry</td><td>PendingRequest, <code>capacity</code></td><td>AD-4, AD-11</td></tr>
+          <tr><td>Rebooking + nudges</td><td><code>compose</code></td><td>AD-5, AD-7</td></tr>
+          <tr><td>Records + lapse</td><td><code>derive</code></td><td>AD-7, AD-8</td></tr>
+          <tr><td>Dashboard + counter-metrics</td><td><code>derive</code></td><td>AD-7</td></tr>
+          <tr><td>Ledger + job lifecycle</td><td><code>lifecycle</code>, ledger</td><td>AD-10, AD-12</td></tr>
+        </tbody>
+      </table>
+      <p class="foot">Full map + FR/NFR references live in <code>ARCHITECTURE-SPINE.md §Capability → Architecture Map</code>.</p>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="card">
+      <h3>The other half of the contract</h3>
+      <h2>What we're deliberately <i>not</i> building</h2>
+      <div class="grid g2">
+        <ul class="tight">
+          <li><b>Auto-send messages</b> — draft + tap only; adapter seam (AD-5) lets it slot in later.</li>
+          <li><b>Card / auto-charge</b> — cash + ledger + reminder; no processor surface.</li>
+          <li><b>Multi-cleaner logic</b> — only the <code>owner_id</code> seam is planted (AD-8).</li>
+          <li><b>Clock-time slots</b> — per-day caps are enough to decide accept/pass.</li>
+        </ul>
+        <ul class="tight">
+          <li><b>Native app</b> — phone-web + the operator's own WhatsApp/SMS.</li>
+          <li><b>Materialized metrics / cron</b> — derive-on-read until it stops being cheap (AD-13).</li>
+          <li><b>APM / observability stack</b> — platform logs + typed action results.</li>
+          <li><b>Ads / lead-gen</b> — the problem is a demand <i>leak</i>, not a drought.</li>
+        </ul>
+      </div>
+      <p class="lead" style="margin-top:14px">Positioning holds throughout: <b>most tools help you run jobs; this one helps you not lose them.</b></p>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="card">
+      <h3>Suggested build order</h3>
+      <h2>Spine → capacity core → surfaces outward</h2>
+      <ol class="tight" style="font-size:15px">
+        <li><b>Schema + Operator seed</b> — Drizzle model, <code>owner_id</code> everywhere, one-row operator (AD-8).</li>
+        <li><b>Capacity core</b> — <code>commitBooking</code> + <code>consumesSlot</code> + the locked transaction (AD-2/3/12). This is where the one real bug lives; build and test it first.</li>
+        <li><b>Lifecycle</b> — Job state machine (AD-10), then the ledger on top.</li>
+        <li><b>Client surfaces</b> — token links + public/QR + approval queue (AD-6/4/11).</li>
+        <li><b>Derive + dashboard</b> — gone-cold, room-left, metrics, counter-metrics (AD-7).</li>
+        <li><b>Compose + delivery</b> — templates → MessageDraft → deep-link adapter (AD-5).</li>
+      </ol>
+      <p class="foot">Next in BMad: <b>bmad-spec</b> (adopt this spine as a companion, stable AD ids) → <b>bmad-create-epics-and-stories</b>. Deferred open items: OQ-1 (capacity defaults), OQ-4 (export sufficiency).</p>
+    </div>
+  </section>
+
+</div>
+
+<div class="nav">
+  <div class="side"><button class="ghost" id="prev">← Prev</button></div>
+  <div class="dots" id="dots"></div>
+  <div class="side r"><button class="ghost" id="next">Next →</button></div>
+</div>
+
+<script>
+  var ADS=[
+    ["AD-1","Server-first write path","core","Every mutation is a Server Action. No API tier, no client store; only lib/db issues SQL.","Units inventing REST endpoints or client caches that fork the write path."],
+    ["AD-2","Capacity has one owner","crit","One commitBooking() inserts any capacity-consuming Job; consumesSlot() defined once; a jobs row always = consumed capacity.","Two cap-checkers racing then double-book; dashboard and booking disagreeing on a day."],
+    ["AD-3","Exactly-one-winner concurrency","crit","SELECT FOR UPDATE / pg_advisory_xact_lock inside one tx. Session-scoped advisory locks forbidden (break under serverless pooling).","Concurrent bookings on the last slot both succeeding."],
+    ["AD-4","Approval queue holds no capacity","crit","Pending new-client request is a PendingRequest, not a Job. Capacity consumed only at approval; first approval wins.","Phantom stranger-held reservations; approving into a full slot."],
+    ["AD-5","Compose is not deliver","core","compose produces a channel-agnostic MessageDraft; delivery adapter renders deep-link. Dispatch logged once on explicit tap, idempotent.","Transport leaking into templates; one tap logging two dispatches."],
+    ["AD-6","Token is capability","core","Operator = session. Client links = signed unguessable tokens; per-client scoped, one public. No client login.","A per-client link acting as public (or reverse); guessable access."],
+    ["AD-7","Derived state on read","core","One derive module computes gone-cold, room-left, metrics and counter-metrics from canonical rows each render. No stored flags, no cron.","Two modules computing gone-cold or repeat-rate differently; stored-flag drift."],
+    ["AD-8","Tenancy seam present","seed","owner_id on every row AND in every query from v1 (value hardcoded). No scoping UI / multi-user auth yet.","Schema rewrite + cross-tenant leak when multi-cleaner arrives."],
+    ["AD-9","One clock for schedule math","core","Store UTC; compute all cap/cadence/week math in operator-local tz. Week = Mon to Sun local.","Cap/cadence arithmetic drifting between UTC and local."],
+    ["AD-10","Job lifecycle authority","crit","lib/domain/lifecycle owns the completion state machine. payment gated and orthogonal; markPaid never alters completion.","Two modules disagreeing on transitions; 'paid no-show'; resurrected states."],
+    ["AD-11","Inquiry provenance & idempotency","core","source provenance; link visit auto-logs at most one Inquiry per session; conversion denominator dedupes.","Double-counting inquiries against the conversion metric."],
+    ["AD-12","Booking idempotency & atomic reschedule","crit","commitBooking idempotent per submit; reschedule = release+commit in one tx.","Double-tap = 2 Jobs; reschedule losing the booking or over-capping."],
+    ["AD-13","Latency budget bounds paradigm","seed","Booking/dashboard under 2s on 4G, under 60s booking flow. Derive stays indexed and owner-scoped; materialization is the escape hatch, not the paradigm.","RSC round-trips silently blowing the 4G budget; derive growing unbounded."]
+  ];
+  var TAG={crit:["t-crit","crit"],core:["t-core","core"],seed:["t-seed","seed"]};
+  var grid=document.getElementById('adgrid');
+  ADS.forEach(function(a){
+    var d=document.createElement('details');d.className='ad';
+    d.innerHTML='<summary><span class="id">'+a[0]+'</span><span>'+a[1]+'</span>'+
+      '<span class="tag '+TAG[a[2]][0]+'" style="margin-left:auto">'+TAG[a[2]][1]+'</span></summary>'+
+      '<div class="body"><div><span class="k">Rule</span><br>'+a[3]+'</div>'+
+      '<div><span class="k">Prevents</span><br>'+a[4]+'</div></div>';
+    grid.appendChild(d);
+  });
+
+  var slides=[].slice.call(document.querySelectorAll('.slide'));
+  var i=0, dots=document.getElementById('dots');
+  slides.forEach(function(_,n){var b=document.createElement('i');b.onclick=function(){go(n)};dots.appendChild(b);});
+  function go(n){
+    i=Math.max(0,Math.min(slides.length-1,n));
+    slides.forEach(function(s,k){s.classList.toggle('active',k===i)});
+    [].forEach.call(dots.children,function(d,k){d.classList.toggle('on',k===i)});
+    document.getElementById('bar').style.width=((i+1)/slides.length*100)+'%';
+    document.getElementById('counter').textContent=(i+1)+' / '+slides.length;
+    window.scrollTo({top:0,behavior:'smooth'});
+  }
+  document.getElementById('next').onclick=function(){go(i+1)};
+  document.getElementById('prev').onclick=function(){go(i-1)};
+  document.addEventListener('keydown',function(e){
+    if(e.key==='ArrowRight'||e.key===' ')go(i+1);
+    if(e.key==='ArrowLeft')go(i-1);
+  });
+  var tb=document.getElementById('themeBtn');
+  tb.onclick=function(){
+    var r=document.documentElement;
+    var cur=r.getAttribute('data-theme');
+    var next = cur==='dark'?'light':(cur==='light'?'dark':(matchMedia('(prefers-color-scheme:dark)').matches?'light':'dark'));
+    r.setAttribute('data-theme',next);
+  };
+  go(0);
+</script>
+</body>
+</html>

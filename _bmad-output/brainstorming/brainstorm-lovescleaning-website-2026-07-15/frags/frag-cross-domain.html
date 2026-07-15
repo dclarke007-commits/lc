@@ -1,0 +1,138 @@
+<section class="lens" id="lens-cross-domain">
+  <div class="lens-head"><span class="lens-num">03</span><div><h2>Cross-Domain Analogy</h2><p class="lens-blurb">Borrowing proven retention, trust, and conversion models from Uber, Netflix, Airbnb, and other industries and re-fitting them to a solo cleaning business.</p></div></div>
+  <div class="idea-grid">
+
+    <article class="idea">
+      <h3>"On My Way" Live Tracking</h3>
+      <p class="essence">The Uber move: real-time ETA texts so the client always knows when she'll pull up.</p>
+      <div class="meta">
+        <p><span class="k">How it works</span> When she taps "heading out" on the previous job, the system auto-texts the next client a live ETA link. A lightweight location share updates the arrival window, and a "starting now / finished" ping bookends the visit. No calls, no "are you almost here?" texts.</p>
+        <p><span class="k">Why it wins solo</span> Kills the interruption of clients calling to check timing, so she keeps her hands on the mop instead of the phone, and the polish makes a one-person shop feel like a slick service worth re-booking.</p>
+        <p><span class="k">Watch-out</span> Sharing live location raises privacy and safety concerns for a solo woman; share a time window, not a persistent GPS dot, and let her toggle it off.</p>
+        <p class="build"><span class="k">Build note</span> MVP: a templated SMS with a manual "on my way" button (Twilio + a canned message). Later: calendar-driven auto-ETAs and a temporary map link.</p>
+      </div>
+    </article>
+
+    <article class="idea">
+      <h3>Netflix-Style Cleaning Tiers</h3>
+      <p class="essence">Package the service into Basic / Plus / Premium subscription plans instead of one-off quotes.</p>
+      <div class="meta">
+        <p><span class="k">How it works</span> Three named tiers: Basic (biweekly maintenance), Plus (weekly plus a quarterly deep clean), and Premium (priority scheduling, first pick of Saturdays, add-ons included). Each is a clear recurring price the client picks once at signup, and the booking page sells the plan, not the hour.</p>
+        <p><span class="k">Why it wins solo</span> Turns sporadic jobs into predictable monthly revenue she can plan around, and the tier ladder nudges good clients to upgrade themselves without her selling.</p>
+        <p><span class="k">Watch-out</span> Over-promising Premium priority can box in her calendar; cap how many Premium slots exist so the promise stays real.</p>
+        <p class="build"><span class="k">Build note</span> MVP: three Stripe subscription products with plain benefit copy on the booking page. Later: automatic tier-upgrade prompts based on job frequency.</p>
+      </div>
+    </article>
+
+    <article class="idea">
+      <h3>Clean-Streak Gamification</h3>
+      <p class="essence">Peloton's streak hook applied to the home: "12 weeks running clean" keeps clients coming back.</p>
+      <div class="meta">
+        <p><span class="k">How it works</span> Each completed recurring clean extends the client's streak, surfaced in the receipt/confirmation ("Week 12 in a row — your longest yet!"). Milestone streaks unlock small perks or badges, and a broken streak triggers a gentle "don't lose your run" nudge to rebook.</p>
+        <p><span class="k">Why it wins solo</span> Manufactures emotional retention with zero ad spend — the client's own momentum, not her chasing, drives repeat bookings.</p>
+        <p><span class="k">Watch-out</span> Streak pressure can feel manipulative or guilt-trippy; keep it celebratory and let pauses (vacations) protect the streak rather than punish it.</p>
+        <p class="build"><span class="k">Build note</span> MVP: a job-count field per client shown in confirmation copy. Later: milestone perks and streak-recovery win-back triggers.</p>
+      </div>
+    </article>
+
+    <article class="idea">
+      <h3>Two-Sided Referral Loop</h3>
+      <p class="essence">Dropbox's viral trick: referrer and new client both get $25 off.</p>
+      <div class="meta">
+        <p><span class="k">How it works</span> Every client has a personal referral link/code. When a new client books with it, both sides get $25 credited — the friend on their first clean, the referrer on their next. The offer is surfaced right after a great job when goodwill peaks.</p>
+        <p><span class="k">Why it wins solo</span> This is the whole growth engine without paid ads: happy clients become the sales force, and the mutual reward makes sharing feel generous, not spammy.</p>
+        <p><span class="k">Watch-out</span> Double discounts erode margin if abused; cap referrals per client per period and only credit after the referred job is actually completed and paid.</p>
+        <p class="build"><span class="k">Build note</span> MVP: unique codes tracked in a spreadsheet, credit applied manually. Later: automated referral links, attribution, and auto-applied credits at checkout.</p>
+      </div>
+    </article>
+
+    <article class="idea">
+      <h3>OpenTable Instant-Confirm + Waitlist</h3>
+      <p class="essence">Book a slot and it's confirmed instantly; cancellations auto-flow to a waitlist.</p>
+      <div class="meta">
+        <p><span class="k">How it works</span> The calendar shows only truly-available windows and confirms on the spot — no "I'll check and get back to you." Popular slots that are full offer a waitlist join, and when someone cancels, the freed slot is auto-texted to the next waitlisted client on a first-come basis.</p>
+        <p><span class="k">Why it wins solo</span> Fills cancellation gaps automatically so idle time never happens, protecting income without her scrambling to backfill — the operation self-heals from her phone.</p>
+        <p><span class="k">Watch-out</span> Auto-offering a slot to several waitlisters at once can double-book; offer to one at a time with a short expiry, then roll to the next.</p>
+        <p class="build"><span class="k">Build note</span> MVP: Calendly-style instant booking plus a simple waitlist form. Later: automated cancel-to-waitlist SMS with timed claim windows.</p>
+      </div>
+    </article>
+
+    <article class="idea">
+      <h3>Subscribe &amp; Save Lock-In</h3>
+      <p class="essence">Amazon's model: a standing discount for committing to recurring, and canceling is a gentle pause.</p>
+      <div class="meta">
+        <p><span class="k">How it works</span> Recurring clients get a lower per-clean rate than one-off bookings in exchange for a standing schedule. When someone wants out, the flow offers "pause for a few weeks" as the default option rather than a hard cancel, keeping the relationship and card-on-file intact.</p>
+        <p><span class="k">Why it wins solo</span> Locks in predictable repeat revenue and quietly raises switching cost, while the soft-pause reduces churn so she rarely loses a client outright.</p>
+        <p><span class="k">Watch-out</span> A pause that's too easy to leave open indefinitely becomes silent churn; set an auto-resume date and check in before it lapses.</p>
+        <p class="build"><span class="k">Build note</span> MVP: two price points (recurring vs one-off) and a manual pause toggle. Later: pause-with-resume-date automation and pre-resume reminders.</p>
+      </div>
+    </article>
+
+    <article class="idea">
+      <h3>"Your Year in Clean" Recap</h3>
+      <p class="essence">Spotify Wrapped for cleaning: an annual recap email that re-engages every client.</p>
+      <div class="meta">
+        <p><span class="k">How it works</span> Once a year the system compiles each client's stats — cleans completed, hours of their life given back, rooms deep-cleaned — into a shareable, feel-good recap email. It closes with a one-tap "book your first clean of next year" and a nudge to share their number.</p>
+        <p><span class="k">Why it wins solo</span> A single automated send reactivates lapsed and quiet clients at zero cost, and the shareable format seeds organic referrals when clients post it.</p>
+        <p><span class="k">Watch-out</span> The stats must feel personal and accurate; a generic or wrong recap reads as spam and undercuts the delight.</p>
+        <p class="build"><span class="k">Build note</span> MVP: a manual year-end email with a few hand-pulled numbers to the client list. Later: auto-generated per-client recaps from job history.</p>
+      </div>
+    </article>
+
+    <article class="idea">
+      <h3>Superhost Trust Badges</h3>
+      <p class="essence">Airbnb's proof-of-reliability: a public trust score right on the booking page.</p>
+      <div class="meta">
+        <p><span class="k">How it works</span> The booking page shows verifiable trust signals — total jobs completed, on-time percentage, years active, insured/bonded status — as badges. These update automatically from her real job data so a first-time visitor sees earned credibility before they commit.</p>
+        <p><span class="k">Why it wins solo</span> Converts skeptical anonymous visitors into bookings by substituting hard proof for a big brand name, and it's self-updating so it needs no back-office upkeep.</p>
+        <p><span class="k">Watch-out</span> Early on the numbers are small and can look weak; show the strongest true metric (e.g. 100% on-time) and grow the rest over time.</p>
+        <p class="build"><span class="k">Build note</span> MVP: static badges with hand-updated counts. Later: badges auto-computed from the job database and completion timestamps.</p>
+      </div>
+    </article>
+
+    <article class="idea">
+      <h3>Concierge Preferences Profile</h3>
+      <p class="essence">The luxury-hotel touch: a saved profile of scents, pet names, and no-go rooms that turns a commodity into a relationship.</p>
+      <div class="meta">
+        <p><span class="k">How it works</span> Each client has a stored preferences profile — preferred candle scent, the dog's name, rooms to skip, product sensitivities. It surfaces on the day at the address so every clean feels personally tailored, and small personal touches (greeting the pet by name) compound into loyalty.</p>
+        <p><span class="k">Why it wins solo</span> Personalization is her unfair advantage over faceless agencies — it deepens relationships that drive repeat bookings and referrals, all from remembered data rather than extra labor.</p>
+        <p><span class="k">Watch-out</span> Storing personal details (pets, home layout, absences) is sensitive; keep it minimal, secure, and surfaced only to her on the job.</p>
+        <p class="build"><span class="k">Build note</span> MVP: a notes field per client on the job sheet. Later: structured preference fields geofenced to surface on-site the day of the visit.</p>
+      </div>
+    </article>
+
+    <article class="idea">
+      <h3>"We Miss You" Reactivation</h3>
+      <p class="essence">The doctor's-office playbook: automated reminders plus a win-back when a recurring client goes quiet.</p>
+      <div class="meta">
+        <p><span class="k">How it works</span> The system tracks each recurring client's normal cadence and flags a lapse when they skip past it. A friendly automated "we miss you — ready for a refresh?" message goes out with a one-tap rebook, and routine pre-appointment reminders keep active clients from drifting in the first place.</p>
+        <p><span class="k">Why it wins solo</span> Recovers revenue that would otherwise silently walk out the door, entirely on autopilot, so retention doesn't depend on her remembering who's gone missing.</p>
+        <p><span class="k">Watch-out</span> Too-frequent or mistimed nudges feel naggy; base the trigger on the client's real cadence and cap win-back attempts.</p>
+        <p class="build"><span class="k">Build note</span> MVP: a manual monthly scan of who hasn't booked, with a canned SMS. Later: automatic lapse detection tied to each client's interval.</p>
+      </div>
+    </article>
+
+    <article class="idea">
+      <h3>Rebook-at-Checkout</h3>
+      <p class="essence">The salon rule: never leave a house without the next appointment on the calendar.</p>
+      <div class="meta">
+        <p><span class="k">How it works</span> The job-completion flow prompts to set the next visit before she walks out — "same time in two weeks?" defaulted from their cadence and confirmed in one tap. The next appointment is booked and card-on-file secured while satisfaction is at its peak.</p>
+        <p><span class="k">Why it wins solo</span> Every completed job auto-produces the next one, so her calendar fills forward without marketing and repeat revenue compounds by default.</p>
+        <p><span class="k">Watch-out</span> Pushing a rebook on a client who wasn't fully happy backfires; only prompt after a smooth job and make declining frictionless.</p>
+        <p class="build"><span class="k">Build note</span> MVP: a "book next" button in the completion step pre-filled with their usual slot. Later: cadence-aware suggested dates tied to route optimization.</p>
+      </div>
+    </article>
+
+    <article class="idea">
+      <h3>Satisfaction Guarantee</h3>
+      <p class="essence">The insurance angle: "not happy? free re-clean within 24h," shown as trust and tracked in the dashboard.</p>
+      <div class="meta">
+        <p><span class="k">How it works</span> A visible promise on the booking page — if a clean falls short, she returns to fix it free within 24 hours. Clients can flag an issue in one tap, which schedules the re-clean and logs the event so she can see guarantee-claim rate and spot recurring problem areas.</p>
+        <p><span class="k">Why it wins solo</span> The guarantee removes first-time hesitation and converts skeptics, while the low real-world claim rate makes it cheap trust that fuels reviews and repeat business.</p>
+        <p><span class="k">Watch-out</span> A vague or exploitable guarantee invites abuse; define what qualifies and cap claims so it stays a trust signal, not a loophole.</p>
+        <p class="build"><span class="k">Build note</span> MVP: a guarantee badge on the site plus a "report an issue" contact link. Later: in-app claim flow that auto-schedules the re-clean and tracks claim metrics.</p>
+      </div>
+    </article>
+
+  </div>
+</section>
