@@ -6,10 +6,13 @@
 
 import { cookies } from 'next/headers';
 import { authenticateOperator } from '@/lib/auth/operator';
-import { signSession, SESSION_COOKIE } from '@/lib/auth/session';
+import {
+  signSession,
+  getSessionSecret,
+  SESSION_COOKIE,
+  SESSION_MAX_AGE_SECONDS,
+} from '@/lib/auth/session';
 import { ok, fail, type ActionResult } from '@/lib/domain/result';
-
-const SESSION_MAX_AGE = 60 * 60 * 24 * 7; // 7 days
 
 export async function signIn(
   formData: FormData,
@@ -17,8 +20,12 @@ export async function signIn(
   const email = String(formData.get('email') ?? '').trim();
   const passphrase = String(formData.get('passphrase') ?? '');
 
-  const secret = process.env.SESSION_SECRET;
-  if (!secret) return fail('session-misconfigured');
+  let secret: string;
+  try {
+    secret = getSessionSecret();
+  } catch {
+    return fail('session-misconfigured');
+  }
 
   const authed = await authenticateOperator(email, passphrase);
   if (!authed.ok) return authed;
@@ -35,7 +42,7 @@ export async function signIn(
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
       path: '/',
-      maxAge: SESSION_MAX_AGE,
+      maxAge: SESSION_MAX_AGE_SECONDS,
     });
     return ok({ operatorId: authed.data.operatorId });
   } catch {

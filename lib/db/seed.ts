@@ -4,6 +4,7 @@
 // unique index on email + onConflictDoNothing.
 
 import 'dotenv/config';
+import { asc } from 'drizzle-orm';
 import { db, pool } from './client';
 import { operator } from './schema';
 import { hashPassphrase } from '../auth/passphrase';
@@ -23,6 +24,7 @@ export async function seedOperator(): Promise<SeedResult> {
   const existing = await db
     .select({ id: operator.id })
     .from(operator)
+    .orderBy(asc(operator.createdAt), asc(operator.id))
     .limit(1);
 
   // Idempotent: if any operator already exists, do nothing (single-owner v1).
@@ -41,8 +43,12 @@ export async function seedOperator(): Promise<SeedResult> {
     return { ownerId: inserted[0].id, created: true };
   }
 
-  // Lost a race on the unique index — read the winner back.
-  const [row] = await db.select({ id: operator.id }).from(operator).limit(1);
+  // Lost a race on the unique index — read the winner back (deterministic).
+  const [row] = await db
+    .select({ id: operator.id })
+    .from(operator)
+    .orderBy(asc(operator.createdAt), asc(operator.id))
+    .limit(1);
   return { ownerId: row.id, created: false };
 }
 

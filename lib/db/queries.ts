@@ -3,7 +3,7 @@
 // value is resolved from the one seeded operator row. Later stories add a value
 // SOURCE (e.g. from the session), never a query retrofit.
 
-import { eq } from 'drizzle-orm';
+import { eq, asc } from 'drizzle-orm';
 import { db } from './client';
 import { operator } from './schema';
 import type { Operator } from './schema';
@@ -14,7 +14,13 @@ import type { Operator } from './schema';
  * violation); callers in Server Actions convert failures to the result contract.
  */
 export async function getOwnerId(): Promise<string> {
-  const [row] = await db.select({ id: operator.id }).from(operator).limit(1);
+  // Deterministic read: the singleton index caps this at one row, but ORDER BY
+  // guarantees a stable answer even mid-migration rather than an arbitrary pick.
+  const [row] = await db
+    .select({ id: operator.id })
+    .from(operator)
+    .orderBy(asc(operator.createdAt), asc(operator.id))
+    .limit(1);
   if (!row) throw new Error('No operator seeded — run the operator seed.');
   return row.id;
 }

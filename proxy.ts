@@ -5,7 +5,7 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { isPublicPath } from '@/lib/auth/route-guard';
-import { SESSION_COOKIE, verifySession } from '@/lib/auth/session';
+import { SESSION_COOKIE, verifySession, getSessionSecret } from '@/lib/auth/session';
 
 export async function proxy(request: NextRequest): Promise<NextResponse> {
   const { pathname } = request.nextUrl;
@@ -14,9 +14,16 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
     return NextResponse.next();
   }
 
-  const secret = process.env.SESSION_SECRET;
-  const token = request.cookies.get(SESSION_COOKIE)?.value;
-  const session = secret ? await verifySession(token, secret) : null;
+  // FAIL CLOSED: a missing or weak SESSION_SECRET makes getSessionSecret throw;
+  // we treat that as "no valid session" and redirect, never as an open pass.
+  let session = null;
+  try {
+    const secret = getSessionSecret();
+    const token = request.cookies.get(SESSION_COOKIE)?.value;
+    session = await verifySession(token, secret);
+  } catch {
+    session = null;
+  }
 
   if (session) {
     return NextResponse.next();

@@ -13,10 +13,13 @@ if (!connectionString) {
   throw new Error('DATABASE_URL is not set (pooled transaction-mode string).');
 }
 
-// Reuse the pool across hot-reloads / serverless invocations.
+// Reuse the pool across hot-reloads / serverless invocations. Cache it on the
+// global unconditionally (standard Next singleton) so every invocation in a warm
+// runtime reuses one plain pg.Pool over the pooled DATABASE_URL — no
+// session-scoped state, safe under pgBouncer transaction mode (AD-3).
 const globalForDb = globalThis as unknown as { __lcPool?: Pool };
 const pool = globalForDb.__lcPool ?? new Pool({ connectionString, max: 10 });
-if (process.env.NODE_ENV !== 'production') globalForDb.__lcPool = pool;
+globalForDb.__lcPool = pool;
 
 export const db = drizzle(pool, { schema });
 export { pool };

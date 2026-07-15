@@ -158,3 +158,21 @@ Modified (this verification pass):
 |------|--------|
 | 2026-07-15 | Story 1.1 implemented: greenfield Next.js 16 + Drizzle/Postgres scaffold, operator seed + owner_id seam, HMAC signed-cookie operator auth + `proxy.ts` gate, empty RSC shell, Docker Postgres+pgBouncer, 11 passing tests. Status → review. |
 | 2026-07-15 | Fixed nondeterministic test suite: removed shared-pool per-file teardown, serialized DB-backed files. Deterministic 11/11 across 3 runs. |
+| 2026-07-15 | Code review (2 adversarial reviewers): no Critical/High. Applied 5 fixes (session expiry, operator-singleton index + deterministic getOwnerId, enumeration-timing, SESSION_SECRET≥32 fail-closed, pool singleton). Tests now 15/15 deterministic; tsc clean; migration 0001 applies. |
+
+## Senior Developer Review (AI)
+
+**Date:** 2026-07-15 · **Reviewers:** 2 parallel adversarial agents (security; architecture/correctness) · **Outcome:** Approve — fixes applied, ready for merge.
+
+**Solid (verified, not skimmed):** HMAC verify is constant-time + fail-closed, no algorithm confusion; `proxy.ts` gate not bypassable (prefix/`//`/case/traversal all fail closed); cookie flags correct (HttpOnly/SameSite/Secure-in-prod); action boundary holds (no throw crosses); seed env-sourced + race-safe; `.env` untracked. AD-3 pooling sound (pooled `DATABASE_URL`:6432 runtime / `DIRECT_URL`:5432 migrations; unnamed prepared statements only; zero session-scoped state — grep-confirmed); AD-1 layering clean (no surface imports `lib/db`); AD-9 UTC `timestamptz`; schema↔migration↔snapshot consistent.
+
+**Findings resolved:**
+- **[Med-High] Session never expired server-side** — `verifySession` ignored `iat`. Fixed: HMAC-covered `exp` (iat + 7d `SESSION_MAX_AGE_SECONDS`), rejected when `exp<=now`; cookie maxAge shares the constant. Test added.
+- **[Med] `getOwnerId()` non-deterministic / no singleton guard (AD-8 seam)** — only `email` was unique, `.limit(1)` had no ORDER BY. Fixed: `operator_singleton` unique expression index (migration 0001) + `ORDER BY created_at,id`. Test: 2nd-operator insert throws unique violation.
+- **[Med] Email-enumeration timing** — no-row path skipped scrypt (comment lied). Fixed: constant-work decoy `verifyPassphrase` on no-row path.
+- **[Low] `SESSION_SECRET` strength unenforced** — Fixed: `getSessionSecret()` throws if missing/<32 chars; callers fail closed (proxy still redirects).
+- **[Low] Pool global-cache comment/behavior mismatch** — Fixed: unconditional singleton assignment.
+
+**Deferred (documented, not blocking foundation):**
+- **[Low] No brute-force throttle on `signIn`** — needs rate-limit infra (per-IP/account). Address before prod exposure; single-operator v1 lowers urgency.
+- **[Low] scrypt N=2^14 < OWASP 2^17** — bump with `maxmem` tuning later; raising now slows the test suite. Track in a hardening pass.

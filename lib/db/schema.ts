@@ -4,6 +4,7 @@
 // target every future entity (Client, Job, PendingRequest, Inquiry, MessageLog,
 // Token) will reference. Surrogate uuid PK; timestamps stored UTC (AD-9).
 
+import { sql } from 'drizzle-orm';
 import {
   pgTable,
   uuid,
@@ -25,7 +26,13 @@ export const operator = pgTable(
       .defaultNow()
       .notNull(),
   },
-  (t) => [uniqueIndex('operator_email_uq').on(t.email)],
+  (t) => [
+    uniqueIndex('operator_email_uq').on(t.email),
+    // Single-operator invariant: an expression unique index on the constant
+    // `(true)` allows at most one operator row regardless of email, so the AD-8
+    // owner_id seam can never resolve to an arbitrary second tenant.
+    uniqueIndex('operator_singleton').on(sql`(true)`),
+  ],
 );
 
 export type Operator = typeof operator.$inferSelect;
