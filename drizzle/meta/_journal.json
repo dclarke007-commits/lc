@@ -15,6 +15,13 @@
       "when": 1784146204755,
       "tag": "0001_ordinary_tiger_shark",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1784146730121,
+      "tag": "0002_swift_bromley",
+      "breakpoints": true
     }
   ]
 }

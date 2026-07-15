@@ -3,10 +3,10 @@
 // value is resolved from the one seeded operator row. Later stories add a value
 // SOURCE (e.g. from the session), never a query retrofit.
 
-import { eq, asc } from 'drizzle-orm';
+import { eq, and, asc, desc } from 'drizzle-orm';
 import { db } from './client';
-import { operator } from './schema';
-import type { Operator } from './schema';
+import { operator, client } from './schema';
+import type { Operator, Client } from './schema';
 
 /**
  * Resolve the single owner's id — the AD-8 owner_id value every future query
@@ -33,6 +33,37 @@ export async function getOperatorByEmail(
     .select()
     .from(operator)
     .where(eq(operator.email, email))
+    .limit(1);
+  return row;
+}
+
+// --- Client reads (AD-8: every SELECT carries the owner_id FILTER value) ---
+
+/**
+ * List the owner's clients. The `owner_id` filter is on the VALUE (not merely
+ * the column) from day one, so a row belonging to any other owner is physically
+ * unreachable through this path. Newest first.
+ */
+export async function listClients(ownerId: string): Promise<Client[]> {
+  return db
+    .select()
+    .from(client)
+    .where(eq(client.ownerId, ownerId))
+    .orderBy(desc(client.createdAt), asc(client.id));
+}
+
+/**
+ * Read one client by id, owner-scoped. Both predicates are required: an id that
+ * belongs to a different owner returns undefined, never another tenant's row.
+ */
+export async function getClient(
+  ownerId: string,
+  id: string,
+): Promise<Client | undefined> {
+  const [row] = await db
+    .select()
+    .from(client)
+    .where(and(eq(client.ownerId, ownerId), eq(client.id, id)))
     .limit(1);
   return row;
 }

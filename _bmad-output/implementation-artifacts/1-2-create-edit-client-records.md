@@ -1,6 +1,9 @@
+---
+baseline_commit: e10b73a32ab47af9a47bcd91ec19e5f3297afbb2
+---
 # Story 1.2: Create & edit client records
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -18,29 +21,29 @@ so that I can seed my existing regulars and add a caller on the spot.
 
 ## Tasks / Subtasks
 
-- [ ] **Task 1 — Define the `Client` Drizzle schema (AC: 1, 2)** [Source: ARCHITECTURE-SPINE.md#Consistency-Conventions, #Structural-Seed, #AD-8, #AD-9]
-  - [ ] Add `Client` table in `lib/db/` (schema lives ONLY here — AD-1/AR2). Entity name singular PascalCase `Client`.
-  - [ ] Columns: surrogate `uuid` PK; `owner_id` FK → Operator (AD-8); `name`, `phone`, `address`; `cadence` enum `weekly|biweekly|monthly|one-time` (FR15); `status` enum `active|provisional|gone-cold` — store `active`/`provisional` only, **`gone-cold` is derived, never stored** (AD-7).
-  - [ ] If adding `created_at`/`updated_at`, store UTC ISO-8601 (AD-9). (Timestamps on Client are NOT mandated by the spine — see Open gaps.)
-  - [ ] Do NOT add a Client-level payment column or `expectedNextDate`/`goneCold` column (see Scope boundaries + Open gaps).
-  - [ ] Generate + apply the Drizzle migration.
-- [ ] **Task 2 — `createClient` Server Action (AC: 1, 3)** [Source: ARCHITECTURE-SPINE.md#AD-1, #Consistency-Conventions (Errors, Naming)]
-  - [ ] Verb-first action in `app/(operator)/**/actions.ts` (sole write path — AD-1; client CRUD is NOT capacity-consuming, so it does NOT route through `commitBooking`).
-  - [ ] Validate name + phone present; on failure return `{ok:false, reason}` and write nothing (AC3/AR15). No thrown errors cross the boundary; no silent catches.
-  - [ ] Insert `Client` with `owner_id` = the hardcoded operator value (from the Story 1.1 seed/session), `status=active`. Return `{ok, data}`.
-- [ ] **Task 3 — `editClient` Server Action (AC: 2, 3)** [Source: ARCHITECTURE-SPINE.md#AD-1, #AD-8]
-  - [ ] Verb-first update action; same typed return contract; same name/phone validation.
-  - [ ] UPDATE scoped by `owner_id` AND row id — never update a row outside the operator's `owner_id`.
-- [ ] **Task 4 — `owner_id`-filtered reads (AC: 2)** [Source: ARCHITECTURE-SPINE.md#AD-8]
-  - [ ] Every Client SELECT carries `WHERE owner_id = <operator>` from day one — the value, not merely the column. Reuse the `owner_id` helper/pattern established in Story 1.1 (do not reinvent).
-- [ ] **Task 5 — Client form + list surface (AC: 1, 2)** [Source: ARCHITECTURE-SPINE.md#AD-1, #AD-13, NFR1]
-  - [ ] RSC surface under `app/(operator)/` (auth-gated by `proxy.ts` from Story 1.1). Create + edit form; phone-first, minimal client JS, dynamic (no `use cache`).
-  - [ ] Cadence rendered as a fixed 4-option select (`weekly|biweekly|monthly|one-time`).
-  - [ ] Surfaces never import `lib/db` directly — go through actions (dependency direction: surfaces → actions → domain → db).
-- [ ] **Task 6 — Tests (AC: 1, 2, 3)** [Source: ARCHITECTURE-SPINE.md#Consistency-Conventions]
-  - [ ] Create writes a `Client` with `owner_id` + `status=active`; edit updates; both actions return the typed shape.
-  - [ ] Missing name or phone → `{ok:false, reason}`, nothing written.
-  - [ ] A Client read is `owner_id`-filtered (a row under a different owner_id is not returned).
+- [x] **Task 1 — Define the `Client` Drizzle schema (AC: 1, 2)** [Source: ARCHITECTURE-SPINE.md#Consistency-Conventions, #Structural-Seed, #AD-8, #AD-9]
+  - [x] Add `Client` table in `lib/db/` (schema lives ONLY here — AD-1/AR2). Entity name singular PascalCase `Client`.
+  - [x] Columns: surrogate `uuid` PK; `owner_id` FK → Operator (AD-8); `name`, `phone`, `address`; `cadence` enum `weekly|biweekly|monthly|one-time` (FR15); `status` enum `active|provisional|gone-cold` — store `active`/`provisional` only, **`gone-cold` is derived, never stored** (AD-7).
+  - [x] If adding `created_at`/`updated_at`, store UTC ISO-8601 (AD-9). (Timestamps on Client are NOT mandated by the spine — see Open gaps.)
+  - [x] Do NOT add a Client-level payment column or `expectedNextDate`/`goneCold` column (see Scope boundaries + Open gaps).
+  - [x] Generate + apply the Drizzle migration.
+- [x] **Task 2 — `createClient` Server Action (AC: 1, 3)** [Source: ARCHITECTURE-SPINE.md#AD-1, #Consistency-Conventions (Errors, Naming)]
+  - [x] Verb-first action in `app/(operator)/**/actions.ts` (sole write path — AD-1; client CRUD is NOT capacity-consuming, so it does NOT route through `commitBooking`).
+  - [x] Validate name + phone present; on failure return `{ok:false, reason}` and write nothing (AC3/AR15). No thrown errors cross the boundary; no silent catches.
+  - [x] Insert `Client` with `owner_id` = the hardcoded operator value (from the Story 1.1 seed/session), `status=active`. Return `{ok, data}`.
+- [x] **Task 3 — `editClient` Server Action (AC: 2, 3)** [Source: ARCHITECTURE-SPINE.md#AD-1, #AD-8]
+  - [x] Verb-first update action; same typed return contract; same name/phone validation.
+  - [x] UPDATE scoped by `owner_id` AND row id — never update a row outside the operator's `owner_id`.
+- [x] **Task 4 — `owner_id`-filtered reads (AC: 2)** [Source: ARCHITECTURE-SPINE.md#AD-8]
+  - [x] Every Client SELECT carries `WHERE owner_id = <operator>` from day one — the value, not merely the column. Reuse the `owner_id` helper/pattern established in Story 1.1 (do not reinvent).
+- [x] **Task 5 — Client form + list surface (AC: 1, 2)** [Source: ARCHITECTURE-SPINE.md#AD-1, #AD-13, NFR1]
+  - [x] RSC surface under `app/(operator)/` (auth-gated by `proxy.ts` from Story 1.1). Create + edit form; phone-first, minimal client JS, dynamic (no `use cache`).
+  - [x] Cadence rendered as a fixed 4-option select (`weekly|biweekly|monthly|one-time`).
+  - [x] Surfaces never import `lib/db` directly — go through actions (dependency direction: surfaces → actions → domain → db).
+- [x] **Task 6 — Tests (AC: 1, 2, 3)** [Source: ARCHITECTURE-SPINE.md#Consistency-Conventions]
+  - [x] Create writes a `Client` with `owner_id` + `status=active`; edit updates; both actions return the typed shape.
+  - [x] Missing name or phone → `{ok:false, reason}`, nothing written.
+  - [x] A Client read is `owner_id`-filtered (a row under a different owner_id is not returned).
 
 ## Dev Notes
 
@@ -105,8 +108,32 @@ Framework as chosen in Story 1.1 (architecture mandates none). Assert: typed act
 
 ### Agent Model Used
 
+claude-opus-4-8[1m] (Claude Code, dev-story workflow)
+
 ### Debug Log References
+
+- Independently verified: 21/21 tests across 2 runs (15 prior intact — no regressions; +6 new), `tsc --noEmit` exit 0, Turbopack build compiles, migration 0002 applies on Docker Postgres.
 
 ### Completion Notes List
 
+- All 6 tasks complete; all 3 ACs satisfied. Reuses Story 1.1 substrate (getOwnerId value helper, ActionResult contract, proxy.ts gate, Drizzle/pooled-Postgres wiring) — nothing re-established.
+- **AC1** `createClient` writes `Client` with `owner_id` value + `status='active'` (name/phone/address/cadence). **AC2** `editClient` updates, scoped by `owner_id AND id`; all reads (`listClients`/`getClient`) owner_id-filtered from day one. **AC3** missing name/phone → `{ok:false,reason}`, nothing written.
+- Schema (AD-7/AD-8/AD-9/NFR7): `client` — uuid PK; `owner_id` FK→operator (NOT NULL, onDelete restrict); name/phone NOT NULL; address nullable; `cadence` enum `weekly|biweekly|monthly|one-time`; `status` enum `active|provisional` (**`gone-cold` deliberately absent — DB cannot store it; derived per AD-7**); created_at/updated_at timestamptz UTC; index on owner_id. No payment/expectedNextDate/goneCold/notes/email columns (NFR7 + scope).
+- Surfaces: `/clients` (list + create), `/clients/[id]/edit` — RSC, `force-dynamic`, phone-first, zero client-JS forms; call actions only (never import lib/db).
+- **Deviations:** (1) owner_id isolation test asserts by *value* not a decoy operator row — Story 1.1's `operator_singleton` index + hard FK make a second operator row unconstructible; test proves `getClient(otherOwner, realId)→undefined` and `listClients(otherOwner)→empty` (same AD-8 guarantee). (2) Native `<form action>` needs void return → thin `'use server'` wrappers (`addClient`/`saveClient`) wrap the typed `createClient`/`editClient`; contract + tests live on the typed actions. (3) Server-side validation only, no client-side error rendering (keeps client JS at zero); revisit if UX needs inline errors.
+
 ### File List
+
+Created:
+- `app/(operator)/clients/actions.ts`, `app/(operator)/clients/ClientForm.tsx`, `app/(operator)/clients/page.tsx`, `app/(operator)/clients/[id]/edit/page.tsx`
+- `tests/client.test.ts`
+- `drizzle/0002_swift_bromley.sql` (+ `drizzle/meta/0002_snapshot.json`, updated `_journal.json`)
+
+Modified:
+- `lib/db/schema.ts` (Client table + enums), `lib/db/queries.ts` (`listClients`/`getClient` owner-scoped reads)
+
+## Change Log
+
+| Date | Change |
+|------|--------|
+| 2026-07-15 | Story 1.2 implemented: `Client` schema (owner_id FK, cadence/status enums, gone-cold excluded per AD-7), `createClient`/`editClient` actions (owner_id-scoped, AR15 contract), owner_id-filtered reads, `/clients` RSC surfaces, 6 tests. 21/21 green, no regressions. Status → review. |
