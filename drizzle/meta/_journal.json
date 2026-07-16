@@ -57,6 +57,13 @@
       "when": 1784220880434,
       "tag": "0007_fair_anita_blake",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1784226741923,
+      "tag": "0008_many_galactus",
+      "breakpoints": true
     }
   ]
 }

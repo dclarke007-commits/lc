@@ -189,15 +189,24 @@ export async function commitBooking(
 
       // AD-12 idempotency: a repeat submit (same owner+key) returns the SAME Job.
       // Serialized by the lock, so it always observes a prior committed insert.
+      // Filter to CONSUMING completions only (code-review 2026-07-16): the unique
+      // index is partial on the same set, so a cancelled row can share this key —
+      // it must NOT count as an existing booking, or a client could never re-book
+      // a day they once cancelled (the false "You're booked" replay bug). A dead
+      // (cancelled) row is ignored here and the insert below reuses the key.
       const [existing] = await tx
         .select()
         .from(job)
         .where(
-          and(eq(job.ownerId, ownerId), eq(job.idempotencyKey, idempotencyKey)),
+          and(
+            eq(job.ownerId, ownerId),
+            eq(job.idempotencyKey, idempotencyKey),
+            inArray(job.completion, CONSUMING_COMPLETIONS),
+          ),
         )
         .limit(1);
       if (existing) {
-        // The key identifies ONE booking attempt. If it is replayed with a
+        // The key identifies ONE live booking attempt. If it is replayed with a
         // different date/client (a cached form edited after Back), that is a
         // conflict — do NOT silently return the wrong Job. Replay only on a match.
         if (existing.date === date && existing.clientId === clientId) {

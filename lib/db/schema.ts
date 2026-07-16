@@ -192,9 +192,16 @@ export const job = pgTable(
     // per-day and weekly-14 capacity counts inside commitBooking.
     index('job_owner_date_idx').on(t.ownerId, t.date),
     index('job_client_id_idx').on(t.clientId),
-    // AD-12: at most one Job per (owner, idempotency_key) — the DB backstop for
-    // idempotent commitBooking. A repeat attempt can never create a second row.
-    uniqueIndex('job_owner_idempotency_uq').on(t.ownerId, t.idempotencyKey),
+    // AD-12: at most one *consuming* Job per (owner, idempotency_key) — the DB
+    // backstop for idempotent commitBooking. Scoped to consuming completions
+    // (code-review 2026-07-16, story 3.2): a deterministic client-confirm key
+    // `book:<client>:<date>` persists on a row after it is cancelled; without the
+    // partial predicate that dead key would forever block re-booking the same day
+    // (cancel → rebook is the core Epic-3 flow). Cancelled rows are excluded, so a
+    // fresh booking can reuse the key while two live bookings still can't collide.
+    uniqueIndex('job_owner_idempotency_uq')
+      .on(t.ownerId, t.idempotencyKey)
+      .where(sql`${t.completion} in ('booked', 'completed', 'no-show')`),
   ],
 );
 
