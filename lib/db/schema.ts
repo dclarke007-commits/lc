@@ -246,3 +246,63 @@ export const messageTemplate = pgTable(
 
 export type MessageTemplate = typeof messageTemplate.$inferSelect;
 export type NewMessageTemplate = typeof messageTemplate.$inferInsert;
+
+// MessageLog (Story 2.3, FR21/AR6/AD-5) — the once-per-send dispatch record that
+// feeds the nudge-fatigue counter honestly. AD-5, verbatim: dispatch is recorded
+// ONCE on the operator's explicit send tap (idempotent per draft), never on render;
+// `drafted_at` is distinguished from `dispatched_at`, and ONLY `dispatched_at` feeds
+// nudge-fatigue (§2, derived on read — AD-7). The row's mere existence is "drafted"
+// (`drafted_at` set, `dispatched_at` null); `dispatched_at IS NOT NULL` is "dispatched".
+//
+// Idempotency (DEV DECISION — Option B, unique row per draft): every row carries a
+// per-draft `draft_nonce` (AD-12 pattern, mirroring `job.idempotency_key`). The send
+// tap is a form POST carrying the nonce the preview render minted; a re-tap resubmits
+// the SAME nonce → keys to the SAME row → the dispatch guard sees it already stamped
+// and no second dispatch is ever written. `resulting_job_ref` is the FR13 attribution
+// column now (Structural Seed) — declared, populated by later stories, nullable.
+// Owner-scoped on every read/write (AD-8). Timestamps are UTC instants (AD-9).
+export const messageLog = pgTable(
+  'message_log',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    // AD-8 tenancy seam: owner_id FK on every row, scoped on read and write.
+    ownerId: uuid('owner_id')
+      .notNull()
+      .references(() => operator.id, { onDelete: 'restrict' }),
+    clientId: uuid('client_id')
+      .notNull()
+      .references(() => client.id, { onDelete: 'restrict' }),
+    // Message KIND (not a channel, AD-5) — aligns exactly with Story 2.1's closed
+    // template set; the same Postgres enum, so a fifth type is unpersistable.
+    messageType: messageTemplateType('message_type').notNull(),
+    // AD-12 per-draft idempotency nonce (Option B). One row per (owner, nonce).
+    draftNonce: text('draft_nonce').notNull(),
+    // Set when the draft is materialized; the row's existence IS "drafted". NOT NULL.
+    draftedAt: timestamp('drafted_at', { withTimezone: true, mode: 'string' })
+      .defaultNow()
+      .notNull(),
+    // NULL until the operator's explicit send tap; ONLY this feeds nudge-fatigue.
+    dispatchedAt: timestamp('dispatched_at', {
+      withTimezone: true,
+      mode: 'string',
+    }),
+    // FR13 attribution — a column now (Structural Seed), populated by later stories.
+    // set null on job delete: an optional backref must never block job lifecycle.
+    resultingJobRef: uuid('resulting_job_ref').references(() => job.id, {
+      onDelete: 'set null',
+    }),
+  },
+  (t) => [
+    // Option B invariant: at most one MessageLog row per (owner, draft_nonce). The
+    // send action UPSERTs on this target so a re-tap can never insert a second row.
+    uniqueIndex('message_log_owner_nonce_uq').on(t.ownerId, t.draftNonce),
+    // Nudge-fatigue derive reads dispatched rows grouped per client; index (owner,
+    // client) so the per-client-per-week count is served without a scan.
+    index('message_log_owner_client_idx').on(t.ownerId, t.clientId),
+    // Reads are always owner-scoped (AD-8); index the filter column.
+    index('message_log_owner_id_idx').on(t.ownerId),
+  ],
+);
+
+export type MessageLog = typeof messageLog.$inferSelect;
+export type NewMessageLog = typeof messageLog.$inferInsert;

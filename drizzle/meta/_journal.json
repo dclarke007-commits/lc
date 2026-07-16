@@ -43,6 +43,13 @@
       "when": 1784209601502,
       "tag": "0005_worthless_skreet",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1784213984004,
+      "tag": "0006_superb_purifiers",
+      "breakpoints": true
     }
   ]
 }

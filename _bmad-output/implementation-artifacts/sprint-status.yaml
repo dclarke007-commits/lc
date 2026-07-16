@@ -43,7 +43,7 @@
 generated: 2026-07-15
 last_updated: 2026-07-16
 project: LovesCleaning
-# note: 1-7 done (dev + code-review complete) 2026-07-16 — Epic 1 dev COMPLETE
+# note: 2-3 in-progress (dispatch logging) 2026-07-16 | 1-7 done (dev + code-review complete) 2026-07-16 — Epic 1 dev COMPLETE
 project_key: NOKEY
 tracking_system: file-system
 story_location: _bmad-output/implementation-artifacts
@@ -64,7 +64,7 @@ development_status:
   epic-2: in-progress
   2-1-operator-editable-message-templates: done
   2-2-compose-messagedraft-deep-link-delivery: review
-  2-3-dispatch-logging-drafted-vs-dispatched-idempotent: ready-for-dev
+  2-3-dispatch-logging-drafted-vs-dispatched-idempotent: review
   2-4-booking-confirmation-message: ready-for-dev
   epic-2-retrospective: optional
 

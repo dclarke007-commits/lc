@@ -3,7 +3,7 @@
 // value is resolved from the one seeded operator row. Later stories add a value
 // SOURCE (e.g. from the session), never a query retrofit.
 
-import { eq, and, asc, desc, gte } from 'drizzle-orm';
+import { eq, and, asc, desc, gte, isNull, isNotNull, sql } from 'drizzle-orm';
 import { db } from './client';
 import {
   operator,
@@ -11,6 +11,7 @@ import {
   capacitySettings,
   job,
   messageTemplate,
+  messageLog,
 } from './schema';
 import type {
   Operator,
@@ -18,6 +19,7 @@ import type {
   CapacitySettingsRow,
   Job,
   MessageTemplate,
+  MessageLog,
 } from './schema';
 
 /**
@@ -206,4 +208,107 @@ export async function getMessageTemplates(
     .from(messageTemplate)
     .where(eq(messageTemplate.ownerId, ownerId))
     .orderBy(asc(messageTemplate.type));
+}
+
+// --- Message log (Story 2.3, AD-8 owner-scoped; AD-5 drafted vs dispatched) ---
+
+/** The dispatched-message projection the nudge-fatigue derive reads (Story 2.3). */
+export interface DispatchedMessage {
+  clientId: string;
+  messageType: string;
+  dispatchedAt: string; // UTC — non-null by construction (query filters IS NOT NULL)
+}
+
+/**
+ * Materialize a "drafted" MessageLog row (drafted_at set, dispatched_at null) keyed
+ * on the per-draft nonce (Option B). Idempotent: a repeat with the same (owner,
+ * nonce) — e.g. a resubmitted send form — inserts NO second row (ON CONFLICT DO
+ * NOTHING on the unique target), then returns the existing row. This is ONLY the
+ * drafted write; it never touches dispatched_at (AD-5: no dispatch on draft).
+ */
+export async function upsertMessageDraft(
+  ownerId: string,
+  clientId: string,
+  messageType: MessageLog['messageType'],
+  draftNonce: string,
+): Promise<MessageLog> {
+  await db
+    .insert(messageLog)
+    .values({ ownerId, clientId, messageType, draftNonce })
+    .onConflictDoNothing({
+      target: [messageLog.ownerId, messageLog.draftNonce],
+    });
+  const [row] = await db
+    .select()
+    .from(messageLog)
+    .where(
+      and(eq(messageLog.ownerId, ownerId), eq(messageLog.draftNonce, draftNonce)),
+    )
+    .limit(1);
+  return row;
+}
+
+/**
+ * Stamp dispatched_at ONCE on the (owner, nonce) row — the operator's explicit send
+ * tap (AC2/AD-5). Guard `dispatched_at IS NULL`: the first tap wins and returns the
+ * stamped row; a re-tap matches zero rows and returns undefined, so the caller
+ * treats it as an idempotent no-op (no second timestamp, no second row).
+ */
+export async function markMessageDispatched(
+  ownerId: string,
+  draftNonce: string,
+): Promise<MessageLog | undefined> {
+  const [row] = await db
+    .update(messageLog)
+    .set({ dispatchedAt: sql`now()` })
+    .where(
+      and(
+        eq(messageLog.ownerId, ownerId),
+        eq(messageLog.draftNonce, draftNonce),
+        isNull(messageLog.dispatchedAt),
+      ),
+    )
+    .returning();
+  return row;
+}
+
+/**
+ * Read one MessageLog row by (owner, nonce) — used to return the EXISTING dispatch
+ * timestamp on an idempotent re-tap (when markMessageDispatched no-ops). Owner-scoped.
+ */
+export async function getMessageLogByNonce(
+  ownerId: string,
+  draftNonce: string,
+): Promise<MessageLog | undefined> {
+  const [row] = await db
+    .select()
+    .from(messageLog)
+    .where(
+      and(eq(messageLog.ownerId, ownerId), eq(messageLog.draftNonce, draftNonce)),
+    )
+    .limit(1);
+  return row;
+}
+
+/**
+ * The owner's DISPATCHED messages (dispatched_at IS NOT NULL) — the canonical rows
+ * the nudge-fatigue derive (Story 2.3, AD-7) counts per client per operator-local
+ * week. Owner-scoped on the VALUE (AD-8). Drafts never sent (null dispatched_at) are
+ * excluded here, so an unsent draft can never inflate fatigue.
+ */
+export async function listDispatchedMessages(
+  ownerId: string,
+): Promise<DispatchedMessage[]> {
+  const rows = await db
+    .select({
+      clientId: messageLog.clientId,
+      messageType: messageLog.messageType,
+      dispatchedAt: messageLog.dispatchedAt,
+    })
+    .from(messageLog)
+    .where(
+      and(eq(messageLog.ownerId, ownerId), isNotNull(messageLog.dispatchedAt)),
+    );
+  // dispatchedAt is non-null by the WHERE filter; assert the projection type.
+  return rows as DispatchedMessage[];
 }

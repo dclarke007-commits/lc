@@ -19,6 +19,7 @@ import {
   addDaysToDate,
   isoWeekdayOfDate,
   weekRangeOfDate,
+  localWeekBounds,
 } from '@/lib/domain/clock';
 
 /** The only Job fields derive reads. A projection keeps callers cheap (AD-8). */
@@ -206,4 +207,46 @@ export function weekCapacity(
     over: Math.max(0, consuming - config.weeklyCeiling),
     days,
   };
+}
+
+// --- Story 2.3: nudge-fatigue (derived on read from MessageLog.dispatched_at) ---
+
+/**
+ * The only MessageLog fields nudge-fatigue reads. A DISPATCHED row (dispatched_at
+ * non-null); `queries.listDispatchedMessages` already excludes unsent drafts, so a
+ * draft never counts. Structurally a subset of that db projection.
+ */
+export interface NudgeMessage {
+  clientId: string;
+  dispatchedAt: string; // UTC instant (ISO-8601 or Postgres timestamptz text)
+}
+
+/**
+ * How many messages were DISPATCHED to `clientId` in the operator-local Mon–Sun week
+ * containing `anchor` (AC3/FR21). Reads ONLY dispatched_at — an unsent draft never
+ * counts. The week window is the SAME operator-local Mon–Sun boundary capacity uses
+ * (clock.localWeekBounds, AD-9), so fatigue-weeks and capacity-weeks never drift.
+ * Derived on read (AD-7): a pure function of the passed rows — no stored counter, no
+ * cron. Mutate the input array and the very next call reflects it.
+ *
+ * dispatched_at (UTC) and the week bounds are compared as INSTANTS (epoch ms), never
+ * as strings: Postgres timestamptz ("…+00") and ISO ("…Z") are the same instant in
+ * different text, so a lexical compare across the two formats would be wrong.
+ */
+export function nudgeFatigueForClient(
+  messages: NudgeMessage[],
+  tz: string,
+  clientId: string,
+  anchor: Date,
+): number {
+  const { startUtc, endUtc } = localWeekBounds(anchor, tz);
+  const start = new Date(startUtc).getTime();
+  const end = new Date(endUtc).getTime();
+  let count = 0;
+  for (const m of messages) {
+    if (m.clientId !== clientId) continue;
+    const t = new Date(m.dispatchedAt).getTime();
+    if (t >= start && t < end) count++;
+  }
+  return count;
 }

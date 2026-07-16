@@ -11,6 +11,9 @@ const TEMPLATE_ERROR_MESSAGES: Record<string, string> = {
   'client-not-found': 'That client could not be found.',
   'owner-unresolved': 'No operator is set up. Run the operator seed.',
   'template-write-failed': 'Could not save — please try again.',
+  // Story 2.3 dispatch-logging reasons.
+  'draft-nonce-missing': 'Could not record that send — please reload and try again.',
+  'dispatch-log-failed': 'Could not record that send — please try again.',
 };
 
 /** Human-readable text for a template action reason. Unknown → safe fallback. */

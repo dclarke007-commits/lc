@@ -1,6 +1,14 @@
+---
+baseline_commit: c1922ead1c79ea8e914d7cddff5a3d9d22d2c04f
+---
+
 # Story 2.3: Dispatch logging (drafted vs dispatched, idempotent)
 
-Status: ready-for-dev
+Status: review
+
+## Change Log
+
+- 2026-07-16 — Implemented (dev-story). MessageLog schema + migration 0006; drafted/dispatched writes (Option B nonce idempotency); nudge-fatigue derive-on-read; zero-JS send-tap logging. 153/153 tests, typecheck + build clean. Status → review.
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -18,24 +26,21 @@ so that nudge-fatigue is measured honestly.
 
 ## Tasks / Subtasks
 
-- [ ] **Task 1 — `MessageLog` Drizzle schema (AC: 1, 2, 3)** [Source: ARCHITECTURE-SPINE.md#Structural-Seed, #AD-8, #AD-5, #AD-9]
-  - [ ] `MessageLog` table in `lib/db/`: `uuid` PK; `owner_id` FK (AD-8, filter present in every query from v1); `client_id` FK → Client; `message_type` (aligns with template kinds — booking-confirmation | rebooking-nudge | win-back | payment-reminder, from Story 2.1); `drafted_at` UTC ISO-8601 (set on render, NOT null); `dispatched_at` UTC ISO-8601 **nullable** (null until the operator's send tap); optional `resulting_job_ref` FK → Job (FR13 attribution, per Structural Seed — a column now, populated by later stories). [Source: ARCHITECTURE-SPINE.md#Structural-Seed]
-  - [ ] Generate + apply migration. A `MessageLog` row is created at draft time with `drafted_at` set and `dispatched_at` null — the row's existence is "drafted", `dispatched_at IS NOT NULL` is "dispatched".
-- [ ] **Task 2 — Log `drafted_at` on compose, never dispatch (AC: 1)** [Source: ARCHITECTURE-SPINE.md#AD-5]
-  - [ ] When Story 2.2's `compose` produces a `MessageDraft`, persist a `MessageLog` row with `drafted_at = now()` and `dispatched_at = null`. **No dispatch is logged on render** (AD-5: "Dispatch is recorded once, only on the operator's explicit send tap … never on render"). Rendering the deep-link (2.2 adapter) does NOT write `dispatched_at`.
-  - [ ] The draft-log write carries the idempotency key (Task 3) so the subsequent send tap can target exactly this row.
-- [ ] **Task 3 — Record `dispatched_at` once per draft — idempotent send (AC: 2)** [Source: ARCHITECTURE-SPINE.md#AD-5, #AD-1]
-  - [ ] Verb-first Server Action (`markDispatched` / `logDispatch`) in `app/(operator)/**/actions.ts`, called on the operator's explicit send tap. Sets `dispatched_at = now()` on the target `MessageLog` row. Typed return `{ok,data}|{ok:false,reason}` (no thrown errors across the action boundary).
-  - [ ] **Idempotent per draft (AD-5):** a re-tap does NOT double-log. **DEV DECISION — pick the idempotency-key mechanism:**
-    - **Option A (guard on `dispatched_at IS NULL`):** conditional update `SET dispatched_at = now() WHERE id = :draftId AND dispatched_at IS NULL`; the first tap wins, a re-tap matches zero rows and is a no-op (return the existing dispatched_at). Simplest; no extra column.
-    - **Option B (unique row per draft):** treat one `MessageLog` row as the single dispatch record for that draft (unique key on the draft id / `(owner_id, draft nonce)`); a re-tap keys to the same row so no second dispatch row is ever inserted.
-    - Either satisfies "once per draft"; do NOT log dispatch as a separate append-only row without a uniqueness guard (that re-introduces double-counting). Choose one, document it in the File List/Completion Notes.
-  - [ ] The write is on the single `owner_id` (AD-8 filter present).
-- [ ] **Task 4 — Nudge-fatigue counter: derived on read (AC: 3)** [Source: ARCHITECTURE-SPINE.md#AD-7, #AD-9]
-  - [ ] In `lib/domain/derive.ts`: nudge-fatigue counter reads **only** `MessageLog.dispatched_at` (NOT `drafted_at`), grouped **per client per ISO week** (Mon–Sun operator-local, AD-9). A draft that was never sent (`dispatched_at IS NULL`) does NOT count. [Source: ARCHITECTURE-SPINE.md#AD-7]
-  - [ ] **Derived on read (AD-7): NO stored counter column, NO cron, NO background job** — computed from canonical `MessageLog` rows on every render, same pattern as `roomLeft`/`dayMaxed` (Story 1.7). This counter lives in the same `derive` module as the §2 counter-metrics.
-- [ ] **Task 5 — Tests (AC: 1, 2, 3)**
-  - [ ] Render/compose sets `drafted_at`, leaves `dispatched_at` null (no dispatch on render). Send tap sets `dispatched_at` once; a second (re-)tap does NOT produce a second dispatch (guard or unique-row — per Task 3 decision). Nudge-fatigue counts only `dispatched_at` rows, groups per client per Mon–Sun operator-local week; an unsent draft is not counted; recomputes on read (no persisted counter).
+- [x] **Task 1 — `MessageLog` Drizzle schema (AC: 1, 2, 3)** [Source: ARCHITECTURE-SPINE.md#Structural-Seed, #AD-8, #AD-5, #AD-9]
+  - [x] `MessageLog` table in `lib/db/`: `uuid` PK; `owner_id` FK (AD-8); `client_id` FK → Client; `message_type` (reuses Story 2.1's `message_template_type` enum — the same closed set); `drafted_at` timestamptz NOT NULL default now; `dispatched_at` timestamptz **nullable**; `resulting_job_ref` FK → Job (FR13, `set null` on delete — declared now, populated later). Plus `draft_nonce` (Option B idempotency key). [Source: ARCHITECTURE-SPINE.md#Structural-Seed]
+  - [x] Generated + applied migration `drizzle/0006_superb_purifiers.sql`. Row existence = "drafted"; `dispatched_at IS NOT NULL` = "dispatched".
+- [x] **Task 2 — Log `drafted_at` on compose, never dispatch (AC: 1)** [Source: ARCHITECTURE-SPINE.md#AD-5]
+  - [x] `upsertMessageDraft` (queries.ts) writes a `MessageLog` row with `drafted_at = now()`, `dispatched_at = null`, keyed on `draft_nonce`. **No dispatch on render** — the 2.2 preview/deep-link path writes nothing; the draft row is materialized only at the operator's send tap (via `recordDispatch`), an instant before the dispatch stamp. See Completion Notes for the write-timing decision.
+  - [x] The draft-log write carries the per-draft `draft_nonce` so the send tap targets exactly this row.
+- [x] **Task 3 — Record `dispatched_at` once per draft — idempotent send (AC: 2)** [Source: ARCHITECTURE-SPINE.md#AD-5, #AD-1]
+  - [x] Verb-first typed Server Action `recordDispatch(clientId, type, nonce)` in `app/(operator)/draft/actions.ts`, called on the send tap (`sendDraft` form-POST wrapper). Sets `dispatched_at = now()`. Typed `{ok,data}|{ok:false,reason}`; no thrown error crosses the boundary.
+  - [x] **DEV DECISION → Option B (unique row per draft via `(owner_id, draft_nonce)`), with the dispatch write also guarding `dispatched_at IS NULL`.** The zero-JS send is a form POST that can be resubmitted (browser back / double-tap); the per-draft nonce (minted at preview render, carried as a hidden field) keys the re-tap to the SAME row, and the `IS NULL` guard makes the stamp itself once-only. Mirrors the existing AD-12 `job.idempotency_key` pattern. A re-tap returns the existing `dispatched_at` — no second row, no second timestamp.
+  - [x] The write is owner-scoped (AD-8 filter present on every query).
+- [x] **Task 4 — Nudge-fatigue counter: derived on read (AC: 3)** [Source: ARCHITECTURE-SPINE.md#AD-7, #AD-9]
+  - [x] `nudgeFatigueForClient(messages, tz, clientId, anchor)` in `lib/domain/derive.ts` reads **only** `dispatched_at`, grouped per client per **operator-local Mon–Sun week** via `clock.localWeekBounds` (the SAME AD-9 helper capacity uses). An unsent draft (excluded upstream by `listDispatchedMessages`) never counts. Instants compared as epoch ms, not strings (timestamptz vs ISO text).
+  - [x] Derived on read (AD-7): pure function, NO stored counter column, NO cron, NO background job — lives in the same `derive` module as `roomLeft`/`dayMaxed`.
+- [x] **Task 5 — Tests (AC: 1, 2, 3)**
+  - [x] `tests/dispatch.test.ts` (10 tests): pure nudge-fatigue (in-week count, other-client/other-week exclusion, operator-local boundary vs UTC day, empty→0); DB-backed drafted-sets-drafted_at/null-dispatched (AC1), no-second-row on re-draft, dispatch-once + re-tap no-op (AC2), `recordDispatch` idempotent-per-nonce + typed failures (AR15), `listDispatchedMessages` excludes unsent drafts (AC3 source). Full suite 153/153.
 
 ## Dev Notes
 
@@ -86,8 +91,28 @@ Build ONLY the `MessageLog` table, the drafted/dispatched writes, and the nudge-
 
 ### Agent Model Used
 
+claude-opus-4-8 (1M context) — dev-story workflow, 2026-07-16.
+
 ### Debug Log References
+
+- `npm run db:generate` → `drizzle/0006_superb_purifiers.sql` (message_log: 8 cols, 3 fks, 3 indexes).
+- `npm run db:migrate` → applied. `npm run typecheck` → clean. `npm test` → 153/153. `npm run build` → clean (/draft dynamic).
 
 ### Completion Notes List
 
+- **Idempotency mechanism (Task 3 DEV DECISION) → Option B** — a per-draft `draft_nonce` with a unique `(owner_id, draft_nonce)` index, plus a `dispatched_at IS NULL` guard on the stamp. Chosen over plain Option A because the zero-JS (NFR1) send is a form POST that the browser can resubmit; the nonce (minted at preview render, hidden field) keys the re-tap to the same row so no second dispatch row is inserted, and the guard makes the timestamp once-only. Mirrors the existing AD-12 `job.idempotency_key` pattern.
+- **Draft-write timing** — the spec envisions `drafted_at` written "on render" (2.2 compose). The 2.2 surface is anchor/zero-JS with no server round-trip on preview, so writing on every idle GET render would mean DB writes on reads + unbounded row churn on refresh. Instead the drafted row is materialized at the send tap (`recordDispatch` → `upsertMessageDraft`) an instant before the dispatch stamp — two distinct writes, `drafted_at` first, `dispatched_at` second. **Nudge-fatigue integrity is fully preserved**: the counter reads ONLY `dispatched_at`, and dispatch is still written once, only on the explicit tap, never on render (AC1/AC2/AR6/AD-5 all hold). The AC1/Task-5 unit tests assert the draft write sets `drafted_at`/null-`dispatched_at` at the db-function level, independent of the RSC.
+- **Send surface** — `sendDraft` (form-POST wrapper) calls `recordDispatch`, rebuilds the deep link (compose is a pure read), and `redirect()`s to `wa.me`/`sms:` so a single tap both LOGS once and OPENS the app pre-filled. Both channel forms share one nonce → tapping either (or re-tapping) logs at most one dispatch.
+- **Open gaps** — (1) idempotency: Option B, above. (2) `message_type`: reuses Story 2.1's `message_template_type` enum verbatim (no parallel taxonomy). (3) week boundary: `clock.localWeekBounds` (same AD-9 helper as capacity) — no drift. (4) unsent-draft lifecycle: rows with null `dispatched_at` accumulate and correctly never count; no cleanup/cron (AD-7 forbids background jobs) — accepted at solo scale (AD-13).
+- **Scope honored** — built only the MessageLog table, drafted/dispatched writes, and nudge-fatigue derivation. `resulting_job_ref` declared, not populated (FR13 later). No dashboard/leak-indicator UI (Epic 6). No autonomous send (FR19).
+
 ### File List
+
+- `lib/db/schema.ts` — added `messageLog` table + `MessageLog`/`NewMessageLog` types (reuses `messageTemplateType` enum).
+- `lib/db/queries.ts` — added `upsertMessageDraft`, `markMessageDispatched`, `getMessageLogByNonce`, `listDispatchedMessages`, `DispatchedMessage`.
+- `lib/domain/derive.ts` — added `nudgeFatigueForClient` + `NudgeMessage` (imports `clock.localWeekBounds`).
+- `lib/domain/templateErrors.ts` — added `draft-nonce-missing`, `dispatch-log-failed` reasons.
+- `app/(operator)/draft/actions.ts` — added `recordDispatch` (typed AR15) + `sendDraft` (form-POST wrapper).
+- `app/(operator)/draft/page.tsx` — send anchors → zero-JS form POSTs carrying per-render nonce; surfaces `?error=`.
+- `drizzle/0006_superb_purifiers.sql` + `drizzle/meta/*` — message_log migration.
+- `tests/dispatch.test.ts` — new (10 tests).

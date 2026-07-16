@@ -9,8 +9,9 @@
 // This is the minimal preview seam. Story 2.4 wires the real trigger (booking
 // confirmation on commit); this surface proves compose→deliver end-to-end now.
 
+import { randomUUID } from 'node:crypto';
 import Link from 'next/link';
-import { listDraftClients, previewDraft } from './actions';
+import { listDraftClients, previewDraft, sendDraft } from './actions';
 import { deepLink } from '@/lib/delivery/deeplink';
 import { templateErrorMessage } from '@/lib/domain/templateErrors';
 import {
@@ -33,10 +34,11 @@ const sendBtn: React.CSSProperties = {
   display: 'inline-block',
   padding: '0.7rem 1.2rem',
   fontSize: '1rem',
-  marginRight: '0.75rem',
   border: '1px solid #0a5c2b',
   borderRadius: 4,
-  textDecoration: 'none',
+  background: '#fff',
+  color: '#0a5c2b',
+  cursor: 'pointer',
 };
 
 export default async function DraftPage({
@@ -47,6 +49,7 @@ export default async function DraftPage({
     type?: string;
     slot?: string;
     amount?: string;
+    error?: string;
   }>;
 }) {
   const sp = await searchParams;
@@ -57,10 +60,16 @@ export default async function DraftPage({
   const slot = sp.slot ?? '';
   const amount = sp.amount ?? '';
 
+  // A fresh per-render nonce identifies THIS draft (Story 2.3, Option B). Both send
+  // forms below carry it; the send action keys the MessageLog row on it, so a re-tap
+  // of the rendered form logs at most one dispatch.
+  const nonce = randomUUID();
+
   let body: string | null = null;
   let waLink: string | null = null;
   let smsLink: string | null = null;
-  let errorMsg: string | null = null;
+  // A failed send redirects back with ?error=<reason>; surface it server-side (NFR1).
+  let errorMsg: string | null = templateErrorMessage(sp.error);
 
   if (selectedClient && selectedType) {
     const res = await previewDraft(selectedClient, selectedType, slot, amount);
@@ -179,14 +188,25 @@ export default async function DraftPage({
           </p>
 
           {waLink && smsLink ? (
-            <p style={{ margin: 0 }}>
-              <a style={sendBtn} href={waLink}>
-                Open in WhatsApp
-              </a>
-              <a style={sendBtn} href={smsLink}>
-                Open in SMS
-              </a>
-            </p>
+            <div style={{ display: 'flex', gap: '0.75rem', margin: 0 }}>
+              {/* Zero-JS send (Story 2.3): each control is a form POST. The tap logs
+                  the dispatch ONCE (server action) then redirects to the deep link so
+                  the OS opens WhatsApp/SMS pre-filled. Both forms carry the same
+                  `nonce`, so tapping either (or re-tapping) never double-logs. */}
+              {(['whatsapp', 'sms'] as const).map((channel) => (
+                <form key={channel} action={sendDraft} style={{ margin: 0 }}>
+                  <input type="hidden" name="client" value={selectedClient} />
+                  <input type="hidden" name="type" value={selectedType} />
+                  <input type="hidden" name="slot" value={slot} />
+                  <input type="hidden" name="amount" value={amount} />
+                  <input type="hidden" name="nonce" value={nonce} />
+                  <input type="hidden" name="channel" value={channel} />
+                  <button type="submit" style={sendBtn}>
+                    {channel === 'whatsapp' ? 'Open in WhatsApp' : 'Open in SMS'}
+                  </button>
+                </form>
+              ))}
+            </div>
           ) : (
             <p role="status" style={{ color: '#b00020', margin: 0 }}>
               This client has no usable phone number — add one to send.
