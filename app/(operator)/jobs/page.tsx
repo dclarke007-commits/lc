@@ -8,12 +8,14 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import {
   getOwnerJobs,
+  getRebookProposal,
   markOutcome,
   correctOutcome,
   cancelJob,
   rescheduleJob,
 } from './actions';
 import { lifecycleErrorMessage } from '@/lib/domain/lifecycleErrors';
+import { deepLink } from '@/lib/delivery/deeplink';
 
 export const dynamic = 'force-dynamic';
 
@@ -67,6 +69,100 @@ const COMPLETION_LABEL: Record<string, string> = {
   'no-show': 'No-show',
   cancelled: 'Cancelled',
 };
+
+// Story 3.3: the one-tap rebooking control lives on completed OR upcoming (booked)
+// jobs (FR10). Zero-JS (AD-13): a GET link to ?rebook=<jobId> that re-renders this
+// dynamic surface with the proposal panel — the proposal is a derive READ (AD-7), so
+// GET is correct (no mutation). A different job's link replaces the shown panel.
+const REBOOKABLE = new Set(['booked', 'completed']);
+
+/**
+ * The proposal panel (Story 3.3, Task 4): the proposed slot, the composed rebooking
+ * draft, and the WhatsApp/SMS tap-to-send anchors. Sending is the operator's explicit
+ * tap on an anchor (Epic 2) — this panel records NO dispatch. Reads ONLY via the action.
+ */
+async function RebookPanel({ jobId }: { jobId: string }) {
+  const res = await getRebookProposal(jobId);
+
+  const panel: React.CSSProperties = {
+    border: '1px solid #cbd5e1',
+    background: '#f8fafc',
+    borderRadius: 6,
+    padding: '0.9rem 1rem',
+    margin: '0 0 1.25rem',
+  };
+
+  if (!res.ok) {
+    return (
+      <section style={panel} aria-label="Rebooking proposal">
+        <p role="alert" style={{ color: '#b00020', margin: 0 }}>
+          Could not build a rebooking proposal ({res.reason}).
+        </p>
+      </section>
+    );
+  }
+
+  const { slot, draft } = res.data;
+
+  if (!slot || !draft) {
+    return (
+      <section style={panel} aria-label="Rebooking proposal">
+        <p role="status" style={{ margin: 0 }}>
+          No open slot in range. Try again once a day frees up.
+        </p>
+      </section>
+    );
+  }
+
+  const waLink = deepLink(draft, 'whatsapp');
+  const smsLink = deepLink(draft, 'sms');
+  const send: React.CSSProperties = {
+    display: 'inline-block',
+    padding: '0.6rem 1rem',
+    fontSize: '1rem',
+    border: '1px solid #0a5c2b',
+    borderRadius: 4,
+    background: '#fff',
+    color: '#0a5c2b',
+    textDecoration: 'none',
+  };
+
+  return (
+    <section style={panel} aria-label="Rebooking proposal">
+      <h2 style={{ fontSize: '1rem', margin: '0 0 0.4rem' }}>
+        Proposed next slot: {slot}
+      </h2>
+      <p
+        style={{
+          whiteSpace: 'pre-wrap',
+          background: '#fff',
+          border: '1px solid #e2e8f0',
+          padding: '0.7rem',
+          borderRadius: 4,
+          margin: '0 0 0.8rem',
+        }}
+      >
+        {draft.body}
+      </p>
+      {waLink && smsLink ? (
+        <div style={{ display: 'flex', gap: '0.75rem' }}>
+          {/* Plain anchors — the OS opens WhatsApp/SMS pre-filled ONLY on the
+              operator's tap. No dispatch is recorded here (Story 3.3 scope). */}
+          <a href={waLink} style={send}>
+            Open in WhatsApp
+          </a>
+          <a href={smsLink} style={send}>
+            Open in SMS
+          </a>
+        </div>
+      ) : (
+        <p role="status" style={{ color: '#b00020', margin: 0 }}>
+          This client has no usable phone number — add one to send.
+        </p>
+      )}
+    </section>
+  );
+}
 
 /** The outcome/correction controls for one job, chosen by its current state. */
 function JobControls({ id, completion }: { id: string; completion: string }) {
@@ -149,12 +245,13 @@ function JobControls({ id, completion }: { id: string; completion: string }) {
 export default async function JobsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string; done?: string }>;
+  searchParams: Promise<{ error?: string; done?: string; rebook?: string }>;
 }) {
   const jobs = await getOwnerJobs();
   const sp = await searchParams;
   const errorMsg = lifecycleErrorMessage(sp.error);
   const done = sp.done === '1';
+  const rebookJobId = sp.rebook?.trim() || null;
 
   return (
     <main style={{ padding: '1.5rem', maxWidth: 720 }}>
@@ -193,6 +290,8 @@ export default async function JobsPage({
         </p>
       )}
 
+      {rebookJobId && <RebookPanel jobId={rebookJobId} />}
+
       {jobs.length === 0 ? (
         <p>
           No jobs yet. <Link href="/bookings">Book a job</Link> first.
@@ -217,6 +316,11 @@ export default async function JobsPage({
                 </td>
                 <td style={cell}>
                   <JobControls id={j.id} completion={j.completion} />
+                  {REBOOKABLE.has(j.completion) && (
+                    <div style={{ marginTop: '0.4rem' }}>
+                      <Link href={`/jobs?rebook=${j.id}`}>Rebook</Link>
+                    </div>
+                  )}
                 </td>
               </tr>
             ))}

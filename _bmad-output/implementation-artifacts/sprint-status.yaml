@@ -72,7 +72,7 @@ development_status:
   epic-3: in-progress
   3-1-client-booking-surface-per-client-link: done
   3-2-known-client-direct-confirm-booking: done
-  3-3-one-tap-rebooking-proposal-message: ready-for-dev
+  3-3-one-tap-rebooking-proposal-message: done
   3-4-post-job-nudge-rebooking-tracking: ready-for-dev
   3-5-lapse-detection-expected-next-date-gone-cold: ready-for-dev
   3-6-win-back-action: ready-for-dev

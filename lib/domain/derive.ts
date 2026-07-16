@@ -209,6 +209,91 @@ export function weekCapacity(
   };
 }
 
+// --- Story 3.3: forward rebooking-slot proposal (derived on read) ---
+//
+// The forward twin of the nearest-open scan: given the anchor job's date and the
+// client's cadence, propose the next slot to offer. PURE (AD-7) — a function of the
+// passed rows/config, no db, no stored forecast, no cron. It NEVER throws (AC3):
+// when the bounded scan finds no open day it returns { slot: null } for the surface
+// to render gracefully. Openness is judged with derive's OWN reads (weekCapacity +
+// nearestOpen), which already route through capacity.consumesSlot (AD-2) — capacity
+// is never re-derived here. The gone-cold / expectedNextDate lapse twin is Story 3.5.
+
+/** Cadence enum's proposable clients (one-time has no interval). Client.cadence type. */
+export type Cadence = 'weekly' | 'biweekly' | 'monthly' | 'one-time';
+
+/**
+ * Cadence → day-count interval, operator-local (AD-9). biweekly = 14d, monthly = 28d
+ * (a stable 4-week interval, NOT a calendar month — keeps lapse (3.5) and rebooking
+ * agreeing on one arithmetic). `one-time` has NO interval and is absent here.
+ */
+export const CADENCE_INTERVAL_DAYS: Record<
+  'weekly' | 'biweekly' | 'monthly',
+  number
+> = {
+  weekly: 7,
+  biweekly: 14,
+  monthly: 28,
+};
+
+/**
+ * Propose the slot at/after `start` (inclusive): the start day itself if it is
+ * genuinely open, else the nearest open day AFTER it via Story 1.7's forward scan.
+ * Start-day openness reuses derive's OWN weekCapacity `open` (working day AND not
+ * day-maxed AND week under ceiling — computed via consumesSlot, AD-2); the fallback
+ * is nearestOpen (which starts the day after `start`), so together they cover
+ * "at/after start" with no re-implemented scan and no re-derived capacity.
+ */
+function proposeFromStart(
+  jobs: DeriveJob[],
+  config: CapacityConfig,
+  start: string,
+): string | null {
+  // weekCapacity computes `open` for each WORKING day of start's week, anchored at
+  // `start` (so start itself is never "past"). A non-working start day is simply
+  // absent from days → treated as not open → fall through to the forward scan.
+  const startDay = weekCapacity(jobs, config, start).days.find(
+    (d) => d.date === start,
+  );
+  if (startDay?.open) return start;
+  return nearestOpen(jobs, config, start)[0] ?? null;
+}
+
+export interface ProposeRebookInput {
+  cadence: Cadence;
+  anchorDate: string; // the anchor job's operator-local 'YYYY-MM-DD'
+  jobs: DeriveJob[];
+  config: CapacityConfig;
+  today: string; // operator-local 'YYYY-MM-DD' — never propose a day before this
+}
+
+/**
+ * The one-tap rebooking proposal (FR10/AC1/AC3). For a CADENCED client the ideal
+ * slot is the cadence interval past the anchor job, clamped forward so a past ideal
+ * never surfaces (start = max(target, today)); the actual proposal is that start day
+ * if open, else the nearest open ALTERNATIVE (AC3 — a full ideal slot yields the
+ * nearest open day, never a failure). For a ONE-TIME client there is no interval —
+ * propose the soonest open slot at/after today (the one-time→repeat conversion, FR10).
+ * Returns { slot: null } only when the bounded scan window holds no open day; NEVER
+ * throws.
+ */
+export function proposeRebookSlot(input: ProposeRebookInput): {
+  slot: string | null;
+} {
+  const { cadence, anchorDate, jobs, config, today } = input;
+
+  // One-time: no cadence interval — the soonest open slot from today (FR10).
+  if (cadence === 'one-time') {
+    return { slot: proposeFromStart(jobs, config, today) };
+  }
+
+  // Cadenced: the cadence interval past the anchor, never earlier than today. Both
+  // are 'YYYY-MM-DD', so the lexical max is the calendar max.
+  const target = addDaysToDate(anchorDate, CADENCE_INTERVAL_DAYS[cadence]);
+  const start = target < today ? today : target;
+  return { slot: proposeFromStart(jobs, config, start) };
+}
+
 // --- Story 2.3: nudge-fatigue (derived on read from MessageLog.dispatched_at) ---
 
 /**

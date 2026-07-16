@@ -1,6 +1,6 @@
 # Story 3.3: One-tap rebooking proposal + message
 
-Status: ready-for-dev
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -18,24 +18,24 @@ so that repeat business happens before I leave the driveway.
 
 ## Tasks / Subtasks
 
-- [ ] **Task 1 — `derive.proposeRebookSlot(client, fromJob)` slot proposal (AC: 1, 3)** [Source: ARCHITECTURE-SPINE.md#AD-7, #AD-2, #AD-9]
-  - [ ] In `lib/domain/derive.ts` (the single derive module, AD-7): compute the proposed next slot on read from canonical rows — **no stored flag, no cron** (AR8/AD-7).
-  - [ ] **Cadenced client** (`Client.cadence ∈ weekly|biweekly|monthly`, Conventions): propose the slot at the cadence interval **after the anchor job's date** (interval math in operator-local tz, AD-9). **One-time client** (`cadence = one-time`): propose the **soonest open slot** (FR10).
-  - [ ] Openness is `derive`'s existing capacity read (Story 1.7): a day is proposable only if **not day-maxed AND the week is under the weekly-14 ceiling** — computed via `capacity.consumesSlot` (Story 1.4). Do NOT re-implement which Job states consume capacity, and do NOT reinvent the nearest-open scan.
-  - [ ] Reuse Story 1.7's **nearest-open derivation** for both the one-time "soonest open" and the AC3 fallback — same forward scan over working days (config from Story 1.3), skipping non-working / day-maxed / week-full days.
-- [ ] **Task 2 — AC3 nearest-open fallback (never errors) (AC: 3)** [Source: ARCHITECTURE-SPINE.md#AD-7; epics.md FR10, #story-3-3 AC3]
-  - [ ] When the cadence-interval target day is not open (day-maxed or week-full), return the **nearest open alternative** via the Story 1.7 scan rather than failing. A cadenced client whose ideal slot is full still gets a concrete proposed slot.
-  - [ ] The proposal is best-effort and **must not throw**: it returns a proposed slot (or a typed empty/no-slot-in-window result the surface renders gracefully — see Open gaps). AC3 is "propose the nearest alternative, not a failure."
-- [ ] **Task 3 — Rebooking draft Server Action → `compose` (AC: 2)** [Source: ARCHITECTURE-SPINE.md#AD-5, #AD-1, #Consistency-Conventions Messaging]
-  - [ ] Verb-first Server Action in `app/(operator)/**/actions.ts` (sole write path, AD-1): given a job/client, calls Task 1 to get the proposed slot, then calls Story 2.2's **`compose(client, slot, amount, template)`** with the **`rebooking_nudge`** template (Story 2.1) to produce a `MessageDraft{recipient, body, type}`.
-  - [ ] The draft body is **pre-filled with the proposed slot and the client's per-client link** (Story 3.1's signed per-client token URL) via the template placeholders (FR11). The link is passed as a resolved placeholder value into `compose`/`resolveTemplate` — see Open gaps for which token (`{slot}` carries the link, or an added value) — never a new transport concern.
-  - [ ] **`MessageDraft` only — no autonomous send** (compose ≠ deliver, AD-5): this action composes and returns the draft ready for the operator's tap-to-send via Epic 2's `lib/delivery` adapter (Story 2.2). It does NOT open, send, or log a dispatch. Typed return `{ok,data}|{ok:false,reason}` (AR15).
-- [ ] **Task 4 — One-tap rebook surface (AC: 1, 2)** [Source: ARCHITECTURE-SPINE.md#AD-1, #AD-13]
-  - [ ] Expose a one-tap **rebook** action on each **completed or upcoming** job (trigger surface a dev decision — see Open gaps). RSC under `app/(operator)/`, phone-first, minimal client JS, dynamic (no `use cache`, AD-13). Surface reads via `derive`, writes via the action; never imports `lib/db` (AD-1).
-  - [ ] Tapping surfaces the proposed slot and the ready-to-send draft; sending is the operator's explicit tap (Epic 2), not part of this action.
-- [ ] **Task 5 — Unit tests (AC: 1, 2, 3)**
-  - [ ] Cadenced client → slot at cadence interval past the anchor (weekly/biweekly/monthly). One-time client → soonest open slot. Cadence target day-maxed/week-full → nearest open alternative returned, **never an error/throw** (AC3). All values recompute on read (no persisted proposal).
-  - [ ] Draft: `compose` called with the `rebooking_nudge` template; returned `MessageDraft` body contains the proposed slot + the per-client link; no transport/`wa.me`/`sms:` key on the draft; no dispatch logged (send is a later tap).
+- [x] **Task 1 — `derive.proposeRebookSlot(client, fromJob)` slot proposal (AC: 1, 3)** [Source: ARCHITECTURE-SPINE.md#AD-7, #AD-2, #AD-9]
+  - [x] In `lib/domain/derive.ts` (the single derive module, AD-7): compute the proposed next slot on read from canonical rows — **no stored flag, no cron** (AR8/AD-7).
+  - [x] **Cadenced client** (`Client.cadence ∈ weekly|biweekly|monthly`, Conventions): propose the slot at the cadence interval **after the anchor job's date** (interval math in operator-local tz, AD-9). **One-time client** (`cadence = one-time`): propose the **soonest open slot** (FR10).
+  - [x] Openness is `derive`'s existing capacity read (Story 1.7): a day is proposable only if **not day-maxed AND the week is under the weekly-14 ceiling** — computed via `capacity.consumesSlot` (Story 1.4). Do NOT re-implement which Job states consume capacity, and do NOT reinvent the nearest-open scan.
+  - [x] Reuse Story 1.7's **nearest-open derivation** for both the one-time "soonest open" and the AC3 fallback — same forward scan over working days (config from Story 1.3), skipping non-working / day-maxed / week-full days.
+- [x] **Task 2 — AC3 nearest-open fallback (never errors) (AC: 3)** [Source: ARCHITECTURE-SPINE.md#AD-7; epics.md FR10, #story-3-3 AC3]
+  - [x] When the cadence-interval target day is not open (day-maxed or week-full), return the **nearest open alternative** via the Story 1.7 scan rather than failing. A cadenced client whose ideal slot is full still gets a concrete proposed slot.
+  - [x] The proposal is best-effort and **must not throw**: it returns a proposed slot (or a typed empty/no-slot-in-window result the surface renders gracefully — see Open gaps). AC3 is "propose the nearest alternative, not a failure."
+- [x] **Task 3 — Rebooking draft Server Action → `compose` (AC: 2)** [Source: ARCHITECTURE-SPINE.md#AD-5, #AD-1, #Consistency-Conventions Messaging]
+  - [x] Verb-first Server Action in `app/(operator)/**/actions.ts` (sole write path, AD-1): given a job/client, calls Task 1 to get the proposed slot, then calls Story 2.2's **`compose(client, slot, amount, template)`** with the **`rebooking_nudge`** template (Story 2.1) to produce a `MessageDraft{recipient, body, type}`.
+  - [x] The draft body is **pre-filled with the proposed slot and the client's per-client link** (Story 3.1's signed per-client token URL) via the template placeholders (FR11). The link is passed as a resolved placeholder value into `compose`/`resolveTemplate` — see Open gaps for which token (`{slot}` carries the link, or an added value) — never a new transport concern.
+  - [x] **`MessageDraft` only — no autonomous send** (compose ≠ deliver, AD-5): this action composes and returns the draft ready for the operator's tap-to-send via Epic 2's `lib/delivery` adapter (Story 2.2). It does NOT open, send, or log a dispatch. Typed return `{ok,data}|{ok:false,reason}` (AR15).
+- [x] **Task 4 — One-tap rebook surface (AC: 1, 2)** [Source: ARCHITECTURE-SPINE.md#AD-1, #AD-13]
+  - [x] Expose a one-tap **rebook** action on each **completed or upcoming** job (trigger surface a dev decision — see Open gaps). RSC under `app/(operator)/`, phone-first, minimal client JS, dynamic (no `use cache`, AD-13). Surface reads via `derive`, writes via the action; never imports `lib/db` (AD-1).
+  - [x] Tapping surfaces the proposed slot and the ready-to-send draft; sending is the operator's explicit tap (Epic 2), not part of this action.
+- [x] **Task 5 — Unit tests (AC: 1, 2, 3)**
+  - [x] Cadenced client → slot at cadence interval past the anchor (weekly/biweekly/monthly). One-time client → soonest open slot. Cadence target day-maxed/week-full → nearest open alternative returned, **never an error/throw** (AC3). All values recompute on read (no persisted proposal).
+  - [x] Draft: `compose` called with the `rebooking_nudge` template; returned `MessageDraft` body contains the proposed slot + the per-client link; no transport/`wa.me`/`sms:` key on the draft; no dispatch logged (send is a later tap).
 
 ## Dev Notes
 
@@ -93,8 +93,36 @@ Note the seam split: **Story 3.5** owns `derive.expectedNextDate`/`goneCold` (la
 
 ### Agent Model Used
 
+Claude Opus 4.8 (1M context) — `claude-opus-4-8[1m]`.
+
 ### Debug Log References
+
+- `npx tsc --noEmit` → **0 errors** (clean).
+- `npx vitest run tests/rebook.test.ts` → **10 passed** (10 tests, 1 file).
+- `npx vitest run` (full suite) → **207 passed** across **22 files** (0 failures), incl. the new `tests/rebook.test.ts`.
+- Docker Postgres already up; **no migration** — this story is pure derive + read-action + surface + tests (no schema change).
 
 ### Completion Notes List
 
+Five locked dev decisions, as implemented:
+
+1. **`derive.proposeRebookSlot` (pure, `lib/domain/derive.ts`).** Exports `CADENCE_INTERVAL_DAYS = { weekly:7, biweekly:14, monthly:28 }` and `type Cadence`. Cadenced: `target = addDaysToDate(anchorDate, CADENCE_INTERVAL_DAYS[cadence])`, `start = max(target, today)` (lexical = calendar for `YYYY-MM-DD`, so a past ideal never surfaces). One-time: `start = today`. Both route through a private `proposeFromStart(jobs, config, start)` that judges the start day's openness via **derive's own `weekCapacity(...).days` `open` flag** (working-day AND not day-maxed AND week-under-ceiling, already computed via `capacity.consumesSlot`) and falls back to **`nearestOpen(jobs, config, start)[0]`** (Story 1.7's forward scan, which starts the day AFTER `start`) — together covering "at/after start". No capacity math and no scan were re-implemented. Returns `{ slot: string | null }`; `null` only when the bounded window has no open day. **Never throws** (all inputs are pure/bounded) → AC3. *Note:* one-time includes `today` itself when open (soonest-open, the more correct product behavior), still via the same scan seam.
+
+2. **Read action `getRebookProposal(jobId)` (`app/(operator)/jobs/actions.ts`).** Mirrors `getConfirmationDraft`: owner resolved fail-closed via `getOwnerId()` (`owner-unresolved`); `getJob` (→ `job-not-found`), `getClient` (→ `client-not-found`); config = `getCapacitySettings` or `DEFAULT_CAPACITY`; `today = localDateKey(new Date(), config.timezone)`; `jobs = listJobsFrom(ownerId, weekRangeOfDate(today).monday)` (same window the dashboard/booking-view use). Calls `proposeRebookSlot({ cadence: client.cadence, anchorDate: job.date, jobs, config, today })`. `slot === null` → `ok({ slot:null, draft:null })` (never an error, AC3). Else composes the owner's **`rebooking_nudge`** template (default body from `messageTemplateConfig` if unseeded) via unchanged `compose(client, formatDateKey(slot), config.defaultJobPriceCents, template)`. Typed AR15. Does NOT send / log dispatch / touch `MessageLog` / `drafted_at` / `dispatched_at`.
+
+3. **Per-client link append (FR11).** `token = ensureClientToken(ownerId, client.id)` (Story 3.1's stable read-or-create link); `bookingUrl = ${APP_BASE_URL}/book/${encodeURIComponent(token)}`. Appended as `draft.body = ${draft.body}\n\n${bookingUrl}` — **compose/`resolveTemplate`/template contract UNCHANGED** (no `{link}`/`{token}` placeholder added, so no raw token can leak; Story 2.1 AC3 preserved). **`APP_BASE_URL`**: read from `process.env.APP_BASE_URL` (fallback `http://localhost:3000`); no base-url env existed, so `APP_BASE_URL=http://localhost:3000` was ADDED to both `.env` and `.env.example` (commented).
+
+4. **Surface (`app/(operator)/jobs/page.tsx`, Task 4).** Zero-JS/dynamic (AD-13). Each **completed OR booked** row gets a GET `Rebook` link → `/jobs?rebook=<jobId>` (a derive READ, so GET is correct — no mutation). When `searchParams.rebook` is present, `<RebookPanel>` calls `getRebookProposal` and renders: the proposed slot (or "No open slot in range." when null; a small typed-reason error when the action fails), the composed draft body, and WhatsApp + SMS tap-to-send **plain anchors** via `deepLink(draft,'whatsapp')`/`deepLink(draft,'sms')` (like `/draft`, but anchors not form-POSTs — sending is the operator's explicit tap, **no dispatch recorded**). Surface reads only via the action; never imports `lib/db`.
+
+5. **Tests (`tests/rebook.test.ts`, DB-backed, serial).** Fake-Date-to-fixed-Monday trick (`vi.useFakeTimers({ toFake:['Date'] })` + `vi.setSystemTime` in `beforeAll`, `vi.useRealTimers()` in `afterAll`), `process.env.APP_BASE_URL` set for the link assertion. Covers: weekly/biweekly/monthly → slot at interval past anchor; one-time → soonest open; past cadence target clamps to today; **day-maxed cadence target → nearest open ALTERNATIVE** (asserts it differs from the maxed target and does not throw); empty window → `{ slot:null }` (no throw); action returns a `rebooking_nudge` draft whose body contains the formatted slot AND `/book/<token>` link, carries only `{recipient,body,type}` (no `wa.me`/`sms:` key), and leaves `MessageLog` at **0 rows**; null-path (no workable day) → `ok({slot:null,draft:null})` with `MessageLog` still 0; unknown job id → typed `{ok:false,reason:'job-not-found'}`.
+
+**Unsure / flagged:** (a) `CADENCE_INTERVAL_DAYS.monthly = 28` (a stable 4-week interval, NOT a calendar month) — chosen so Story 3.5's `expectedNextDate` lapse math can share the same constant; confirm this is the intended monthly semantics. (b) one-time proposal includes `today` itself when open (see note 1) rather than strictly the day-after — this is the "soonest open" reading of FR10; flag if a strictly-future slot is preferred.
+
 ### File List
+
+- `lib/domain/derive.ts` — added `Cadence`, `CADENCE_INTERVAL_DAYS`, `proposeFromStart` (private), `ProposeRebookInput`, `proposeRebookSlot` (modified).
+- `app/(operator)/jobs/actions.ts` — added `RebookProposal` interface + `getRebookProposal` read action; imports extended (modified).
+- `app/(operator)/jobs/page.tsx` — added `RebookPanel`, `REBOOKABLE`, per-row `Rebook` link, `rebook` searchParam (modified).
+- `.env` — added `APP_BASE_URL` (modified).
+- `.env.example` — added `APP_BASE_URL` (modified).
+- `tests/rebook.test.ts` — new DB-backed test suite (10 tests).
