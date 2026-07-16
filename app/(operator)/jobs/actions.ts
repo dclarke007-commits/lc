@@ -66,9 +66,12 @@ export async function markOutcome(
 }
 
 /**
- * Explicit operator CORRECTION out of a terminal/completed state (AD-10). Reads
- * jobId + the target `to`, resolves the owner fail-closed, and delegates to
- * lifecycle.correctOutcome, which validates `to` against the whitelist.
+ * Explicit operator CORRECTION path (AD-10). Reads jobId + the target `to`,
+ * resolves the owner fail-closed, and delegates to lifecycle.correctOutcome.
+ * Legality is decided SOLELY by the lifecycle whitelist — this action adds no
+ * separate source-state guard, so it does not itself guarantee the row is
+ * terminal/completed; an illegal `to` comes back as illegal-transition. The
+ * correction UI only surfaces this on terminal/completed rows.
  */
 export async function correctOutcome(
   formData: FormData,

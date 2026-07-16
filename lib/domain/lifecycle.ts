@@ -124,11 +124,15 @@ export function markNoShow(
 }
 
 /**
- * Explicit operator CORRECTION — the ONLY exit from a terminal/completed state.
- * `to` is validated against the legal-transition whitelist; an illegal target
- * (or a normal booked→completed/no-show, which is NOT a correction) is rejected
- * as illegal-transition. A completed→cancelled correction frees the slot
- * automatically (cancelled does not consume).
+ * Explicit operator CORRECTION path. `to` is validated against the SAME
+ * legal-transition whitelist as the normal marks — this function shares
+ * `transition()` and adds no separate guard, so the whitelist alone decides
+ * legality. In practice the correction UI only surfaces this on terminal/
+ * completed rows; a booked row's normal targets (completed/no-show) also pass
+ * here, so callers must not rely on this function to *reject* normal marks.
+ * An illegal target is rejected as illegal-transition, writing nothing. A
+ * completed→cancelled correction frees the slot automatically (cancelled does
+ * not consume).
  */
 export function correctOutcome(
   ownerId: string,

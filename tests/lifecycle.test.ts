@@ -178,4 +178,32 @@ describe('lifecycle state machine (Story 1.5)', () => {
     const result = await correctOutcome(ownerId, 'not-a-uuid', 'booked');
     expect(result).toEqual({ ok: false, reason: 'job-not-found' });
   });
+
+  // --- Cross-tenant isolation (AD-8 tenancy seam). The `operator_singleton`
+  // index physically forbids a real second operator, so we can't seed tenant B;
+  // instead we assert the owner_id FILTER directly. FOREIGN_OWNER is a
+  // well-formed UUID (passes the UUID guard) that is NOT the seeded owner, so the
+  // owner-scoped WHERE — not the regex — is what must reject it. A leaked/guessed
+  // jobId from tenant A must be invisible to a caller presenting a different
+  // owner_id: job-not-found, and NOTHING written. ---
+  const FOREIGN_OWNER = '00000000-0000-4000-8000-000000000000';
+
+  it('markCompleted with a foreign owner_id → job-not-found, row untouched (AD-8)', async () => {
+    const j = await insertJob('booked');
+    const result = await markCompleted(FOREIGN_OWNER, j.id);
+    expect(result).toEqual({ ok: false, reason: 'job-not-found' });
+    const row = await readJob(j.id); // re-read as the REAL owner
+    expect(row?.completion).toBe('booked'); // unchanged — owner scoping held
+    expect(row?.completedAt).toBeNull();
+  });
+
+  it('correctOutcome with a foreign owner_id → job-not-found, row untouched (AD-8)', async () => {
+    const j = await insertJob('completed');
+    const before = await readJob(j.id);
+    const result = await correctOutcome(FOREIGN_OWNER, j.id, 'cancelled');
+    expect(result).toEqual({ ok: false, reason: 'job-not-found' });
+    const row = await readJob(j.id);
+    expect(row?.completion).toBe('completed'); // unchanged
+    expect(row?.completedAt).toBe(before?.completedAt); // timestamp untouched
+  });
 });

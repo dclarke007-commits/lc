@@ -72,27 +72,28 @@ function JobControls({ id, completion }: { id: string; completion: string }) {
     );
   }
 
-  // Terminal / completed → explicit operator correction only (AD-10).
-  return (
-    <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
+  // Terminal / completed → the ONLY correction exposed in Story 1.5 is
+  // completed→cancelled (AD-10 quote-exact, and capacity-safe: `cancelled` does
+  // not consume, so the slot frees automatically). Resurrection back to `booked`
+  // is intentionally NOT offered here:
+  //   - completed→booked is not an AD-10-legal transition (D1); and
+  //   - no-show/cancelled→booked re-consumes a slot with NO cap/ceiling recheck
+  //     (D2 — keystone bug).
+  // Both are deferred to Story 1.6, which adds capacity-checked correction /
+  // reschedule and re-opens these paths safely. See deferred-work.md.
+  if (completion === 'completed') {
+    return (
       <form action={submitCorrection}>
         <input type="hidden" name="jobId" value={id} />
-        <input type="hidden" name="to" value="booked" />
+        <input type="hidden" name="to" value="cancelled" />
         <button type="submit" style={btn}>
-          Undo (back to booked)
+          Correct to cancelled
         </button>
       </form>
-      {completion === 'completed' && (
-        <form action={submitCorrection}>
-          <input type="hidden" name="jobId" value={id} />
-          <input type="hidden" name="to" value="cancelled" />
-          <button type="submit" style={btn}>
-            Correct to cancelled
-          </button>
-        </form>
-      )}
-    </div>
-  );
+    );
+  }
+  // no-show / cancelled: no correction offered until Story 1.6.
+  return <span style={{ color: '#999' }}>&mdash;</span>;
 }
 
 export default async function JobsPage({
