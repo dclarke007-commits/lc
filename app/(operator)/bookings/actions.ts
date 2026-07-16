@@ -9,10 +9,23 @@
 // The surface calls THIS (never lib/db): surfaces → actions → domain → db.
 
 import { revalidatePath } from 'next/cache';
-import { getOwnerId, listClients } from '@/lib/db/queries';
+import {
+  getOwnerId,
+  listClients,
+  getClient,
+  getJob,
+  getMessageTemplates,
+  upsertMessageDraft,
+} from '@/lib/db/queries';
 import type { Client, Job } from '@/lib/db/schema';
 import { ok, fail, type ActionResult } from '@/lib/domain/result';
 import { commitBooking } from '@/lib/domain/capacity';
+import {
+  compose,
+  confirmationDraftNonce,
+  type MessageDraft,
+} from '@/lib/domain/compose';
+import { DEFAULT_TEMPLATE_BODIES } from '@/lib/domain/messageTemplateConfig';
 
 /** Owner's clients for the booking surface's picker (owner-scoped read). */
 export async function getBookableClients(): Promise<Client[]> {
@@ -73,6 +86,83 @@ export async function createBooking(
   });
   if (!result.ok) return result;
 
+  const job = result.data;
+
+  // Story 2.4 (AC1/AC3): produce the booking-confirmation DRAFT off the committed
+  // Job — AFTER commit, OUTSIDE the capacity txn. BEST-EFFORT: a draft-write failure
+  // must NEVER roll back or block the committed booking (AD-5: compose ≠ deliver; a
+  // draft is not capacity-consuming, AD-2). Deterministic nonce keyed on the Job id
+  // dedupes: an idempotent repeat commit (AD-12) returns the same Job → the same
+  // nonce → exactly one draft. drafted_at is set here; NO dispatch (FR19, no
+  // autonomous send) — the operator's tap sends it later. resulting_job_ref = job.id
+  // attaches the draft to the Job it confirms (FR13).
+  try {
+    await upsertMessageDraft(
+      ownerId,
+      job.clientId,
+      'booking_confirmation',
+      confirmationDraftNonce(job.id),
+      job.id,
+    );
+  } catch (err) {
+    console.error('[bookings] confirmation draft write failed (booking kept)', err);
+  }
+
   revalidatePath('/bookings');
-  return ok(result.data);
+  return ok(job);
+}
+
+/** The composed booking-confirmation draft plus the fields the send form needs. */
+export interface ConfirmationDraft {
+  draft: MessageDraft;
+  clientId: string; // the Job's client — the send form's `client` field
+  nonce: string; // the Job-keyed dispatch nonce (Story 2.3 send path)
+  slot: string; // {slot} display string = the Job's scheduled date
+  amountDollars: string; // the Job price in dollars, for the send form
+}
+
+/**
+ * Read-and-compose the booking-confirmation draft for a committed Job (Story 2.4,
+ * AC1/AC3), for the post-booking surface. Reads the Job's OWN client/date/price
+ * (never re-derives the booking), plus the operator's booking-confirmation template
+ * (falling back to the domain default if unseeded — mirrors previewDraft). Pure
+ * read → compose; the drafted MessageLog row was already written at commit. Typed
+ * AR15 result; no throw crosses the boundary.
+ */
+export async function getConfirmationDraft(
+  jobId: string,
+): Promise<ActionResult<ConfirmationDraft>> {
+  let ownerId: string;
+  try {
+    ownerId = await getOwnerId();
+  } catch (err) {
+    console.error('[bookings] getOwnerId failed (confirmation)', err);
+    return fail('owner-unresolved');
+  }
+
+  const job = await getJob(ownerId, jobId);
+  if (!job) return fail('job-not-found');
+
+  const client = await getClient(ownerId, job.clientId);
+  if (!client) return fail('client-not-found');
+
+  const templates = await getMessageTemplates(ownerId);
+  const body =
+    templates.find((t) => t.type === 'booking_confirmation')?.body ??
+    DEFAULT_TEMPLATE_BODIES.booking_confirmation;
+
+  const draft = compose(
+    { name: client.name, phone: client.phone },
+    job.date,
+    job.priceCents,
+    { type: 'booking_confirmation', body },
+  );
+
+  return ok({
+    draft,
+    clientId: job.clientId,
+    nonce: confirmationDraftNonce(job.id),
+    slot: job.date,
+    amountDollars: (job.priceCents / 100).toString(),
+  });
 }

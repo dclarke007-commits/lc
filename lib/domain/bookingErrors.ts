@@ -16,6 +16,8 @@ const BOOKING_ERROR_MESSAGES: Record<string, string> = {
   'idempotency-key-missing': 'Something went wrong — please try again.',
   'owner-unresolved': 'No operator is set up. Run the operator seed.',
   'booking-failed': 'Could not book — please try again.',
+  // Story 2.4 — confirmation draft lookup on the post-booking surface.
+  'job-not-found': 'That booking could not be found.',
 };
 
 /** Human-readable text for a booking action reason. Unknown → safe fallback. */

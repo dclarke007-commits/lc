@@ -1,6 +1,14 @@
+---
+baseline_commit: 1d9b193b687a643199a1bc1e0756487384714a21
+---
+
 # Story 2.4: Booking-confirmation message
 
-Status: ready-for-dev
+Status: review
+
+## Change Log
+
+- 2026-07-16 — Implemented (dev-story). Wired booking-confirmation draft into the `commitBooking` success path (best-effort, outside txn); Job-keyed nonce dedup; `resulting_job_ref` attribution; reused 2.2/2.3 send+log path on the post-booking surface. 159/159 tests, typecheck + build clean. Status → review. Closes Epic 2.
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -18,23 +26,19 @@ so that the client gets certainty and I look organized.
 
 ## Tasks / Subtasks
 
-- [ ] **Task 1 — Wire confirmation compose to the booking-commit path (AC: 1, 3)** [Source: ARCHITECTURE-SPINE.md#AD-5, #AD-2, #AD-12]
-  - [ ] After `capacity.commitBooking` (Story 1.4) returns `{ok:true, data: Job}`, call `compose` (Story 2.2) with the **booking-confirmation** template (Story 2.1) and the tuple `(client, slot, amount, template)` built **from the committed Job's existing fields** — `Job.client_id → Client`, `Job.date` (slot), `Job.price` (amount). Do **not** re-fetch or recompute the booking; the Job already carries client/date/price (AC3, FR8).
-  - [ ] Produce a `MessageDraft{ recipient, body, type }` of type `booking-confirmation`. No transport details inside the draft (AR6/AD-5).
-  - [ ] **Dev decision — commit-transaction boundary (see Open gaps #1):** compose fires **after `commitBooking` succeeds**, outside the capacity transaction. A confirmation draft is not capacity-consuming and compose ≠ deliver (AD-5), so a compose/draft-write failure must **never** roll back or block the committed Job. Never call compose inside the `db.transaction()` that acquires the day-row lock (AD-3) — it would widen the lock hold for non-capacity work.
-- [ ] **Task 2 — Draft-log on creation, no dispatch on render (AC: 1, 2)** [Source: ARCHITECTURE-SPINE.md#AD-5; epics.md#story-2-3]
-  - [ ] Creating the draft sets `MessageLog.drafted_at` via the Story 2.3 logging path. **No** `dispatched_at` is written on draft creation/render (AR6). Optionally attribute the log to the Job via `MessageLog.resulting_job_ref` / job attribution (FR13) — the draft is born attached to the Job it confirms.
-  - [ ] **CRITICAL — no autonomous send:** the confirmation is **produced as a draft only**. It is **not** auto-sent on commit. The operator's explicit send tap is still required (FR19, AD-5, Consistency-Conventions#Messaging).
-- [ ] **Task 3 — Tap-to-send dispatches via the 2.2 adapter + logs once via 2.3 (AC: 2)** [Source: ARCHITECTURE-SPINE.md#AD-5; epics.md#story-2-2, #story-2-3]
-  - [ ] Operator tap routes the `MessageDraft` through the **existing** `lib/delivery` deep-link adapter (Story 2.2) → `wa.me`/`sms:` pre-filled. Reuse the 2.2 adapter; do **not** add a new delivery path here.
-  - [ ] On tap, `dispatched_at` is recorded **once per draft**; a re-tap does **not** double-log (idempotent per draft — AR6, FR21). Only `dispatched_at` feeds the nudge-fatigue counter (AD-5 §2).
-- [ ] **Task 4 — Confirmation surface hook on the booking result (AC: 1, 2)** [Source: ARCHITECTURE-SPINE.md#AD-1]
-  - [ ] After a successful booking (the Story 1.4 operator-direct surface, and any later commit caller), the operator sees the confirmation draft with a send affordance. Server Action is the sole write path (AD-1); surface never imports `lib/db`. Typed return `{ok,data}|{ok:false,reason}` (AR15).
-- [ ] **Task 5 — Tests (AC: 1, 2, 3)**
-  - [ ] Commit → a `booking-confirmation` `MessageDraft` is produced via the confirmation template using the Job's existing client/date/price (no re-fetch). [AC1, AC3]
-  - [ ] Draft creation sets `drafted_at` and writes **no** `dispatched_at`; nothing sends without a tap. [AC1, AC2 — no autonomous send]
-  - [ ] Tap → dispatch via the 2.2 adapter; `dispatched_at` logged once; re-tap does not double-log. [AC2]
-  - [ ] compose failure after commit does **not** roll back or lose the committed Job. [Task 1 dev decision]
+- [x] **Task 1 — Wire confirmation compose to the booking-commit path (AC: 1, 3)** [Source: ARCHITECTURE-SPINE.md#AD-5, #AD-2, #AD-12]
+  - [x] `createBooking` (bookings/actions.ts): after `commitBooking` returns `{ok:true, data: Job}`, the confirmation is built from the committed Job's OWN `client_id`/`date`/`price_cents` — the drafted-row write uses those fields; `getConfirmationDraft` composes the preview from the same Job fields + the 2.1 booking-confirmation template (default-body fallback). No re-fetch/recompute of the booking (AC3, FR8).
+  - [x] Produces a `MessageDraft{ recipient, body, type:'booking_confirmation' }` (via 2.2 `compose`) — no transport detail in the draft (AR6/AD-5).
+  - [x] **Dev decision (Open gap #1):** the confirmation draft-write fires AFTER `commitBooking` succeeds, OUTSIDE the capacity txn, wrapped in try/catch — best-effort. A draft-write failure NEVER rolls back or blocks the committed Job (not capacity-consuming, AD-2; compose ≠ deliver, AD-5); it never touches the day-row lock (AD-3).
+- [x] **Task 2 — Draft-log on creation, no dispatch on render (AC: 1, 2)** [Source: ARCHITECTURE-SPINE.md#AD-5; epics.md#story-2-3]
+  - [x] Commit writes `MessageLog.drafted_at` via the 2.3 `upsertMessageDraft`, keyed on the Job-deterministic nonce `confirm:${jobId}`, with `resulting_job_ref = job.id` (FR13 — the draft is born attached to the Job). NO `dispatched_at` on creation (AR6).
+  - [x] **No autonomous send:** produced as a DRAFT only — not auto-sent on commit. The operator's explicit send tap is required (FR19, AD-5). Verified by test (drafted row has null `dispatched_at`).
+- [x] **Task 3 — Tap-to-send dispatches via the 2.2 adapter + logs once via 2.3 (AC: 2)** [Source: ARCHITECTURE-SPINE.md#AD-5; epics.md#story-2-2, #story-2-3]
+  - [x] Send reuses the 2.2/2.3 `sendDraft` → `deepLink` path verbatim (no new delivery/logging). `recordDispatch(clientId, 'booking_confirmation', confirm:${jobId})` stamps `dispatched_at` once; a re-tap keys to the same row → no double-log (AR6, FR21).
+- [x] **Task 4 — Confirmation surface hook on the booking result (AC: 1, 2)** [Source: ARCHITECTURE-SPINE.md#AD-1]
+  - [x] `bookings/page.tsx`: on `?booked=1&job=<id>` the operator sees the composed confirmation + zero-JS WhatsApp/SMS send forms (POST → `sendDraft`). Server Action is the sole write path (AD-1); surface never imports lib/db. Typed AR15 throughout. Wired at the commit call site so every future `commitBooking` caller (FR7/FR36) inherits it (Open gap #3).
+- [x] **Task 5 — Tests (AC: 1, 2, 3)**
+  - [x] `tests/confirmation.test.ts` (6 tests): commit → booking_confirmation drafted row off the Job's client/date/price (AC1/AC3), drafted_at set + dispatched_at null (no autonomous send), resulting_job_ref = job.id; idempotent repeat commit → same Job → single draft (AD-12); `getConfirmationDraft` composes from Job fields + unknown-job typed failure; tap dispatches once + re-tap no double-log (AC2); commit durability independent of the confirmation (Open gap #1). Full suite 159/159.
 
 ## Dev Notes
 
@@ -91,8 +95,27 @@ No new template (2.1 owns it), no new `compose` logic (2.2), no new delivery ada
 
 ### Agent Model Used
 
+claude-opus-4-8 (1M context) — dev-story workflow, 2026-07-16.
+
 ### Debug Log References
+
+- `npm run typecheck` clean; `npm test` 159/159; `npm run build` clean. No schema change (2.4 is pure wiring) — no new migration.
 
 ### Completion Notes List
 
+- **Compose timing (Open gap #1) → after commit, outside txn, best-effort.** The confirmation draft-write is a try/catch after `commitBooking` returns ok; a failure logs and is swallowed so the committed booking is never rolled back or blocked. Covered by the `commit durability` test.
+- **Dedup (Open gap #2) → deterministic Job-keyed nonce `confirm:${jobId}`** (`compose.confirmationDraftNonce`). An idempotent repeat `commitBooking` (AD-12) returns the same Job → same nonce → `upsertMessageDraft` ON CONFLICT DO NOTHING → exactly one draft. Covered by the AD-12 test.
+- **Locus (Open gap #3) → wired in `createBooking`**, the shared commit call site, so future FR7/FR36 booking paths inherit confirmation with zero extra wiring.
+- **Reuse, not rebuild** — no new template (2.1), no new compose (2.2 `compose`), no new delivery adapter (2.2 `deepLink`), no new logging (2.3 `upsertMessageDraft`/`recordDispatch`). The send surface reuses `sendDraft` verbatim; `getConfirmationDraft` is a pure read→compose for display.
+- **Draft-write timing note** — unlike Story 2.3's ad-hoc /draft surface (where the draft row is materialized at send), the confirmation's `drafted_at` is genuinely written at commit (the natural draft-creation moment), with `resulting_job_ref` attribution — faithful to AC1 "drafted on creation."
+- **No autonomous send (FR19)** — commit produces a draft only; `dispatched_at` stays null until the operator taps. Asserted in tests.
+- **Scope** — only the booking-confirmation caller wired. No rebooking/win-back/payment callers (Epics 3/5). `resulting_job_ref` now populated for confirmations (the FR13 seam).
+
 ### File List
+
+- `lib/domain/compose.ts` — added `confirmationDraftNonce(jobId)`.
+- `lib/db/queries.ts` — `upsertMessageDraft` gained optional `resultingJobRef` param (FR13).
+- `lib/domain/bookingErrors.ts` — added `job-not-found` reason.
+- `app/(operator)/bookings/actions.ts` — `createBooking` writes the confirmation draft after commit (best-effort); added `getConfirmationDraft` + `ConfirmationDraft`.
+- `app/(operator)/bookings/page.tsx` — `book()` carries the Job id; post-booking confirmation preview + zero-JS send forms (reuse `sendDraft`).
+- `tests/confirmation.test.ts` — new (6 tests).

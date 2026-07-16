@@ -123,3 +123,15 @@ export function compose(
   });
   return { recipient: client.phone, body, type: template.type };
 }
+
+/**
+ * The deterministic per-draft idempotency nonce for a Job's booking-confirmation
+ * draft (Story 2.4, Open gap #2). Keyed on the Job id, NOT a random value: an
+ * idempotent repeat `commitBooking` (AD-12) returns the SAME Job, so the same nonce
+ * → the same MessageLog row → exactly one confirmation draft, never a duplicate. The
+ * send surface derives the same nonce from the job id, so no nonce needs threading
+ * through the redirect. Mirrors the Story 2.3 (owner, draft_nonce) Option-B key.
+ */
+export function confirmationDraftNonce(jobId: string): string {
+  return `confirm:${jobId}`;
+}

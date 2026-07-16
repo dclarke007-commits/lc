@@ -231,10 +231,11 @@ export async function upsertMessageDraft(
   clientId: string,
   messageType: MessageLog['messageType'],
   draftNonce: string,
+  resultingJobRef: string | null = null,
 ): Promise<MessageLog> {
   await db
     .insert(messageLog)
-    .values({ ownerId, clientId, messageType, draftNonce })
+    .values({ ownerId, clientId, messageType, draftNonce, resultingJobRef })
     .onConflictDoNothing({
       target: [messageLog.ownerId, messageLog.draftNonce],
     });
