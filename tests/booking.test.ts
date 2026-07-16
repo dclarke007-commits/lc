@@ -23,15 +23,22 @@ const MON = '2026-07-20';
 const TUE = '2026-07-21';
 const WED = '2026-07-22';
 const THU = '2026-07-23';
+// Injected "now" so the past-date guard is deterministic (before MON). All test
+// dates above are strictly after this instant in America/Chicago.
+const NOW = new Date('2026-07-15T12:00:00Z');
 
 let ownerId: string;
 let clientId: string;
 
-async function setCaps(perDayCap: number, weeklyCeiling: number): Promise<void> {
+async function setCaps(
+  perDayCap: number,
+  weeklyCeiling: number,
+  workingDays: number[] = [1, 2, 3, 4, 5, 6, 7],
+): Promise<void> {
   await db.delete(capacitySettings);
   await db.insert(capacitySettings).values({
     ownerId,
-    workingDays: [1, 2, 3, 4, 5, 6, 7],
+    workingDays,
     perDayCap,
     weeklyCeiling,
     defaultJobPriceCents: 20000,
@@ -46,6 +53,7 @@ function input(over: Partial<CommitBookingInput> = {}): CommitBookingInput {
     date: MON,
     override: false,
     idempotencyKey: randomUUID(),
+    now: NOW,
     ...over,
   };
 }
@@ -185,5 +193,64 @@ describe('capacity.commitBooking + consumesSlot (Story 1.4)', () => {
     expect(results.filter((r) => r.ok).length).toBe(1);
     expect(results.filter((r) => !r.ok).length).toBe(4);
     expect(await jobCount()).toBe(1);
+  });
+
+  // --- AC4 regression: the WEEKLY ceiling must serialize across DIFFERENT days
+  // of the same week. With a per-day lock this raced (two different-day claims
+  // took different locks); the week-monday lock fixes it. Roomy per-day (5) so
+  // only the weekly ceiling (1) can bite. ---
+  it('two concurrent claims on the last WEEK slot (different days) → exactly one wins (AC4)', async () => {
+    await setCaps(5, 1); // one slot in the whole Mon–Sun week
+    const [a, b] = await Promise.all([
+      commitBooking(input({ date: TUE })),
+      commitBooking(input({ date: WED })),
+    ]);
+    expect([a, b].filter((r) => r.ok).length).toBe(1);
+    const loser = [a, b].find((r) => !r.ok);
+    expect(loser && !loser.ok && loser.reason).toBe('week-full');
+    expect(await jobCount()).toBe(1); // never two rows past the weekly ceiling
+  });
+
+  // --- New validation gates (code review) ---
+  it('rejects a well-formed-but-invalid date with date-invalid (not booking-failed)', async () => {
+    await setCaps(3, 14);
+    const result = await commitBooking(input({ date: '2026-02-30' }));
+    expect(result).toEqual({ ok: false, reason: 'date-invalid' });
+    expect(await jobCount()).toBe(0);
+  });
+
+  it('rejects a booking on a non-working day', async () => {
+    // Working days Mon–Fri only; MON is 2026-07-20 (Mon) is fine, so use a
+    // Saturday (2026-07-25) which is excluded.
+    await setCaps(3, 14, [1, 2, 3, 4, 5]);
+    const result = await commitBooking(input({ date: '2026-07-25' }));
+    expect(result).toEqual({ ok: false, reason: 'non-working-day' });
+    expect(await jobCount()).toBe(0);
+  });
+
+  it('rejects a date already past in the operator timezone', async () => {
+    await setCaps(3, 14);
+    // NOW is 2026-07-15 local; 2026-07-10 is strictly earlier.
+    const result = await commitBooking(input({ date: '2026-07-10' }));
+    expect(result).toEqual({ ok: false, reason: 'date-past' });
+    expect(await jobCount()).toBe(0);
+  });
+
+  it('replaying an idempotency key with a different date is a conflict, not a stale Job', async () => {
+    await setCaps(3, 14);
+    const key = randomUUID();
+    const first = await commitBooking(input({ date: MON, idempotencyKey: key }));
+    expect(first.ok).toBe(true);
+    // Same key, different date → must NOT silently return the MON job.
+    const second = await commitBooking(input({ date: TUE, idempotencyKey: key }));
+    expect(second).toEqual({ ok: false, reason: 'booking-conflict' });
+    expect(await jobCount()).toBe(1);
+  });
+
+  it('a non-UUID clientId is rejected as client-not-found (not booking-failed)', async () => {
+    await setCaps(3, 14);
+    const result = await commitBooking(input({ clientId: 'not-a-uuid' }));
+    expect(result).toEqual({ ok: false, reason: 'client-not-found' });
+    expect(await jobCount()).toBe(0);
   });
 });

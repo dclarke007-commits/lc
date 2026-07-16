@@ -22,6 +22,7 @@ import {
   DEFAULT_CAPACITY,
   type CapacityConfig,
 } from '@/lib/domain/capacityConfig';
+import { localDateKey } from '@/lib/domain/clock';
 
 // AD-2: the ONE consuming-status set. consumesSlot is the single predicate, and
 // the SQL capacity counts below filter on this exact list, so the rule is defined
@@ -38,6 +39,23 @@ export function consumesSlot(j: { completion: string }): boolean {
 }
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * True only for a REAL calendar date: right shape AND the fields survive a
+ * round-trip through Date.UTC. Rejects well-formed-but-invalid values like
+ * '2026-02-30' or '2026-13-01' that would otherwise roll over into a wrong week
+ * window and then throw at the Postgres `date` column (code-review 2026-07-16).
+ */
+function isRealDate(dateStr: string): boolean {
+  if (!DATE_RE.test(dateStr)) return false;
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const t = new Date(Date.UTC(y, m - 1, d));
+  return (
+    t.getUTCFullYear() === y && t.getUTCMonth() === m - 1 && t.getUTCDate() === d
+  );
+}
 
 /** ISO weekday (1=Mon..7=Sun) of a 'YYYY-MM-DD' calendar date — tz-independent. */
 function isoWeekdayOf(dateStr: string): number {
@@ -75,29 +93,48 @@ export interface CommitBookingInput {
   override: boolean;
   idempotencyKey: string;
   priceCents?: number; // defaults to the operator's configured price
+  now?: Date; // "now" for the past-date check; defaults to new Date() (injectable for tests)
 }
 
 /**
  * The sole capacity-consuming insert (AD-2/AD-3/AD-12). Inside one transaction:
- * take the day-scoped advisory lock, replay idempotency, re-check BOTH caps under
- * the lock, then insert-or-reject. Typed AR15 result; writes nothing on reject.
+ * take the WEEK-scoped advisory lock (so BOTH the per-day cap and the weekly-14
+ * ceiling serialize — same-day is a subset of same-week), replay idempotency,
+ * re-check both caps under the lock, then insert-or-reject. Typed AR15 result;
+ * writes nothing on reject.
  */
 export async function commitBooking(
   input: CommitBookingInput,
 ): Promise<ActionResult<Job>> {
   const { ownerId, clientId, date, override, idempotencyKey } = input;
 
-  if (!DATE_RE.test(date)) return fail('date-invalid');
+  // Request-shape validation (no DB). Reject before opening a transaction.
+  if (!isRealDate(date)) return fail('date-invalid');
   if (!idempotencyKey) return fail('idempotency-key-missing');
+  // A non-UUID clientId would make Postgres throw a uuid-syntax error; treat it
+  // as "not this owner's client" rather than swallowing it into booking-failed.
+  if (!UUID_RE.test(clientId)) return fail('client-not-found');
+
+  // The Mon–Sun week of the target date (pure). The advisory lock keys on the
+  // WEEK, not the day — two claims on different days of the same week MUST still
+  // serialize or the weekly-14 ceiling races past its limit (AD-3).
+  const { monday, nextMonday } = weekRange(date);
+  const now = input.now ?? new Date();
 
   try {
     return await db.transaction(async (tx) => {
-      // AD-3: transaction-scoped advisory lock keyed on (owner, date). Released
-      // at COMMIT/ROLLBACK. Session-scoped locks are FORBIDDEN (pgBouncer
-      // transaction pooling breaks them). Two int4 keys: hashtext(owner) +
-      // hashtext(date) — concurrent claims on the same day serialize here.
+      // NOTE: returning fail() from this callback COMMITS the (empty) transaction
+      // — drizzle only rolls back on a THROWN error. Every reject path below
+      // writes nothing before returning, so the committed txn is empty and the
+      // "writes nothing on reject" guarantee holds. If you ever add a write before
+      // the cap check, THROW to roll back instead of returning fail().
+
+      // AD-3: transaction-scoped advisory lock keyed on (owner, week-monday).
+      // Released at COMMIT/ROLLBACK. Session-scoped locks are FORBIDDEN (pgBouncer
+      // transaction pooling breaks them). Week-scoped so the per-day cap AND the
+      // weekly-14 ceiling both serialize; two int4 keys via hashtext.
       await tx.execute(
-        sql`select pg_advisory_xact_lock(hashtext(${ownerId}), hashtext(${date}))`,
+        sql`select pg_advisory_xact_lock(hashtext(${ownerId}), hashtext(${monday}))`,
       );
 
       // AD-12 idempotency: a repeat submit (same owner+key) returns the SAME Job.
@@ -109,7 +146,15 @@ export async function commitBooking(
           and(eq(job.ownerId, ownerId), eq(job.idempotencyKey, idempotencyKey)),
         )
         .limit(1);
-      if (existing) return ok(existing);
+      if (existing) {
+        // The key identifies ONE booking attempt. If it is replayed with a
+        // different date/client (a cached form edited after Back), that is a
+        // conflict — do NOT silently return the wrong Job. Replay only on a match.
+        if (existing.date === date && existing.clientId === clientId) {
+          return ok(existing);
+        }
+        return fail('booking-conflict');
+      }
 
       // Client must exist and belong to this owner (AD-8) — no cross-tenant book.
       const [ownedClient] = await tx
@@ -136,8 +181,18 @@ export async function commitBooking(
           }
         : DEFAULT_CAPACITY;
 
+      // Availability gates — NOT capacity, so the cap override never bypasses
+      // them. Reject a non-working weekday, and a date already past in the
+      // operator's local timezone (AD-9). "Today" is allowed; only strictly
+      // earlier is past.
+      if (!config.workingDays.includes(isoWeekdayOf(date))) {
+        return fail('non-working-day');
+      }
+      if (date < localDateKey(now, config.timezone)) {
+        return fail('date-past');
+      }
+
       // Re-check BOTH caps under the lock, counting only consuming jobs (AD-2).
-      const { monday, nextMonday } = weekRange(date);
       const consuming = [...CONSUMING_COMPLETIONS];
       const [dayRow] = await tx
         .select({ c: sql<number>`count(*)::int` })

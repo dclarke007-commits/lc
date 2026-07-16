@@ -7,8 +7,12 @@
 const BOOKING_ERROR_MESSAGES: Record<string, string> = {
   'day-maxed': 'That day is full. Turn on override to book past the cap.',
   'week-full': 'That week is full (14 jobs). Turn on override to book past it.',
+  'non-working-day': 'That is not one of your working days.',
+  'date-past': 'That date has already passed.',
   'client-not-found': 'Pick a client from your list.',
   'date-invalid': 'Choose a valid date.',
+  'booking-conflict':
+    'That form was already used for a different booking. Reload and try again.',
   'idempotency-key-missing': 'Something went wrong — please try again.',
   'owner-unresolved': 'No operator is set up. Run the operator seed.',
   'booking-failed': 'Could not book — please try again.',

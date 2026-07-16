@@ -4,7 +4,7 @@ baseline_commit: ab9d9e468badda7472d0830e100145ba6672f46a
 
 # Story 1.4: Direct booking with cap enforcement & one-winner concurrency
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -77,6 +77,24 @@ No client-token booking surface (Epic 3), no approval queue (Epic 4), no lifecyc
 - [Source: epics.md#Story-1-4] (epics.md:267–294); FR9, FR39 (epics.md:28,74); AR3/AR4/AR15 (epics.md:100,101,112).
 - [Source: ARCHITECTURE-SPINE.md] — AD-2, AD-3, AD-9, AD-12; Consistency-Conventions (Mutation, Errors).
 
+## Review Findings
+
+_Code review 2026-07-16 (commit c99e88d, 3 adversarial layers: Blind Hunter, Edge Case Hunter, Acceptance Auditor). 1 decision, 6 patch, 2 defer, 2 dismissed. All 3 layers independently flagged the weekly-ceiling race as the top defect._
+
+- [x] [Review][Decision] Working-day / past-date enforcement — RESOLVED: **enforce both** (user decision). `commitBooking` now rejects a non-working weekday (`non-working-day`) and a date strictly past in the operator's local tz (`date-past`, via `localDateKey(now, tz)`); these are availability gates, NOT bypassed by the cap override. `now` is injectable for deterministic tests. [lib/domain/capacity.ts]
+
+- [x] [Review][Patch] **HIGH — weekly-14 ceiling not serialized** → APPLIED: advisory lock re-keyed from `(owner, date)` to `(owner, week-monday)`, so all claims in a Mon–Sun week serialize (per-day is a subset). [lib/domain/capacity.ts]
+- [x] [Review][Patch] **HIGH (coverage) — weekly race untested** → APPLIED: new test races TUE vs WED with `weeklyCeiling=1` → exactly one wins, other `week-full`, one row. Discriminating (fails on the old per-day lock). [tests/booking.test.ts]
+- [x] [Review][Patch] **HIGH — idempotency replay mismatch** → APPLIED: replay now returns `ok(existing)` only when the stored `date` AND `clientId` match the request; otherwise `booking-conflict` (never the wrong Job). Test added. [lib/domain/capacity.ts]
+- [x] [Review][Patch] Med — invalid dates → APPLIED: `isRealDate` round-trips through `Date.UTC` (rejects `2026-02-30` etc.) → `date-invalid`. Test added. [lib/domain/capacity.ts]
+- [x] [Review][Patch] Low — non-UUID clientId → APPLIED: `UUID_RE` guard before the ownership query → `client-not-found`. Test added. [lib/domain/capacity.ts]
+- [x] [Review][Patch] Low — txn semantics → APPLIED: comment documents that `fail()` inside `db.transaction()` commits an empty txn (safe because reject paths write nothing; future pre-check writes must THROW to roll back). [lib/domain/capacity.ts]
+
+- [x] [Review][Defer] Med — pool starvation under ≥10 same-day concurrent claims: each txn pins one of `max:10` connections while blocked on the lock, so a large same-day burst can starve other requests. Single-operator realistic concurrency is double-submits (≤2); revisit for multi-device. [lib/domain/capacity.ts] — deferred, single-operator risk
+- [x] [Review][Defer] Low — cross-week same-nonce concurrent submits take different (week) locks → both insert → unique-violation → `booking-failed`. Near-impossible with per-render random-UUID nonces; the week-lock fix covers the same-week case. [lib/domain/capacity.ts] — deferred, near-impossible
+
+_Dismissed (2): `hashtext` two-arg lock-key collision (contention-only, never skips a lock — not a correctness bug); `capacity.ts` issuing SQL vs AD-1 (sanctioned by AD-2 naming `capacity.commitBooking` + the architecture unit-map placing capacity under FR38–39; surface still never imports lib/db — auditor verdict: acceptable)._
+
 ## Dev Agent Record
 
 ### Agent Model Used
@@ -101,6 +119,8 @@ Three dev decisions on the open gaps (user-confirmed): (1) **lock target** — n
 Surface: zero-JS `?error`/`?booked` redirect pattern (NFR1); `getBookableClients` read fails loud + logged on unresolved owner (parity with the write path).
 
 Scope held: insert-as-`booked` only; no lifecycle transitions (1.5), no cancel/reschedule (1.6), no room-left render (1.7), no ledger (Epic 5).
+
+**Code-review pass (2026-07-16, commit after c99e88d):** 3 adversarial layers all flagged one HIGH — the advisory lock was keyed on `(owner, date)`, which serializes the per-day cap but NOT the cross-day weekly-14 ceiling (my concurrency tests all raced the same date and masked it). Fixed by re-keying the lock on `(owner, week-monday)`. Also applied: idempotency replay now requires date+client match (else `booking-conflict`, not a stale Job); `isRealDate` round-trip validation → `date-invalid`; UUID guard on clientId → `client-not-found`; txn-semantics comment. Per user decision, added availability gates: `non-working-day` + `date-past` (operator-local, via `localDateKey`; not bypassed by the cap override; `now` injectable for tests). +6 tests (incl. the discriminating cross-day weekly-race test). tsc clean, 58/58, booking suite stable ×3. 2 items deferred (pool-starvation ≥10 same-week concurrent; cross-week same-nonce race).
 
 ### File List
 
