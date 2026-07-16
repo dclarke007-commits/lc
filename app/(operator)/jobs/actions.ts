@@ -7,6 +7,7 @@
 // directly): surfaces → actions → domain → db.
 
 import { revalidatePath } from 'next/cache';
+import { redirect } from 'next/navigation';
 import {
   getOwnerId,
   listJobs,
@@ -15,6 +16,7 @@ import {
   getCapacitySettings,
   getMessageTemplates,
   listJobsFrom,
+  findClientToken,
   type JobListItem,
 } from '@/lib/db/queries';
 import type { Job } from '@/lib/db/schema';
@@ -173,6 +175,27 @@ export interface RebookProposal {
   draft: MessageDraft | null; // the composed rebooking_nudge draft, or null when no slot
 }
 
+// Only a booked (upcoming) or completed job may be rebooked (FR10). The UI gate is
+// cosmetic; the actions below enforce this so a hand-typed ?rebook=<cancelledId> can
+// never produce a draft (code-review P2).
+const REBOOKABLE_COMPLETIONS = new Set(['booked', 'completed']);
+
+/**
+ * The absolute origin for the client-facing booking link, hardened (code-review P4).
+ * Strips a trailing slash so we never emit `//book/…`. In production APP_BASE_URL is
+ * REQUIRED: when unset we FAIL CLOSED rather than hand a real client a localhost link.
+ * In dev/test an unset var keeps the `http://localhost:3000` default. Returns a typed
+ * result so the caller surfaces `base-url-unset` instead of a broken URL.
+ */
+function bookingBaseUrl(): ActionResult<string> {
+  const raw = process.env.APP_BASE_URL;
+  if (!raw) {
+    if (process.env.NODE_ENV === 'production') return fail('base-url-unset');
+    return ok('http://localhost:3000');
+  }
+  return ok(raw.replace(/\/+$/, ''));
+}
+
 /**
  * Story 3.3 — the one-tap rebooking PROPOSAL (FR10/FR11), mirroring
  * getConfirmationDraft's read-and-compose shape. Owner-scoped (AD-8, fail-closed).
@@ -198,68 +221,121 @@ export async function getRebookProposal(
     return fail('owner-unresolved');
   }
 
+  // Fail CLOSED (code-review P1), mirroring resolveBookingView: after owner resolution
+  // ANY throw from the reads below — a corrupt settings.timezone makes localDateKey's
+  // Intl.DateTimeFormat throw RangeError, a db read can fault — must NOT cross this
+  // typed boundary as a 500 (AR15). Log and return a generic operator reason.
+  try {
+    const job = await getJob(ownerId, jobId);
+    if (!job) return fail('job-not-found');
+
+    // Enforce rebookable state (code-review P2): the surface's REBOOKABLE gate is
+    // cosmetic — a hand-typed ?rebook=<cancelledOrNoShowId> must not yield a draft.
+    if (!REBOOKABLE_COMPLETIONS.has(job.completion)) return fail('not-rebookable');
+
+    const client = await getClient(ownerId, job.clientId);
+    if (!client) return fail('client-not-found');
+
+    // Config = the operator's persisted capacity, or the domain defaults on first-run
+    // (single source, AR16). The timezone anchors "today" so the proposal never lands
+    // on a past day (AD-9).
+    const settings = await getCapacitySettings(ownerId);
+    const config: CapacityConfig = settings
+      ? {
+          workingDays: settings.workingDays,
+          perDayCap: settings.perDayCap,
+          weeklyCeiling: settings.weeklyCeiling,
+          defaultJobPriceCents: settings.defaultJobPriceCents,
+          timezone: settings.timezone,
+        }
+      : DEFAULT_CAPACITY;
+
+    const today = localDateKey(new Date(), config.timezone);
+    const { monday } = weekRangeOfDate(today);
+    const jobs = await listJobsFrom(ownerId, monday);
+
+    // Pure derive (AD-7): computed on tap from canonical rows, never stored. Anchor is
+    // the tapped job's own date.
+    const { slot } = proposeRebookSlot({
+      cadence: client.cadence,
+      anchorDate: job.date,
+      jobs,
+      config,
+      today,
+    });
+
+    // No open day in the bounded window: not an error (AC3). The surface renders "no
+    // open slot in range."
+    if (slot == null) return ok({ slot: null, draft: null });
+
+    const formattedSlot = formatDateKey(slot);
+
+    // Hardened base origin (code-review P4): fail closed in prod when APP_BASE_URL is
+    // unset rather than emit a localhost link to a real client.
+    const base = bookingBaseUrl();
+    if (!base.ok) return base;
+
+    // PURE READ (code-review P3 / AD-1): the link WRITE (mint-if-absent) happens in the
+    // prepareRebook POST action, NOT here — this GET render must never insert a row.
+    // Read the existing stable per-client link (Story 3.1); if prepareRebook has not
+    // minted it yet, ask the operator to tap Rebook first.
+    const link = await findClientToken(ownerId, client.id, 'book-client');
+    if (!link) return fail('link-not-ready');
+    const bookingUrl = `${base.data}/book/${encodeURIComponent(link.tokenValue)}`;
+
+    // The operator's rebooking_nudge copy, or the domain default when unseeded (mirrors
+    // getConfirmationDraft). compose/resolveTemplate stay UNCHANGED (Story 2.1/2.2).
+    const templates = await getMessageTemplates(ownerId);
+    const body =
+      templates.find((t) => t.type === 'rebooking_nudge')?.body ??
+      DEFAULT_TEMPLATE_BODIES.rebooking_nudge;
+
+    const draft = compose(
+      { name: client.name, phone: client.phone },
+      formattedSlot,
+      config.defaultJobPriceCents,
+      { type: 'rebooking_nudge', body },
+    );
+    // Append the per-client link (FR11) — single blank-line separator. The template
+    // contract is untouched: no {link}/{token} placeholder, so no raw token can leak.
+    draft.body = `${draft.body}\n\n${bookingUrl}`;
+
+    return ok({ slot: formattedSlot, draft });
+  } catch (err) {
+    console.error('[jobs] getRebookProposal failed (fail-closed)', err);
+    return fail('rebook-failed');
+  }
+}
+
+/**
+ * Story 3.3 (code-review P3) — the WRITE half of one-tap rebooking, split off the GET
+ * read path (AD-1: no write-on-render). A POST Server Action: resolve the owner and the
+ * tapped Job fail-closed, enforce the SAME rebookable-state gate as getRebookProposal
+ * (P2), then mint-if-absent the client's ONE stable per-client booking link (Story 3.1)
+ * — THIS is the only place the link row is created — and redirect to the proposal panel.
+ * The subsequent GET (getRebookProposal) then only READS that row. redirect() throws
+ * NEXT_REDIRECT to end the action (its return type is `never`).
+ */
+export async function prepareRebook(formData: FormData): Promise<void> {
+  const jobId = String(formData.get('jobId') ?? '').trim();
+
+  let ownerId: string;
+  try {
+    ownerId = await getOwnerId();
+  } catch (err) {
+    console.error('[jobs] getOwnerId failed (prepareRebook)', err);
+    redirect('/jobs?error=owner-unresolved');
+  }
+
   const job = await getJob(ownerId, jobId);
-  if (!job) return fail('job-not-found');
+  if (!job) redirect('/jobs?error=job-not-found');
+  if (!REBOOKABLE_COMPLETIONS.has(job.completion)) {
+    redirect('/jobs?error=not-rebookable');
+  }
 
-  const client = await getClient(ownerId, job.clientId);
-  if (!client) return fail('client-not-found');
+  // The link mint (insert-if-absent) — off the GET render path (P3). Stable read-or-
+  // create (Story 3.1): a re-tap returns the same URL, never resurrects a revoked link.
+  await ensureClientToken(ownerId, job.clientId);
 
-  // Config = the operator's persisted capacity, or the domain defaults on first-run
-  // (single source, AR16). The timezone anchors "today" so the proposal never lands
-  // on a past day (AD-9).
-  const settings = await getCapacitySettings(ownerId);
-  const config: CapacityConfig = settings
-    ? {
-        workingDays: settings.workingDays,
-        perDayCap: settings.perDayCap,
-        weeklyCeiling: settings.weeklyCeiling,
-        defaultJobPriceCents: settings.defaultJobPriceCents,
-        timezone: settings.timezone,
-      }
-    : DEFAULT_CAPACITY;
-
-  const today = localDateKey(new Date(), config.timezone);
-  const { monday } = weekRangeOfDate(today);
-  const jobs = await listJobsFrom(ownerId, monday);
-
-  // Pure derive (AD-7): computed on tap from canonical rows, never stored. Anchor is
-  // the tapped job's own date.
-  const { slot } = proposeRebookSlot({
-    cadence: client.cadence,
-    anchorDate: job.date,
-    jobs,
-    config,
-    today,
-  });
-
-  // No open day in the bounded window: not an error (AC3). The surface renders "no
-  // open slot in range."
-  if (slot == null) return ok({ slot: null, draft: null });
-
-  const formattedSlot = formatDateKey(slot);
-
-  // Story 3.1's ONE stable per-client link (read-or-create). Appended to the body so
-  // the composed draft is ready to send via Epic 2 (FR11), never a new transport key.
-  const token = await ensureClientToken(ownerId, client.id);
-  const baseUrl = process.env.APP_BASE_URL ?? 'http://localhost:3000';
-  const bookingUrl = `${baseUrl}/book/${encodeURIComponent(token)}`;
-
-  // The operator's rebooking_nudge copy, or the domain default when unseeded (mirrors
-  // getConfirmationDraft). compose/resolveTemplate stay UNCHANGED (Story 2.1/2.2).
-  const templates = await getMessageTemplates(ownerId);
-  const body =
-    templates.find((t) => t.type === 'rebooking_nudge')?.body ??
-    DEFAULT_TEMPLATE_BODIES.rebooking_nudge;
-
-  const draft = compose(
-    { name: client.name, phone: client.phone },
-    formattedSlot,
-    config.defaultJobPriceCents,
-    { type: 'rebooking_nudge', body },
-  );
-  // Append the per-client link (FR11) — single blank-line separator. The template
-  // contract is untouched: no {link}/{token} placeholder, so no raw token can leak.
-  draft.body = `${draft.body}\n\n${bookingUrl}`;
-
-  return ok({ slot: formattedSlot, draft });
+  redirect(`/jobs?rebook=${encodeURIComponent(jobId)}`);
 }

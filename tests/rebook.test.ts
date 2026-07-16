@@ -25,7 +25,7 @@ import {
   token,
 } from '../lib/db/schema';
 import { seedOperator } from '../lib/db/seed';
-import { getOwnerId } from '../lib/db/queries';
+import { getOwnerId, findClientToken } from '../lib/db/queries';
 import { ensureClientToken } from '../lib/domain/booking';
 import {
   proposeRebookSlot,
@@ -34,7 +34,10 @@ import {
 } from '../lib/domain/derive';
 import { formatDateKey } from '../lib/domain/clock';
 import { type CapacityConfig } from '../lib/domain/capacityConfig';
-import { getRebookProposal } from '../app/(operator)/jobs/actions';
+import {
+  getRebookProposal,
+  prepareRebook,
+} from '../app/(operator)/jobs/actions';
 
 // A fixed Monday noon UTC — inside the operator week Mon 2026-07-20 .. Sun 2026-07-26.
 const FIXED_MONDAY = new Date('2026-07-20T12:00:00.000Z');
@@ -157,6 +160,21 @@ describe('One-tap rebooking proposal (Story 3.3)', () => {
     });
     // Today is a working, empty, non-past day → it is itself the soonest open slot.
     expect(slot).toBe(TODAY);
+  });
+
+  it('one-time: today filled to cap → the nearest OPEN day after today (forward scan)', () => {
+    // perDayCap 1 with a booked job on TODAY makes today day-maxed, so the one-time
+    // path cannot use today and must fall through to Story 1.7's forward scan.
+    const config: CapacityConfig = { ...OPEN_CONFIG, perDayCap: 1 };
+    const jobs: DeriveJob[] = [{ date: TODAY, completion: 'booked' }];
+    const { slot } = proposeRebookSlot({
+      cadence: 'one-time',
+      anchorDate: '2026-01-01', // irrelevant for one-time
+      jobs,
+      config,
+      today: TODAY,
+    });
+    expect(slot).toBe('2026-07-21'); // TODAY is maxed → next open working day
   });
 
   it('cadence target in the past clamps forward to today (never proposes a past day)', () => {
@@ -286,5 +304,96 @@ describe('One-tap rebooking proposal (Story 3.3)', () => {
   it('fails typed (not throw) for an unknown job id', async () => {
     const res = await getRebookProposal('00000000-0000-0000-0000-000000000000');
     expect(res).toEqual({ ok: false, reason: 'job-not-found' });
+  });
+
+  // --- code-review fixes (P1/P2/P3) --------------------------------------------------
+
+  it('P2: a cancelled job is NOT rebookable → typed not-rebookable, no draft', async () => {
+    const clientId = await insertClient('Cara C', '555-0140', 'weekly');
+    const [row] = await db
+      .insert(job)
+      .values({
+        ownerId,
+        clientId,
+        date: TODAY,
+        priceCents: 20000,
+        idempotencyKey: `seed-cancel-${clientId}`,
+        completion: 'cancelled',
+      })
+      .returning();
+
+    const res = await getRebookProposal(row.id);
+    expect(res).toEqual({ ok: false, reason: 'not-rebookable' });
+
+    const logs = await db
+      .select()
+      .from(messageLog)
+      .where(eq(messageLog.ownerId, ownerId));
+    expect(logs).toHaveLength(0);
+  });
+
+  it('P3: the link is minted by prepareRebook (POST), not by the GET read', async () => {
+    await setCaps(3, 14);
+    const clientId = await insertClient('Pia P', '555-0170', 'weekly');
+    const anchorJobId = await insertJob(clientId, TODAY);
+
+    // GET read BEFORE any mint: no link row yet → the pure read reports link-not-ready
+    // (it must NOT insert a token row on the render path).
+    const before = await getRebookProposal(anchorJobId);
+    expect(before).toEqual({ ok: false, reason: 'link-not-ready' });
+    expect(await findClientToken(ownerId, clientId, 'book-client')).toBeUndefined();
+
+    // prepareRebook (POST) mints the link, then redirects (throws NEXT_REDIRECT).
+    const fd = new FormData();
+    fd.set('jobId', anchorJobId);
+    await expect(prepareRebook(fd)).rejects.toThrow();
+
+    // The write happened on the POST path: the link row now exists.
+    const link = await findClientToken(ownerId, clientId, 'book-client');
+    expect(link).toBeTruthy();
+
+    // And the pure GET read now returns the draft carrying that same link.
+    const res = await getRebookProposal(anchorJobId);
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    expect(res.data.draft).not.toBeNull();
+    expect(res.data.draft!.body).toContain(
+      `http://localhost:3000/book/${encodeURIComponent(link!.tokenValue)}`,
+    );
+
+    // Still a draft-only story: MessageLog untouched.
+    const logs = await db
+      .select()
+      .from(messageLog)
+      .where(eq(messageLog.ownerId, ownerId));
+    expect(logs).toHaveLength(0);
+  });
+
+  it('P1: a corrupt capacitySettings.timezone fails CLOSED (typed, never throws)', async () => {
+    // A bogus IANA zone makes localDateKey's Intl.DateTimeFormat throw RangeError; the
+    // whole body is wrapped so this surfaces as a typed rebook-failed, never a 500.
+    await db.delete(capacitySettings);
+    await db.insert(capacitySettings).values({
+      ownerId,
+      workingDays: [1, 2, 3, 4, 5, 6, 7],
+      perDayCap: 3,
+      weeklyCeiling: 14,
+      defaultJobPriceCents: 20000,
+      timezone: 'Bogus/Zone',
+    });
+    const clientId = await insertClient('Tom T', '555-0130', 'weekly');
+    const anchorJobId = await insertJob(clientId, TODAY);
+
+    // .resolves asserts BOTH: it does not throw AND returns the typed failure.
+    await expect(getRebookProposal(anchorJobId)).resolves.toEqual({
+      ok: false,
+      reason: 'rebook-failed',
+    });
+
+    const logs = await db
+      .select()
+      .from(messageLog)
+      .where(eq(messageLog.ownerId, ownerId));
+    expect(logs).toHaveLength(0);
   });
 });

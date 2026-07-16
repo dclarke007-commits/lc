@@ -287,9 +287,16 @@ export function proposeRebookSlot(input: ProposeRebookInput): {
     return { slot: proposeFromStart(jobs, config, today) };
   }
 
+  // Defensive (code-review P5): if the Cadence enum ever grows a member without a
+  // matching CADENCE_INTERVAL_DAYS entry, `interval` is undefined at runtime and
+  // addDaysToDate(anchor, undefined) yields "NaN-NaN-NaN". Degrade to the one-time
+  // soonest-open path (same as `one-time`) so it fails safe, never a garbage slot.
+  const interval = CADENCE_INTERVAL_DAYS[cadence];
+  if (interval == null) return { slot: proposeFromStart(jobs, config, today) };
+
   // Cadenced: the cadence interval past the anchor, never earlier than today. Both
   // are 'YYYY-MM-DD', so the lexical max is the calendar max.
-  const target = addDaysToDate(anchorDate, CADENCE_INTERVAL_DAYS[cadence]);
+  const target = addDaysToDate(anchorDate, interval);
   const start = target < today ? today : target;
   return { slot: proposeFromStart(jobs, config, start) };
 }

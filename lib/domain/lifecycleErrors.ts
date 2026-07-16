@@ -19,6 +19,12 @@ const LIFECYCLE_ERROR_MESSAGES: Record<string, string> = {
   'day-maxed': 'That day is already full — pick another date.',
   'week-full': 'That week is already full — pick another week.',
   'reschedule-failed': 'Could not reschedule the job — please try again.',
+  // Rebooking proposal reasons, Story 3.3 (code-review P1–P4).
+  'rebook-failed': 'Could not build a rebooking proposal — please try again.',
+  'not-rebookable': 'Only a booked or completed job can be rebooked.',
+  'link-not-ready': 'Tap Rebook to prepare the booking link, then try again.',
+  'base-url-unset':
+    'Booking links are not configured — set APP_BASE_URL to your live site.',
 };
 
 /** Human-readable text for a jobs-surface action reason. Unknown → safe fallback. */

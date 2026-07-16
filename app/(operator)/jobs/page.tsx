@@ -9,6 +9,7 @@ import { redirect } from 'next/navigation';
 import {
   getOwnerJobs,
   getRebookProposal,
+  prepareRebook,
   markOutcome,
   correctOutcome,
   cancelJob,
@@ -71,9 +72,11 @@ const COMPLETION_LABEL: Record<string, string> = {
 };
 
 // Story 3.3: the one-tap rebooking control lives on completed OR upcoming (booked)
-// jobs (FR10). Zero-JS (AD-13): a GET link to ?rebook=<jobId> that re-renders this
-// dynamic surface with the proposal panel — the proposal is a derive READ (AD-7), so
-// GET is correct (no mutation). A different job's link replaces the shown panel.
+// jobs (FR10). Zero-JS (AD-13): a <form> POSTs to prepareRebook, which MINTS the stable
+// per-client booking link (the write) and then redirects to ?rebook=<jobId>. The write
+// lives on that POST — never on this render (AD-1: no write-on-render, code-review P3).
+// The GET render below (RebookPanel → getRebookProposal) is a PURE derive READ (AD-7)
+// that only reads the already-minted link.
 const REBOOKABLE = new Set(['booked', 'completed']);
 
 /**
@@ -93,10 +96,12 @@ async function RebookPanel({ jobId }: { jobId: string }) {
   };
 
   if (!res.ok) {
+    // Map the typed reason (P1–P4) to a generic operator message; never surface a raw
+    // reason code or a 500. Unknown reasons fall back to a safe generic message.
     return (
       <section style={panel} aria-label="Rebooking proposal">
         <p role="alert" style={{ color: '#b00020', margin: 0 }}>
-          Could not build a rebooking proposal ({res.reason}).
+          {lifecycleErrorMessage(res.reason)}
         </p>
       </section>
     );
@@ -318,7 +323,15 @@ export default async function JobsPage({
                   <JobControls id={j.id} completion={j.completion} />
                   {REBOOKABLE.has(j.completion) && (
                     <div style={{ marginTop: '0.4rem' }}>
-                      <Link href={`/jobs?rebook=${j.id}`}>Rebook</Link>
+                      {/* Zero-JS POST (like the cancel/move forms): prepareRebook mints
+                          the per-client link (the write, P3), then redirects to the
+                          ?rebook=<id> panel. No GET write-on-render. */}
+                      <form action={prepareRebook}>
+                        <input type="hidden" name="jobId" value={j.id} />
+                        <button type="submit" style={btn}>
+                          Rebook
+                        </button>
+                      </form>
                     </div>
                   )}
                 </td>

@@ -37,6 +37,21 @@ so that repeat business happens before I leave the driveway.
   - [x] Cadenced client → slot at cadence interval past the anchor (weekly/biweekly/monthly). One-time client → soonest open slot. Cadence target day-maxed/week-full → nearest open alternative returned, **never an error/throw** (AC3). All values recompute on read (no persisted proposal).
   - [x] Draft: `compose` called with the `rebooking_nudge` template; returned `MessageDraft` body contains the proposed slot + the per-client link; no transport/`wa.me`/`sms:` key on the draft; no dispatch logged (send is a later tap).
 
+### Review Findings
+
+3-layer adversarial review (2026-07-16, no HIGH). 6 patches applied, 2 dismissed, 2 confirmed:
+
+- [x] **P1 — Fail-closed `getRebookProposal` (AR15).** Wrapped the whole body (after owner resolution) in try/catch mirroring `resolveBookingView`: any throw (corrupt `settings.timezone` → Intl `RangeError`, db fault) → `console.error` + `fail('rebook-failed')` instead of a 500. Added `rebook-failed` to the jobs reason→text map.
+- [x] **P2 — Enforce rebookable state.** After loading the job, `job.completion ∉ {booked, completed}` → `fail('not-rebookable')` (enforced in BOTH `getRebookProposal` and `prepareRebook`). Added `not-rebookable` to the map. The UI `REBOOKABLE` gate is now cosmetic-only; a hand-typed `?rebook=<cancelledId>` cannot produce a draft.
+- [x] **P3 — Moved the link WRITE off the GET read path (AD-1).** New POST Server Action `prepareRebook(formData)` resolves owner+job fail-closed, enforces P2, calls `ensureClientToken` (the mint), then `redirect('/jobs?rebook=<id>')`. `getRebookProposal` is now PURE: reads the existing link via `findClientToken(...,'book-client')` → `fail('link-not-ready')` when absent. `page.tsx` Rebook control is now a zero-JS `<form action={prepareRebook}>` (was a GET `<Link>` that made `<Link>` prefetch mint token rows). Inaccurate "GET is correct — no mutation" comments corrected.
+- [x] **P4 — `APP_BASE_URL` hardening.** `bookingBaseUrl()` strips a trailing slash and, when the var is unset AND `NODE_ENV==='production'`, returns `fail('base-url-unset')` (no localhost link to a real client); dev/test keeps the `http://localhost:3000` default. Added `base-url-unset` to the map; `.env.example` comment now states it is REQUIRED in production.
+- [x] **P5 — Unmapped-cadence guard in `proposeRebookSlot`.** If `cadence !== 'one-time'` and `CADENCE_INTERVAL_DAYS[cadence]` is undefined (enum grew without the map), falls back to the one-time soonest-open path instead of `addDaysToDate(anchor, undefined)` → `"NaN-NaN-NaN"`.
+- [x] **P6 — Tests.** Added: cancelled job → `not-rebookable`; corrupt `timezone: 'Bogus/Zone'` → typed `rebook-failed` (no throw); one-time with today at cap → later nearest-open slot; `prepareRebook` mints the link + GET returns the draft (and `link-not-ready` before the mint). MessageLog stays 0 rows throughout.
+- Dismissed (1): **client-name debrace** — pre-existing Story 2.1 behavior, out of scope here.
+- Dismissed (2): **raw reason shown to operator** — accepted as operator-facing; the panel now routes all reasons through `lifecycleErrorMessage` for friendly copy.
+- Confirmed (1): **`CADENCE_INTERVAL_DAYS.monthly = 28`** — intentional stable 4-week interval (shared with Story 3.5 lapse math), NOT a calendar month.
+- Confirmed (2): **one-time proposal includes `today` itself when open** — intentional "soonest open" reading of FR10.
+
 ## Dev Notes
 
 ### Previous story intelligence
@@ -126,3 +141,7 @@ Five locked dev decisions, as implemented:
 - `.env` — added `APP_BASE_URL` (modified).
 - `.env.example` — added `APP_BASE_URL` (modified).
 - `tests/rebook.test.ts` — new DB-backed test suite (10 tests).
+
+## Change Log
+
+- **2026-07-16** — 3-layer adversarial code review (no HIGH). Applied 6 fixes: fail-closed `getRebookProposal` (P1), rebookable-state enforcement (P2), moved the per-client link mint off the GET render into a new `prepareRebook` POST action (P3, AD-1 no write-on-render), `APP_BASE_URL` prod hardening (P4), unmapped-cadence guard in `proposeRebookSlot` (P5), and 4 new tests (P6). Dismissed 2 (pre-existing client-name debrace; operator-facing raw reason). Confirmed 2 (monthly=28d; one-time includes today). Files: `app/(operator)/jobs/actions.ts`, `app/(operator)/jobs/page.tsx`, `lib/domain/derive.ts`, `lib/domain/lifecycleErrors.ts`, `tests/rebook.test.ts`, `.env.example`.
