@@ -8,7 +8,13 @@ import { sql, eq } from 'drizzle-orm';
 import { db } from '../lib/db/client';
 import { operator, client, job, token } from '../lib/db/schema';
 import { seedOperator } from '../lib/db/seed';
-import { getOwnerId, getCapacitySettings, listJobsFrom } from '../lib/db/queries';
+import {
+  getOwnerId,
+  getCapacitySettings,
+  listJobsFrom,
+  upsertClientToken,
+  findTokenByValue,
+} from '../lib/db/queries';
 import { ensureClientToken, resolveBookingView } from '../lib/domain/booking';
 import { signClientToken, getClientTokenSecret } from '../lib/auth/clientToken';
 import { DEFAULT_CAPACITY, type CapacityConfig } from '../lib/domain/capacityConfig';
@@ -160,5 +166,29 @@ describe('Client booking token surface (Story 3.1)', () => {
     expect((await resolveBookingView(tok)).ok).toBe(true);
     await db.delete(token).where(eq(token.tokenValue, tok));
     expect((await resolveBookingView(tok)).ok).toBe(false); // HMAC still valid, row gone
+  });
+
+  it('AC2: a second client’s token resolves to THAT client only (cross-client isolation)', async () => {
+    // Positive isolation: Bob’s token yields Bob’s view, never Alice’s (claims carry
+    // their own clientId; getClient is owner+id scoped). (code-review P3)
+    const tokB = await ensureClientToken(ownerId, clientB);
+    const res = await resolveBookingView(tokB);
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    expect(res.view.clientName).toBe('Bob B');
+  });
+
+  it('P1: re-minting with a changed signature REFRESHES the row (secret rotation heals, no stale token)', async () => {
+    // Simulate a rotated CLIENT_TOKEN_SECRET: same (owner, client, capability) but a
+    // different signed string. upsert must DO UPDATE (not DO NOTHING) so the stored
+    // token_value becomes the new one — the old link stops resolving, and re-mint never
+    // returns a stale token. Still exactly one live link.
+    await ensureClientToken(ownerId, clientA);
+    const rotated = `rotated.${'x'.repeat(24)}`;
+    const row = await upsertClientToken(ownerId, clientA, rotated, 'book-client');
+    expect(row.tokenValue).toBe(rotated);
+    const rows = await db.select().from(token).where(eq(token.clientId, clientA));
+    expect(rows).toHaveLength(1);
+    expect(await findTokenByValue(rotated)).toBeDefined();
   });
 });

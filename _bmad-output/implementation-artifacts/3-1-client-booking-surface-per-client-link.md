@@ -4,7 +4,7 @@ baseline_commit: 05bc6b02e2360fb2db248ec5052e5aafa9afa872
 
 # Story 3.1: Client booking surface + per-client link
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -134,3 +134,4 @@ Implementation notes:
 ### Change Log
 
 - 2026-07-16 — Story 3.1 implemented: `Token` schema + migration, per-client HMAC token (shared `hmac.ts`, `session.ts` refactored onto it), public no-login booking surface rendering genuinely-open slots (reuse Story 1.7 `derive`), fail-closed resolve chain (signature → revocation row → owner/client scope), dedicated `CLIENT_TOKEN_SECRET`. 14 new tests; tsc + build + 181/181 green. Status → review.
+- 2026-07-16 — Code review (3-layer adversarial: Blind Hunter, Edge Case Hunter, Acceptance Auditor). No High / no exploitable forgery — owner-scoping, capability gating, fail-closed chain, and the session→hmac refactor all verified sound. 3 patches applied: **P1** `upsertClientToken` → `onConflictDoUpdate({set:{tokenValue}}).returning()` (heals stale token after secret rotation + closes the select-after-insert concurrent-revoke race); **P2** `resolveBookingView` slot derivation wrapped try/catch → fail-closed generic invalid-link on a corrupt `config.timezone` (no public 500); **P3** positive cross-client isolation test + P1 refresh regression. 5 findings deferred to `deferred-work.md` incl. **⚠️ D1 — per-client token revocation not durable (deterministic token; needs a nonce column before Story 3.3 hands links to real clients)** and **D2 — current-week-only slot horizon**. 183 tests, tsc clean. Status → done.

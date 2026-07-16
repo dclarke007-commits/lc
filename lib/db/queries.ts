@@ -322,11 +322,16 @@ export async function listDispatchedMessages(
 // persist and look up the server-side token row that makes a credential revocable.
 
 /**
- * Idempotently persist the per-client token row (Story 3.1, Task 2). The token STRING
- * is deterministic per (owner, client, capability), so a re-mint of the same client's
- * link inserts NO second row (ON CONFLICT DO NOTHING on the (owner, client, capability)
- * unique target), then returns the existing row — one live link per client. Owner-scoped
- * write (AD-8): the owner_id value is carried on the row and in the select-back.
+ * Idempotently persist the per-client token row (Story 3.1, Task 2), one live link per
+ * (owner, client, capability). On conflict we UPDATE `token_value` to the freshly-signed
+ * value and RETURN the row in the SAME statement (code-review P1):
+ *   - DO UPDATE (not DO NOTHING) so a re-mint after the signing input changes — e.g. a
+ *     rotated CLIENT_TOKEN_SECRET — refreshes the stored token instead of stranding the
+ *     old one; the previous token_value is overwritten, so its link stops resolving.
+ *     With an unchanged secret the token is deterministic and this writes the same value.
+ *   - RETURNING avoids a select-after-insert race: a concurrent revoke could delete the
+ *     row between insert and a follow-up select, returning undefined → the atomic
+ *     returning() always yields the just-written row. Owner-scoped write (AD-8).
  */
 export async function upsertClientToken(
   ownerId: string,
@@ -334,23 +339,14 @@ export async function upsertClientToken(
   tokenValue: string,
   capability: Token['capability'],
 ): Promise<Token> {
-  await db
+  const [row] = await db
     .insert(token)
     .values({ ownerId, clientId, tokenValue, capability })
-    .onConflictDoNothing({
+    .onConflictDoUpdate({
       target: [token.ownerId, token.clientId, token.capability],
-    });
-  const [row] = await db
-    .select()
-    .from(token)
-    .where(
-      and(
-        eq(token.ownerId, ownerId),
-        eq(token.clientId, clientId),
-        eq(token.capability, capability),
-      ),
-    )
-    .limit(1);
+      set: { tokenValue },
+    })
+    .returning();
   return row;
 }
 
