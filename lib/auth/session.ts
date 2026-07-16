@@ -1,9 +1,11 @@
-// Minimal HMAC-signed session token (no auth framework — NFR7 simplicity gate).
-// Uses the WebCrypto HMAC-SHA256 primitive (globalThis.crypto.subtle), which is
-// available identically in the Node.js runtime (Server Actions) and the proxy
-// runtime — so a token signed in an action verifies in proxy.ts unchanged.
-//
-// Token format:  base64url(payloadJSON) . base64url(HMAC-SHA256(payloadJSON))
+// Minimal HMAC-signed operator session token (no auth framework — NFR7 simplicity
+// gate). The HMAC-SHA256 primitive and the base64url(payload).base64url(sig) format
+// live in lib/auth/hmac.ts — the ONE crypto path, shared with the per-client booking
+// token (clientToken.ts). This module adds only the session-specific claim shape
+// (sub/iat/exp) and the server-side expiry check on top of it. Because hmac uses
+// WebCrypto, a token signed in a Server Action verifies in proxy.ts unchanged.
+
+import { signPayload, verifyPayload } from '@/lib/auth/hmac';
 
 export interface SessionPayload {
   /** operator (owner) id — the AD-8 owner_id value. */
@@ -40,33 +42,6 @@ export function getSessionSecret(): string {
   return secret;
 }
 
-const encoder = new TextEncoder();
-const decoder = new TextDecoder();
-
-function b64urlEncode(bytes: Uint8Array): string {
-  let bin = '';
-  for (const byte of bytes) bin += String.fromCharCode(byte);
-  return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-}
-
-function b64urlDecode(input: string): Uint8Array {
-  const padded = input.replace(/-/g, '+').replace(/_/g, '/');
-  const bin = atob(padded);
-  const out = new Uint8Array(bin.length);
-  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
-  return out;
-}
-
-async function importKey(secret: string): Promise<CryptoKey> {
-  return crypto.subtle.importKey(
-    'raw',
-    encoder.encode(secret),
-    { name: 'HMAC', hash: 'SHA-256' },
-    false,
-    ['sign', 'verify'],
-  );
-}
-
 export async function signSession(
   payload: { sub: string; iat: number },
   secret: string,
@@ -75,61 +50,34 @@ export async function signSession(
     throw new Error('Refusing to sign a session with a weak SESSION_SECRET.');
   }
   // exp is derived from iat and HMAC-covered so expiry cannot be forged.
-  const full: SessionPayload = {
-    sub: payload.sub,
-    iat: payload.iat,
-    exp: payload.iat + SESSION_MAX_AGE_SECONDS,
-  };
-  const body = b64urlEncode(encoder.encode(JSON.stringify(full)));
-  const key = await importKey(secret);
-  const sig = new Uint8Array(
-    await crypto.subtle.sign('HMAC', key, encoder.encode(body)),
+  return signPayload(
+    {
+      sub: payload.sub,
+      iat: payload.iat,
+      exp: payload.iat + SESSION_MAX_AGE_SECONDS,
+    },
+    secret,
   );
-  return `${body}.${b64urlEncode(sig)}`;
 }
 
 export async function verifySession(
   token: string | undefined | null,
   secret: string,
 ): Promise<SessionPayload | null> {
-  if (!token) return null;
   // Fail closed on a weak/missing secret — never verify against a bad key.
   if (!secret || secret.length < MIN_SESSION_SECRET_LENGTH) return null;
-  const dot = token.indexOf('.');
-  if (dot <= 0) return null;
-  const body = token.slice(0, dot);
-  const sig = token.slice(dot + 1);
-  if (!sig) return null;
-
-  const key = await importKey(secret);
-  let valid = false;
-  try {
-    valid = await crypto.subtle.verify(
-      'HMAC',
-      key,
-      b64urlDecode(sig) as BufferSource,
-      encoder.encode(body),
-    );
-  } catch {
-    return null;
+  const parsed = await verifyPayload(token, secret);
+  if (!parsed) return null;
+  if (
+    typeof parsed.sub === 'string' &&
+    typeof parsed.iat === 'number' &&
+    typeof parsed.exp === 'number'
+  ) {
+    // Server-side expiry: reject an expired (or over-max-age) token even though its
+    // HMAC is valid. exp is HMAC-covered, so this cannot be spoofed.
+    const nowSeconds = Math.floor(Date.now() / 1000);
+    if (parsed.exp <= nowSeconds) return null;
+    return { sub: parsed.sub, iat: parsed.iat, exp: parsed.exp };
   }
-  if (!valid) return null;
-
-  try {
-    const parsed = JSON.parse(decoder.decode(b64urlDecode(body)));
-    if (
-      typeof parsed?.sub === 'string' &&
-      typeof parsed?.iat === 'number' &&
-      typeof parsed?.exp === 'number'
-    ) {
-      // Server-side expiry: reject an expired (or over-max-age) token even though
-      // its HMAC is valid. exp is HMAC-covered, so this cannot be spoofed.
-      const nowSeconds = Math.floor(Date.now() / 1000);
-      if (parsed.exp <= nowSeconds) return null;
-      return parsed as SessionPayload;
-    }
-    return null;
-  } catch {
-    return null;
-  }
+  return null;
 }

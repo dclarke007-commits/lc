@@ -306,3 +306,67 @@ export const messageLog = pgTable(
 
 export type MessageLog = typeof messageLog.$inferSelect;
 export type NewMessageLog = typeof messageLog.$inferInsert;
+
+// Token capability (Story 3.1, AD-6) — what a token bearer may do. A bearer can do
+// EXACTLY what its capability scopes, nothing more. Declared as a closed enum so a
+// new capability is a deliberate schema change, not an ambient string.
+export const tokenCapability = pgEnum('token_capability', [
+  // v1: view THIS ONE client's open slots (+ book that one client, Story 3.2).
+  'book-client',
+  // Seam for Epic 4's single public self-booking token — a DISTINCT capability,
+  // declared now so the capability boundary never needs a retrofit.
+  'book-public',
+]);
+
+// Token (Story 3.1, FR3/FR34, AD-6) — a signed, unguessable per-client booking
+// credential. The token STRING is the entire authorization decision on client
+// surfaces: no client login, no session, no account (FR34). Signing/verification
+// lives in lib/auth/clientToken.ts (HMAC-SHA256, mirroring the operator session in
+// lib/auth/session.ts — one audited crypto path, NFR7). The token is a DETERMINISTIC
+// signature over {client_id, owner_id, capability}, so exactly one stable link
+// exists per client (idempotent re-mint). This row is the server-side record that
+// makes the credential REVOCABLE: delete the row and verification fails closed even
+// though the HMAC is still valid.
+export const token = pgTable(
+  'token',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    // AD-8 tenancy seam: every token row carries the owner_id FK, present in every
+    // query. NOT NULL — an ownerless token is a cross-tenant leak.
+    ownerId: uuid('owner_id')
+      .notNull()
+      .references(() => operator.id, { onDelete: 'restrict' }),
+    // The ONE client this token is scoped to. NULLABLE seam: the future public token
+    // (Epic 4) is scoped to no single client. Per-client tokens (this story) ALWAYS
+    // set it. onDelete cascade: a removed client's booking link must die with it.
+    clientId: uuid('client_id').references(() => client.id, {
+      onDelete: 'cascade',
+    }),
+    // The signed, unguessable token STRING (base64url(payload).base64url(hmac)).
+    // Stored + UNIQUE so resolution is an O(1) lookup and re-minting is idempotent.
+    tokenValue: text('token_value').notNull(),
+    // What the bearer may do — exactly one capability (AD-6). Stored AND carried in
+    // the HMAC claim; verification requires the two to agree.
+    capability: tokenCapability('capability').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
+      .defaultNow()
+      .notNull(),
+  },
+  (t) => [
+    // O(1) resolution by token string; UNIQUE makes re-minting the same per-client
+    // token idempotent (the upsert does nothing on conflict).
+    uniqueIndex('token_value_uq').on(t.tokenValue),
+    // Reads are always owner-scoped (AD-8); index the filter column.
+    index('token_owner_id_idx').on(t.ownerId),
+    // One live per-client link: at most one token per (owner, client, capability).
+    // (Per-client rows set client_id; the lone public token, Epic 4, has none.)
+    uniqueIndex('token_owner_client_capability_uq').on(
+      t.ownerId,
+      t.clientId,
+      t.capability,
+    ),
+  ],
+);
+
+export type Token = typeof token.$inferSelect;
+export type NewToken = typeof token.$inferInsert;

@@ -12,6 +12,7 @@ import {
   job,
   messageTemplate,
   messageLog,
+  token,
 } from './schema';
 import type {
   Operator,
@@ -20,6 +21,7 @@ import type {
   Job,
   MessageTemplate,
   MessageLog,
+  Token,
 } from './schema';
 
 /**
@@ -312,4 +314,60 @@ export async function listDispatchedMessages(
     );
   // dispatchedAt is non-null by the WHERE filter; assert the projection type.
   return rows as DispatchedMessage[];
+}
+
+// --- Tokens (Story 3.1, AD-6 capability + AD-8 owner-scoped) ---
+// SQL only (AD-1): signing/verification lives in lib/auth/clientToken.ts and the
+// generate/resolve orchestration in lib/domain/booking.ts. These helpers just
+// persist and look up the server-side token row that makes a credential revocable.
+
+/**
+ * Idempotently persist the per-client token row (Story 3.1, Task 2). The token STRING
+ * is deterministic per (owner, client, capability), so a re-mint of the same client's
+ * link inserts NO second row (ON CONFLICT DO NOTHING on the (owner, client, capability)
+ * unique target), then returns the existing row — one live link per client. Owner-scoped
+ * write (AD-8): the owner_id value is carried on the row and in the select-back.
+ */
+export async function upsertClientToken(
+  ownerId: string,
+  clientId: string,
+  tokenValue: string,
+  capability: Token['capability'],
+): Promise<Token> {
+  await db
+    .insert(token)
+    .values({ ownerId, clientId, tokenValue, capability })
+    .onConflictDoNothing({
+      target: [token.ownerId, token.clientId, token.capability],
+    });
+  const [row] = await db
+    .select()
+    .from(token)
+    .where(
+      and(
+        eq(token.ownerId, ownerId),
+        eq(token.clientId, clientId),
+        eq(token.capability, capability),
+      ),
+    )
+    .limit(1);
+  return row;
+}
+
+/**
+ * Resolve a token row by its unique string — the ONE lookup that is NOT owner-scoped
+ * by argument, because the token string is itself how we DISCOVER the owner (like
+ * getOperatorByEmail resolving identity before scoping). The unique index makes this
+ * O(1); the returned row carries the owner_id that every downstream query then filters
+ * on. Returns undefined for an unknown/revoked token — the caller fails closed.
+ */
+export async function findTokenByValue(
+  tokenValue: string,
+): Promise<Token | undefined> {
+  const [row] = await db
+    .select()
+    .from(token)
+    .where(eq(token.tokenValue, tokenValue))
+    .limit(1);
+  return row;
 }
