@@ -71,7 +71,7 @@ development_status:
   # --- Epic 3: Rebooking & Win-Back — Plug the Revenue Leak ---
   epic-3: in-progress
   3-1-client-booking-surface-per-client-link: done
-  3-2-known-client-direct-confirm-booking: ready-for-dev
+  3-2-known-client-direct-confirm-booking: review
   3-3-one-tap-rebooking-proposal-message: ready-for-dev
   3-4-post-job-nudge-rebooking-tracking: ready-for-dev
   3-5-lapse-detection-expected-next-date-gone-cold: ready-for-dev

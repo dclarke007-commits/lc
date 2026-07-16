@@ -1,6 +1,10 @@
+---
+baseline_commit: 4c8ebe0f7d8f4b7a70c2d251853775c6940f646e
+---
+
 # Story 3.2: Known-client direct-confirm booking
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -18,22 +22,22 @@ so that rebooking takes one tap.
 
 ## Tasks / Subtasks
 
-- [ ] **Task 1 — Client-confirm Server Action on the per-client surface (AC: 1)** [Source: ARCHITECTURE-SPINE.md#AD-1, #AD-6, #AD-4]
-  - [ ] In `app/book/[token]/**/actions.ts`: a verb-first Server Action for the client-confirm path. Resolve the per-client token → its single `client_id` + `owner_id` (AD-6 token-is-capability, AR7 token-scoped). The client is already known — **do NOT re-collect identity** and **do NOT create a `PendingRequest`** (that is Epic 4's public path).
-  - [ ] The action calls the **existing** `capacity.commitBooking` from Story 1.4 with `override=false` (a known client never overrides caps). Direct-confirm = no approval step (FR7 / AD-4: "Known clients on a per-client link (FR7) skip the queue and commit directly"). Typed return `{ok,data}|{ok:false,reason}`; surface never imports `lib/db`.
-  - [ ] Pass `client_id` from the token, not from any client-supplied field — a bearer can do exactly what its token scopes, nothing more (AR7/AD-6).
-- [ ] **Task 2 — Idempotency key for the token-submit (AC: 2)** [Source: ARCHITECTURE-SPINE.md#AD-12]
-  - [ ] Derive/plumb an idempotency key per token-submit into `commitBooking` so a double-tap or repeat submit returns the **same** Job, never a second (AD-12/AR13). `commitBooking`'s idempotency was built in Story 1.4 — **reuse it**, do not add a second dedupe mechanism.
-  - [ ] **Dev decision — key derivation:** AD-12 phrases idempotency "per token-submit". Options: (a) server-derived `client_id + slot(date) + token` composite, or (b) a client-supplied submit nonce echoed on retry. Pick one and document it; (a) is the natural fit for the token flow since the client is fixed by the token and the slot is the booking target. (See Open gaps.)
-- [ ] **Task 3 — Client-confirm booking surface (AC: 1, 3)** [Source: ARCHITECTURE-SPINE.md#AD-1, #AD-13]
-  - [ ] Phone-first RSC surface at `app/book/[token]/`: known client sees genuinely-open slots (from Story 3.1) and confirms in one tap. On success, a direct confirmation — no "pending approval" state. Minimal client JS; <60s flow / <2s interactive on 4G (AD-13/NFR2/NFR3).
-  - [ ] On a lost race, render **no-availability** (see Task 4), not an overbook.
-- [ ] **Task 4 — Slot-filled-between-view-and-confirm → no-availability (AC: 3)** [Source: ARCHITECTURE-SPINE.md#AD-2, #AD-3]
-  - [ ] Do **not** reinvent the race check. `commitBooking` already re-checks the per-day cap + weekly-14 ceiling **inside the transaction-scoped lock** (Story 1.4 / AD-2 / AD-3); if the slot filled after the client viewed it, `commitBooking` returns `{ok:false, reason:'day-maxed'|'week-full'}`. Map that machine reason to a client-facing "no longer available" message. No silent overbook (FR9/AR4).
-- [ ] **Task 5 — Tests (AC: 1, 2, 3)**
-  - [ ] AC1: confirming an open slot on a per-client link inserts a `booked` Job attached to the token's `client_id`, no `PendingRequest`, no identity re-collection, no approval step.
-  - [ ] AC2: repeat submit / double-tap through the client-confirm action returns the **same** Job id, never a second row.
-  - [ ] AC3: slot that filled between view and confirm yields no-availability (`day-maxed`|`week-full` mapped to client message), zero Jobs written for the loser — reuse/extend Story 1.4's one-winner concurrency proof for the token path.
+- [x] **Task 1 — Client-confirm Server Action on the per-client surface (AC: 1)** [Source: ARCHITECTURE-SPINE.md#AD-1, #AD-6, #AD-4]
+  - [x] `app/book/[token]/actions.ts`: `confirmBooking(formData)` + inner testable `confirmBookingResult(token, date)`. Resolves the token → `client_id`+`owner_id` via the shared `resolveTokenClaims` (extracted from Story 3.1's fail-closed chain). No identity re-collection, no `PendingRequest`.
+  - [x] Calls the **existing** `capacity.commitBooking` (Story 1.4) with `override=false`. Direct-confirm, no approval (FR7/AD-4). Typed AR15 `{ok,data}|{ok:false,reason}`; surface never imports `lib/db` (goes through `resolveTokenClaims` + `commitBooking`).
+  - [x] `client_id`/`owner_id` come from the TOKEN, never a form field (AR7/AD-6). Form carries only `token` + `date`.
+- [x] **Task 2 — Idempotency key for the token-submit (AC: 2)** [Source: ARCHITECTURE-SPINE.md#AD-12]
+  - [x] Server-derived key `book:${clientId}:${date}` plumbed into `commitBooking` (reuses Story 1.4's idempotency; no second dedupe). Double-tap same slot → same key → same Job.
+  - [x] **Dev decision: option (a)** — server-derived `client_id + date` composite. Client is fixed by the token; the slot is day-granular (Story 3.1 openSlots are dates), so one booking per (client, day) via this link. A different date → different key → a new Job (tested). Not a client nonce (avoids double-tap creating two rows).
+- [x] **Task 3 — Client-confirm booking surface (AC: 1, 3)** [Source: ARCHITECTURE-SPINE.md#AD-1, #AD-13]
+  - [x] `app/book/[token]/page.tsx`: each open slot is a zero-JS POST form to `confirmBooking` (hidden `token`+`date`). `?booked=1` → direct confirmation banner (no pending state); still `force-dynamic`, no client JS.
+  - [x] Lost race → no-availability banner (Task 4), remaining open slots still shown.
+- [x] **Task 4 — Slot-filled-between-view-and-confirm → no-availability (AC: 3)** [Source: ARCHITECTURE-SPINE.md#AD-2, #AD-3]
+  - [x] No race check reinvented — `commitBooking` re-checks caps inside the transaction-scoped lock (1.4/AD-2/AD-3). `day-maxed`|`week-full` both map to ONE client line "That time was just taken — please pick another slot."; raw reason never shown. No silent overbook.
+- [x] **Task 5 — Tests (AC: 1, 2, 3)** — `tests/confirm-booking.test.ts` (5 DB-backed)
+  - [x] AC1: confirm inserts a `booked` Job on the token's `client_id`+`owner_id`, `overridden=false`, exactly one row, no second mechanism/approval.
+  - [x] AC2: double-tap same slot → same Job id, one row; corollary: different date → separate Job (key includes slot).
+  - [x] AC3: date filled to cap → `ok:false` reason ∈ {day-maxed, week-full}, zero new Jobs for the loser. Plus a fail-closed tampered-token test (no Job, generic `invalid`).
 
 ## Dev Notes
 
@@ -82,8 +86,28 @@ so that rebooking takes one tap.
 
 ### Agent Model Used
 
+claude-opus-4-8[1m] (Opus 4.8, 1M context). Build delegated to a subagent; verified independently (tsc + full suite re-run) by the main session.
+
 ### Debug Log References
+
+- Independently verified: `npx tsc --noEmit` → 0 errors; `npx vitest run` → **188/188** (21 files, +5 over 3.1's 183). DB tests on Docker Postgres.
 
 ### Completion Notes List
 
+- **Pure caller of Story 1.4 (AD-2):** no new insert path — `commitBooking` / `consumesSlot` / the lock / token crypto all untouched. This story adds only the client-confirm action + surface wiring.
+- **Dev decision — idempotency key = `book:${clientId}:${date}`** (option a, server-derived). Client fixed by the token; slot is day-granular, so double-tap on a slot replays the same Job (AC2) and distinct dates make distinct Jobs. `override=false` always (known client never overrides caps).
+- **Refactor:** extracted `resolveTokenClaims(tokenValue)` from Story 3.1's `resolveBookingView` — the ONE fail-closed token→claims chain (signature → capability → revocation row), now shared by the view resolver AND the confirm action. `resolveBookingView` behavior unchanged (its tests still green).
+- **Fail-closed:** an unresolvable/tampered/revoked token → `fail('invalid')`, no Job, no leak of which guard failed. `day-maxed`|`week-full` → one client-facing no-availability line (raw reason never rendered).
+- **Zero-JS (NFR1):** each open slot is a POST form; testable inner `confirmBookingResult` returns the typed AR15 result, the thin `confirmBooking(formData)` wrapper adds only the redirect (mirrors the `sendDraft`/`recordDispatch` split).
+- **Scope honored:** no `PendingRequest`/approval (AD-4), no override, no lifecycle beyond insert-as-`booked`, no message compose/nudge/ledger.
+
 ### File List
+
+- `lib/domain/booking.ts` (M) — extracted exported `resolveTokenClaims`; `resolveBookingView` now calls it (behavior unchanged)
+- `app/book/[token]/actions.ts` (A) — `confirmBooking` action + inner `confirmBookingResult`
+- `app/book/[token]/page.tsx` (M) — open slots as zero-JS confirm forms; booked/no-availability/invalid banners
+- `tests/confirm-booking.test.ts` (A) — AC1/AC2/AC2-corollary/AC3 + fail-closed (5 DB-backed)
+
+### Change Log
+
+- 2026-07-16 — Story 3.2 implemented: known-client direct-confirm booking on the per-client surface. `confirmBooking` action calls the existing `commitBooking` (override=false) with a server-derived idempotency key `book:${clientId}:${date}`; extracted shared `resolveTokenClaims`; zero-JS confirm forms + direct-confirmation / no-availability banners. No schema change, no new booking path (AD-2). Independently verified: tsc clean, 188/188. Status → review.

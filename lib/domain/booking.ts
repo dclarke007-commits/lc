@@ -17,6 +17,7 @@ import {
   signClientToken,
   verifyClientToken,
   type TokenCapability,
+  type ClientTokenClaims,
 } from '@/lib/auth/clientToken';
 import {
   findTokenByValue,
@@ -83,34 +84,34 @@ export type ResolveResult = { ok: true; view: BookingView } | { ok: false };
 const INVALID: ResolveResult = { ok: false };
 
 /**
- * Turn a bearer token into a scoped open-slot view (Tasks 3+4), or INVALID. The chain
- * fails closed at every step:
+ * The ONE fail-closed token→claims chain (AD-6), reused by BOTH the view resolver
+ * (Story 3.1) and the client-confirm action (Story 3.2). Returns the signed claims
+ * ONLY when every guard passes, else null (never a partial or a reason):
  *   1. Signature — unforgeable proof of the claims (secret held server-side only).
+ *      A weak/missing secret throws in getClientTokenSecret; caught → null (fail
+ *      closed), never a leaked server error.
  *   2. Capability — must be exactly the per-client booking capability.
  *   3. Revocation — a matching row must still exist (delete = revoke, even though the
  *      HMAC stays valid) and its columns must agree with the signed claims.
- *   4. Scope — read ONLY this client, owner-scoped (AD-8): a token for client A under
- *      owner O can never surface client B or another owner's rows.
- * Then it derives genuinely-open slots via Story 1.7 (AD-2/AD-7) — no mutation here
- * (booking is Story 3.2).
+ * The caller then does its own owner-scoped work (view: getClient; confirm:
+ * commitBooking, which re-checks the client belongs to the owner under the lock).
  */
-export async function resolveBookingView(
+export async function resolveTokenClaims(
   tokenValue: string | undefined | null,
-): Promise<ResolveResult> {
-  if (!tokenValue) return INVALID;
+): Promise<ClientTokenClaims | null> {
+  if (!tokenValue) return null;
 
-  // 1–2. Signature + capability. A weak/missing secret throws in getClientTokenSecret;
-  // treat that as invalid (fail closed) rather than leaking a server error.
+  // 1–2. Signature + capability.
   let secret: string;
   try {
     secret = getClientTokenSecret();
   } catch {
-    return INVALID;
+    return null;
   }
   const claims = await verifyClientToken(tokenValue, secret);
-  if (!claims) return INVALID;
-  if (claims.capability !== PER_CLIENT_CAPABILITY) return INVALID;
-  if (!claims.clientId || !claims.ownerId) return INVALID;
+  if (!claims) return null;
+  if (claims.capability !== PER_CLIENT_CAPABILITY) return null;
+  if (!claims.clientId || !claims.ownerId) return null;
 
   // 3. Revocation: the row must exist AND agree with the signed claims. A deleted row
   // (revoked link) or any mismatch fails closed here.
@@ -121,8 +122,25 @@ export async function resolveBookingView(
     row.clientId !== claims.clientId ||
     row.capability !== claims.capability
   ) {
-    return INVALID;
+    return null;
   }
+
+  return claims;
+}
+
+/**
+ * Turn a bearer token into a scoped open-slot view (Tasks 3+4), or INVALID. Resolves
+ * the token via the ONE fail-closed chain (resolveTokenClaims), then adds step 4:
+ *   4. Scope — read ONLY this client, owner-scoped (AD-8): a token for client A under
+ *      owner O can never surface client B or another owner's rows.
+ * Then it derives genuinely-open slots via Story 1.7 (AD-2/AD-7) — no mutation here
+ * (booking is Story 3.2).
+ */
+export async function resolveBookingView(
+  tokenValue: string | undefined | null,
+): Promise<ResolveResult> {
+  const claims = await resolveTokenClaims(tokenValue);
+  if (!claims) return INVALID;
 
   // 4. Scope: read ONLY this client, owner-scoped. Both predicates (owner AND id) are
   // enforced in the query, so a token can never resolve another owner's/client's row.
