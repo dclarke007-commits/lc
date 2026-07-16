@@ -135,3 +135,15 @@ export function compose(
 export function confirmationDraftNonce(jobId: string): string {
   return `confirm:${jobId}`;
 }
+
+/**
+ * The deterministic per-draft idempotency nonce for a Job's post-job REBOOKING nudge
+ * (Story 3.4, Task 2). Keyed on the anchor Job id (mirrors confirmationDraftNonce's
+ * `confirm:<jobId>`): the send tap resubmits this same nonce → the SAME MessageLog row →
+ * dispatched_at is stamped ONCE (Story 2.3 idempotency), so a re-tap never double-logs a
+ * nudge. One dispatched `rebooking_nudge` row per anchor job is exactly the "nudge sent"
+ * fact the conversion metric counts.
+ */
+export function rebookingDispatchNonce(jobId: string): string {
+  return `rebook:${jobId}`;
+}

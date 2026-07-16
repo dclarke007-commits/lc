@@ -342,3 +342,87 @@ export function nudgeFatigueForClient(
   }
   return count;
 }
+
+// --- Story 3.4: post-job rebooking nudge (derived on read from canonical rows) ---
+//
+// Two PURE predicates/metrics over the SAME two facts every other derive reads
+// (AD-7): dispatched `rebooking_nudge` MessageLog rows and their `resulting_job_ref`
+// links. No stored `nudge_due` flag, no conversion counter, no cron — mutate the input
+// and the very next call reflects it. Instants (epoch ms) are compared, never strings:
+// dispatched_at (timestamptz "…+00") and a Job's completed_at ("…Z") are the same
+// instant in different text, so a lexical compare across formats would be wrong.
+
+/** The Job fields the post-job nudge predicate reads (a projection, AD-8). */
+export interface NudgeJob {
+  clientId: string;
+  completion: string;
+  completedAt: string | null; // UTC instant, non-null once `completed`
+}
+
+/** A DISPATCHED MessageLog row the nudge predicate / conversion metric read. */
+export interface NudgeLog {
+  clientId: string;
+  messageType: string;
+  dispatchedAt: string; // UTC instant — dispatched rows only (queries filter IS NOT NULL)
+  resultingJobRef: string | null; // FR13 attribution — the Job this nudge produced, or null
+}
+
+/**
+ * Does this job still WANT a post-job rebooking nudge (AC1/FR12/FR40)? True only when
+ * the job is `completed` AND the client has NO dispatched `rebooking_nudge` on/after this
+ * job's `completed_at`. `no-show`/`cancelled` NEVER qualify (FR40 — they do not advance
+ * rebooking logic). Derive-on-read (AD-7): once a nudge is dispatched for the client
+ * (its dispatched_at ≥ completedAt), the predicate flips false and the prompt disappears
+ * with NO stored flag. A prior-job nudge dispatched BEFORE this completion does not
+ * suppress it (dispatched_at < completedAt).
+ */
+export function needsRebookNudge(job: NudgeJob, messages: NudgeLog[]): boolean {
+  if (job.completion !== 'completed') return false;
+  if (!job.completedAt) return false; // defensive: a completed job always has completedAt
+  const completedMs = new Date(job.completedAt).getTime();
+  for (const m of messages) {
+    if (m.clientId !== job.clientId) continue;
+    if (m.messageType !== 'rebooking_nudge') continue;
+    if (new Date(m.dispatchedAt).getTime() >= completedMs) return false;
+  }
+  return true;
+}
+
+/** The one-time → repeat nudge-conversion metric (AC2/FR13), recomputed on read. */
+export interface RebookingConversion {
+  sent: number; // dispatched rebooking nudges in the rolling window
+  booked: number; // of those, the ones with a resulting_job_ref (led to a booking)
+  ratio: number; // booked / sent, or 0 when sent === 0
+}
+
+// Rolling-window default: repeat-rate is a 30-day window (addendum F), and the nudge
+// conversion shares that horizon so the two agree. Instant math (ms) over dispatched_at.
+const CONVERSION_WINDOW_DAYS_DEFAULT = 30;
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+
+/**
+ * The nudge-conversion ratio over dispatched `rebooking_nudge` rows whose `dispatched_at`
+ * falls in the rolling `windowDays` ending at `anchorIso` (AC2/FR13). `sent` counts those
+ * rows; `booked` counts the subset with a non-null `resulting_job_ref` (Task 3's attribution
+ * fact); `ratio = booked/sent` (0 when sent === 0). PURE derive-on-read (AD-7): a function
+ * of the two recorded facts only — NO stored counter, NO cron. This is the FR13 one-time→
+ * repeat nudge ratio; addendum-F repeat-booking-rate is a SEPARATE Epic-6 dashboard metric.
+ */
+export function rebookingConversion(
+  messages: NudgeLog[],
+  anchorIso: string,
+  windowDays: number = CONVERSION_WINDOW_DAYS_DEFAULT,
+): RebookingConversion {
+  const anchor = new Date(anchorIso).getTime();
+  const windowStart = anchor - windowDays * MS_PER_DAY;
+  let sent = 0;
+  let booked = 0;
+  for (const m of messages) {
+    if (m.messageType !== 'rebooking_nudge') continue;
+    const t = new Date(m.dispatchedAt).getTime();
+    if (t < windowStart || t > anchor) continue;
+    sent++;
+    if (m.resultingJobRef != null) booked++;
+  }
+  return { sent, booked, ratio: sent === 0 ? 0 : booked / sent };
+}

@@ -16,6 +16,7 @@ import {
   getCapacitySettings,
   getMessageTemplates,
   listJobsFrom,
+  listDispatchedMessages,
   findClientToken,
   type JobListItem,
 } from '@/lib/db/queries';
@@ -28,8 +29,14 @@ import {
   correctOutcome as correctOutcomeLifecycle,
 } from '@/lib/domain/lifecycle';
 import { reschedule } from '@/lib/domain/capacity';
-import { proposeRebookSlot } from '@/lib/domain/derive';
-import { compose, type MessageDraft } from '@/lib/domain/compose';
+import { proposeRebookSlot, needsRebookNudge } from '@/lib/domain/derive';
+import {
+  compose,
+  rebookingDispatchNonce,
+  type MessageDraft,
+} from '@/lib/domain/compose';
+import { deepLink, type DeliveryChannel } from '@/lib/delivery/deeplink';
+import { recordDispatch } from '@/app/(operator)/draft/actions';
 import { ensureClientToken } from '@/lib/domain/booking';
 import { localDateKey, weekRangeOfDate, formatDateKey } from '@/lib/domain/clock';
 import {
@@ -38,8 +45,17 @@ import {
 } from '@/lib/domain/capacityConfig';
 import { DEFAULT_TEMPLATE_BODIES } from '@/lib/domain/messageTemplateConfig';
 
-/** Owner's jobs for the jobs surface (owner-scoped read). */
-export async function getOwnerJobs(): Promise<JobListItem[]> {
+/**
+ * A jobs-surface row plus the Story 3.4 view-time nudge predicate (AC1). The surface
+ * (zero domain import, AD-1) reads `needsRebookNudge`; the derive runs HERE in the
+ * action layer over canonical rows (AD-7): no stored `nudge_due` flag.
+ */
+export interface JobRow extends JobListItem {
+  needsRebookNudge: boolean;
+}
+
+/** Owner's jobs for the jobs surface (owner-scoped read), annotated with the nudge flag. */
+export async function getOwnerJobs(): Promise<JobRow[]> {
   // Fail LOUD, not silent: an unresolved owner is a deploy-invariant violation.
   // Log and rethrow rather than masking it behind an empty list (a silent []
   // would read as "no jobs"). The RSC render surface shows the error boundary.
@@ -50,7 +66,18 @@ export async function getOwnerJobs(): Promise<JobListItem[]> {
     console.error('[jobs] getOwnerId failed (read path)', err);
     throw new Error('owner-unresolved');
   }
-  return listJobs(ownerId);
+  const jobs = await listJobs(ownerId);
+  // The two facts the predicate needs (AD-7): the jobs and the owner's dispatched
+  // messages. needsRebookNudge flips false once a rebooking_nudge for the client is
+  // dispatched at/after that job's completed_at — computed on read, never stored.
+  const dispatched = await listDispatchedMessages(ownerId);
+  return jobs.map((j) => ({
+    ...j,
+    needsRebookNudge: needsRebookNudge(
+      { clientId: j.clientId, completion: j.completion, completedAt: j.completedAt },
+      dispatched,
+    ),
+  }));
 }
 
 /**
@@ -338,4 +365,60 @@ export async function prepareRebook(formData: FormData): Promise<void> {
   await ensureClientToken(ownerId, job.clientId);
 
   redirect(`/jobs?rebook=${encodeURIComponent(jobId)}`);
+}
+
+/**
+ * Story 3.4 (Task 2) — SEND the rebooking nudge, logging the dispatch exactly like the
+ * /draft surface (Story 2.3). This is NOT a second dispatch path: the deliverable body
+ * is the SAME one getRebookProposal composes (3.3's rebooking_nudge draft + the appended
+ * per-client link), and the once-only log is written by the SHARED recordDispatch
+ * (upsertMessageDraft + markMessageDispatched). The deterministic per-job nonce
+ * `rebook:<jobId>` makes it idempotent per anchor job — a re-tap re-opens WhatsApp/SMS but
+ * writes NO second MessageLog row and stamps dispatched_at only once (AD-5). That single
+ * dispatched `rebooking_nudge` row IS the "nudge sent" fact (no parallel log/column).
+ * On success redirect()s to the wa.me/sms deep link so the tap both LOGS and OPENS.
+ */
+export async function sendRebook(formData: FormData): Promise<void> {
+  const jobId = String(formData.get('jobId') ?? '').trim();
+  const channel: DeliveryChannel =
+    String(formData.get('channel') ?? '') === 'sms' ? 'sms' : 'whatsapp';
+
+  const back = (extra: string): string =>
+    `/jobs?rebook=${encodeURIComponent(jobId)}${extra}`;
+
+  let ownerId: string;
+  try {
+    ownerId = await getOwnerId();
+  } catch (err) {
+    console.error('[jobs] getOwnerId failed (sendRebook)', err);
+    redirect('/jobs?error=owner-unresolved');
+  }
+
+  const job = await getJob(ownerId, jobId);
+  if (!job) redirect('/jobs?error=job-not-found');
+
+  // Re-derive the SAME proposal the panel rendered (3.3 compose path) to get the exact
+  // deliverable body incl. the appended per-client link — compose ≠ deliver (AD-5), so the
+  // draft here carries no side effect. A phoneless client / no-open-slot yields the same
+  // graceful reasons the panel shows, never a silent no-op.
+  const proposal = await getRebookProposal(jobId);
+  if (!proposal.ok) redirect(back(`&error=${encodeURIComponent(proposal.reason)}`));
+  const { draft } = proposal.data;
+  if (!draft) redirect(back('&error=rebook-failed'));
+
+  // Build the deliverable link BEFORE logging (Story 2.3 P1 — no phantom dispatch): only
+  // stamp dispatched_at once a real link exists, so a phoneless tap never inflates fatigue.
+  const link = deepLink(draft, channel);
+  if (!link) redirect(back('&error=no-phone'));
+
+  // The SHARED dispatch-logging path (Story 2.3): ONE row keyed on the per-job nonce,
+  // message_type = rebooking_nudge, dispatched_at stamped once (idempotent on re-tap).
+  const res = await recordDispatch(
+    job.clientId,
+    'rebooking_nudge',
+    rebookingDispatchNonce(jobId),
+  );
+  if (!res.ok) redirect(back(`&error=${encodeURIComponent(res.reason)}`));
+
+  redirect(link);
 }

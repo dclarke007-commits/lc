@@ -1,6 +1,6 @@
 # Story 3.4: Post-job nudge + rebooking tracking
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -17,22 +17,22 @@ so that I never forget to ask for the next one.
 
 ## Tasks / Subtasks
 
-- [ ] **Task 1 — Surface the post-job nudge on `completed` outcome (AC: 1)** [Source: ARCHITECTURE-SPINE.md#AD-10, #AD-7]
-  - [ ] Hook the **Story 1.5** completion event: when `lifecycle` transitions a Job `booked→completed` (via the `markOutcome` action / mark-outcome surface), surface a prompt to send that client's rebooking message. `no-show` and `cancelled` do NOT surface the nudge (FR40: "Completed enables the post-job nudge (FR12)"; a no-show "does not advance rebooking/lapse logic").
-  - [ ] The nudge is a **view-time prompt**, not a stored flag or queued task: it is present wherever the operator sees a job whose `completion = completed` that has no rebooking nudge yet dispatched for it. Derive-on-read (AD-7) — **no `nudge_due` column, no cron, no background job.** [Source: ARCHITECTURE-SPINE.md#AD-7]
-  - [ ] Tapping the prompt fires the **Story 3.3** one-tap rebooking action (`compose` → rebooking `MessageDraft` pre-filled with the proposed slot + the client's per-client link). This story adds the *trigger from completion*; it does NOT re-implement 3.3's proposal/compose logic.
-- [ ] **Task 2 — Record nudge-sent by reusing Story 2.3 `dispatched_at` (AC: 2)** [Source: ARCHITECTURE-SPINE.md#AD-5, #AD-8]
-  - [ ] "Nudge sent" = the existing **Story 2.3** dispatch log: when the operator taps send on the rebooking draft, `MessageLog.dispatched_at` is set once (idempotent per draft, per 2.3's guard). **Do NOT add a parallel `nudge_sent` log or column** — the rebooking `MessageLog` row (`message_type = rebooking-nudge`) IS the record that a nudge was sent. [Source: ARCHITECTURE-SPINE.md#AD-5]
-  - [ ] No new dispatch path: the rebooking nudge rides 2.2 compose → 2.3 draft/dispatch logging exactly like every other outbound message. This story only ensures the rebooking draft is a `MessageLog` row so its `dispatched_at` is the sent-fact.
-- [ ] **Task 3 — Attribute a resulting booking back to the nudge (AC: 2)** [Source: ARCHITECTURE-SPINE.md#Structural-Seed, #AD-12, #AD-8]
-  - [ ] Populate the `MessageLog.resulting_job_ref` FK → Job column (declared-but-unpopulated in Story 2.3) so the dispatched rebooking nudge links to the Job it produced. This is the "nudge-resulted-in-booking" fact.
-  - [ ] The attribution link is written server-side within the sole write path (AD-1); the Job it references is the one created by `commitBooking` on the client's per-client link (Story 3.2 direct-confirm). owner_id-scoped (AD-8).
-  - [ ] **DEV DECISION — how a booking is attributed back to a nudge (see Open gaps #1):** time-window heuristic vs. explicit link (per-client link click carrying the originating nudge id). Pick one; `resulting_job_ref` is the storage either way.
-- [ ] **Task 4 — Conversion metric derived on read (AC: 2)** [Source: ARCHITECTURE-SPINE.md#AD-7]
-  - [ ] The one-time → repeat conversion metric is computed in `lib/domain/derive.ts` **on every render** from canonical rows — the two recorded facts (dispatched rebooking nudges via `MessageLog.dispatched_at` + `message_type = rebooking-nudge`, and their `resulting_job_ref` links) plus `Job.created_at`/`Job.completed_at` per addendum F. **No stored conversion counter, no cron, no background job** (AD-7). This story records the *facts*; the metric is a derivation over them.
-  - [ ] Reuse the existing `derive` module + operator-local Mon–Sun week helper (AD-9); do not fork a parallel metric impl.
-- [ ] **Task 5 — Tests (AC: 1, 2)**
-  - [ ] `completed` outcome surfaces the nudge prompt; `no-show`/`cancelled` do NOT. Nudge prompt disappears once a rebooking nudge is dispatched for that job/client (view-time, no stored flag). Tapping send sets `MessageLog.dispatched_at` once (reuses 2.3 idempotency — no second row/timestamp, no parallel log). A resulting booking populates `resulting_job_ref` linking nudge→Job. Conversion metric recomputes on read from the two facts (no persisted counter).
+- [x] **Task 1 — Surface the post-job nudge on `completed` outcome (AC: 1)** [Source: ARCHITECTURE-SPINE.md#AD-10, #AD-7]
+  - [x] Hook the **Story 1.5** completion event: when `lifecycle` transitions a Job `booked→completed` (via the `markOutcome` action / mark-outcome surface), surface a prompt to send that client's rebooking message. `no-show` and `cancelled` do NOT surface the nudge (FR40: "Completed enables the post-job nudge (FR12)"; a no-show "does not advance rebooking/lapse logic").
+  - [x] The nudge is a **view-time prompt**, not a stored flag or queued task: it is present wherever the operator sees a job whose `completion = completed` that has no rebooking nudge yet dispatched for it. Derive-on-read (AD-7) — **no `nudge_due` column, no cron, no background job.** [Source: ARCHITECTURE-SPINE.md#AD-7]
+  - [x] Tapping the prompt fires the **Story 3.3** one-tap rebooking action (`compose` → rebooking `MessageDraft` pre-filled with the proposed slot + the client's per-client link). This story adds the *trigger from completion*; it does NOT re-implement 3.3's proposal/compose logic.
+- [x] **Task 2 — Record nudge-sent by reusing Story 2.3 `dispatched_at` (AC: 2)** [Source: ARCHITECTURE-SPINE.md#AD-5, #AD-8]
+  - [x] "Nudge sent" = the existing **Story 2.3** dispatch log: when the operator taps send on the rebooking draft, `MessageLog.dispatched_at` is set once (idempotent per draft, per 2.3's guard). **Do NOT add a parallel `nudge_sent` log or column** — the rebooking `MessageLog` row (`message_type = rebooking-nudge`) IS the record that a nudge was sent. [Source: ARCHITECTURE-SPINE.md#AD-5]
+  - [x] No new dispatch path: the rebooking nudge rides 2.2 compose → 2.3 draft/dispatch logging exactly like every other outbound message. This story only ensures the rebooking draft is a `MessageLog` row so its `dispatched_at` is the sent-fact.
+- [x] **Task 3 — Attribute a resulting booking back to the nudge (AC: 2)** [Source: ARCHITECTURE-SPINE.md#Structural-Seed, #AD-12, #AD-8]
+  - [x] Populate the `MessageLog.resulting_job_ref` FK → Job column (declared-but-unpopulated in Story 2.3) so the dispatched rebooking nudge links to the Job it produced. This is the "nudge-resulted-in-booking" fact.
+  - [x] The attribution link is written server-side within the sole write path (AD-1); the Job it references is the one created by `commitBooking` on the client's per-client link (Story 3.2 direct-confirm). owner_id-scoped (AD-8).
+  - [x] **DEV DECISION — how a booking is attributed back to a nudge (see Open gaps #1):** time-window heuristic vs. explicit link (per-client link click carrying the originating nudge id). Pick one; `resulting_job_ref` is the storage either way. → **CHOSE time-window heuristic** (see Completion Notes).
+- [x] **Task 4 — Conversion metric derived on read (AC: 2)** [Source: ARCHITECTURE-SPINE.md#AD-7]
+  - [x] The one-time → repeat conversion metric is computed in `lib/domain/derive.ts` **on every render** from canonical rows — the two recorded facts (dispatched rebooking nudges via `MessageLog.dispatched_at` + `message_type = rebooking-nudge`, and their `resulting_job_ref` links) plus `Job.created_at`/`Job.completed_at` per addendum F. **No stored conversion counter, no cron, no background job** (AD-7). This story records the *facts*; the metric is a derivation over them.
+  - [x] Reuse the existing `derive` module + operator-local Mon–Sun week helper (AD-9); do not fork a parallel metric impl.
+- [x] **Task 5 — Tests (AC: 1, 2)**
+  - [x] `completed` outcome surfaces the nudge prompt; `no-show`/`cancelled` do NOT. Nudge prompt disappears once a rebooking nudge is dispatched for that job/client (view-time, no stored flag). Tapping send sets `MessageLog.dispatched_at` once (reuses 2.3 idempotency — no second row/timestamp, no parallel log). A resulting booking populates `resulting_job_ref` linking nudge→Job. Conversion metric recomputes on read from the two facts (no persisted counter).
 
 ## Dev Notes
 
@@ -93,8 +93,31 @@ Do NOT: re-implement 3.3's rebooking proposal/`compose` (only fire it from compl
 
 ### Agent Model Used
 
+Opus 4.8 (1M context) — claude-opus-4-8[1m].
+
 ### Debug Log References
+
+- `npx tsc --noEmit` → 0 errors.
+- `npx vitest run` → **23 files, 218 tests, all passed** (7 new in `tests/nudge-tracking.test.ts`; no regressions). Docker Postgres up; serial singleFork.
 
 ### Completion Notes List
 
+This is a WIRING story — it joined already-built seams and added only two PURE derives, one attribution query, and one reuse-based send action. **No schema change, no migration** (`resulting_job_ref` and the `rebooking_nudge` `message_type` enum value already existed from Stories 2.3/2.1). The three LOCKED dev decisions:
+
+1. **Booking→nudge attribution = time-window heuristic, best-effort (Task 3, Open gap #1).** After a successful `commitBooking` in `confirmBookingResult`, a try/catch step (OUTSIDE the booking — a failure never affects the booking result, mirroring Story 2.4's post-booking draft write) calls the new owner-scoped `attributeRebookingNudge(ownerId, clientId, jobId, sinceIso)` query. It does a guarded UPDATE of the SINGLE most-recent (`ORDER BY dispatched_at DESC LIMIT 1`) dispatched `rebooking_nudge` for `(owner, client)` that is still `resulting_job_ref IS NULL` and was dispatched within `ATTRIBUTION_WINDOW_DAYS = 30`. An already-attributed nudge is excluded (a second booking never steals a link); a booking with no preceding nudge attributes nothing. `commitBooking` itself is unchanged.
+
+2. **Nudge-sent = Story 2.3 `dispatched_at`, single shared dispatch path (Task 2).** The `?rebook=<jobId>` panel's plain WhatsApp/SMS anchors were REPLACED with dispatch-logging send forms (as `/draft` does), posting to a new `sendRebook(formData)` call-site action in `jobs/actions.ts`. `sendRebook` re-derives the SAME body via `getRebookProposal` (3.3 compose path, incl. the appended per-client link) for the deep link, then logs via the SHARED `recordDispatch` (Story 2.3's `upsertMessageDraft` + `markMessageDispatched`) — NOT a parallel log/column. The deterministic per-job nonce `rebook:<jobId>` (new `rebookingDispatchNonce`, mirroring Story 2.4's `confirm:<jobId>`) makes it idempotent: a re-tap re-opens the chat but writes no second row and stamps `dispatched_at` only once. `recordDispatch`'s existing `(clientId, type, nonce)` signature already carried type+nonce, so **no dispatch-path signature change was needed** — the only call-site extension was building the rebooking deep-link body from `getRebookProposal` rather than `previewDraft` (so the appended per-client link survives into the sent message).
+
+3. **Conversion metric = nudge-conversion ratio, derive-on-read (Task 4, Open gap #3).** New pure `rebookingConversion(messageLogs, anchorIso, windowDays=30)` in `derive.ts` computes `{ sent, booked, ratio }` over dispatched `rebooking_nudge` rows in the rolling 30-day window: `sent` = those rows, `booked` = the subset with a non-null `resulting_job_ref`, `ratio = booked/sent` (0 when sent=0). Instant (epoch-ms) comparison, consistent with `nudgeFatigueForClient`. No stored counter, no cron. **NOTE:** addendum-F repeat-booking-rate (rolling 30-day same-client follow-on off `Job.completed_at`) is a SEPARATE Epic-6 dashboard metric — NOT this; this is the FR13 nudges-that-booked / nudges-sent ratio. The Epic-6 surface that *renders* the metric is intentionally out of scope.
+
+Task 1 predicate: new pure `needsRebookNudge(job, messageLogs)` in `derive.ts` — true iff `completion === 'completed'` AND no dispatched `rebooking_nudge` for the client with `dispatched_at ≥ completedAt`. Computed in the ACTION layer (`getOwnerJobs` now returns `JobRow` with a `needsRebookNudge` flag) so the zero-domain-import surface just reads the flag; the completed-job row shows a highlighted "Send rebooking nudge" button (same `prepareRebook` flow), which reverts to a plain "Rebook" once a nudge is dispatched. `JobListItem`/`listJobs` gained `clientId` (needed to correlate the job with the client's dispatched nudges); `DispatchedMessage`/`listDispatchedMessages` gained `resultingJobRef` (feeds the conversion derive; nudge-fatigue ignores the extra field). No call-site signature had to change on the dispatch path.
+
 ### File List
+
+- `lib/domain/derive.ts` — added pure `needsRebookNudge` + `rebookingConversion` (+ `NudgeJob`/`NudgeLog`/`RebookingConversion` types).
+- `lib/domain/compose.ts` — added `rebookingDispatchNonce(jobId)` → `rebook:<jobId>`.
+- `lib/db/queries.ts` — `JobListItem`+`listJobs` gained `clientId`; `DispatchedMessage`+`listDispatchedMessages` gained `resultingJobRef`; added guarded owner-scoped `attributeRebookingNudge`; imported `inArray`.
+- `app/(operator)/jobs/actions.ts` — `getOwnerJobs` now returns annotated `JobRow` (derive-on-read nudge flag); added `sendRebook` action (reuses `getRebookProposal` + shared `recordDispatch`).
+- `app/(operator)/jobs/page.tsx` — completed-job highlighted "Send rebooking nudge" variant; rebook panel now posts to `sendRebook` (dispatch-logging send forms) instead of plain anchors.
+- `app/book/[token]/confirm.ts` — best-effort post-commit attribution step (30-day window) via `attributeRebookingNudge`.
+- `tests/nudge-tracking.test.ts` — NEW (7 tests, DB-backed, fixed-Monday fake Date).

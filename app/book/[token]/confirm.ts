@@ -13,8 +13,15 @@
 
 import { resolveTokenClaims, resolveBookingView } from '@/lib/domain/booking';
 import { commitBooking } from '@/lib/domain/capacity';
+import { attributeRebookingNudge } from '@/lib/db/queries';
 import { ok, fail, type ActionResult } from '@/lib/domain/result';
 import type { Job } from '@/lib/db/schema';
+
+// Story 3.4 (Task 3, DEV DECISION: time-window heuristic) — a booking is credited to a
+// rebooking nudge dispatched within this many days before the booking. 30d mirrors the
+// addendum-F repeat-booking horizon so the attribution and the metric agree.
+const ATTRIBUTION_WINDOW_DAYS = 30;
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
 /**
  * Resolve the token → commit the booking. Returns the typed AR15 result (unit-tested
@@ -67,5 +74,26 @@ export async function confirmBookingResult(
     console.error('[book] confirmBooking rejected', result.reason);
     return result;
   }
+
+  // Story 3.4 (Task 3, FR13) — BEST-EFFORT attribution, mirroring Story 2.4's
+  // post-booking draft write: AFTER a successful commit, OUTSIDE the booking, credit the
+  // most-recent unattributed dispatched rebooking_nudge for this client (within the 30d
+  // window) with the new Job id. Wrapped in try/catch so a failure here NEVER affects the
+  // booking result (a draft/attribution is not capacity-consuming, AD-2). Owner-scoped
+  // (AD-8) via the guarded UPDATE; a booking with no preceding nudge attributes nothing.
+  try {
+    const sinceIso = new Date(
+      Date.now() - ATTRIBUTION_WINDOW_DAYS * MS_PER_DAY,
+    ).toISOString();
+    await attributeRebookingNudge(
+      result.data.ownerId,
+      result.data.clientId,
+      result.data.id,
+      sinceIso,
+    );
+  } catch (err) {
+    console.error('[book] rebooking-nudge attribution failed (booking kept)', err);
+  }
+
   return ok(result.data);
 }

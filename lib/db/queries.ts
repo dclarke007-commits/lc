@@ -3,7 +3,17 @@
 // value is resolved from the one seeded operator row. Later stories add a value
 // SOURCE (e.g. from the session), never a query retrofit.
 
-import { eq, and, asc, desc, gte, isNull, isNotNull, sql } from 'drizzle-orm';
+import {
+  eq,
+  and,
+  asc,
+  desc,
+  gte,
+  isNull,
+  isNotNull,
+  inArray,
+  sql,
+} from 'drizzle-orm';
 import { db } from './client';
 import {
   operator,
@@ -120,6 +130,7 @@ export async function getCapacitySettings(
  */
 export interface JobListItem {
   id: string;
+  clientId: string;
   date: string;
   completion: string;
   completedAt: string | null;
@@ -136,6 +147,7 @@ export async function listJobs(ownerId: string): Promise<JobListItem[]> {
   return db
     .select({
       id: job.id,
+      clientId: job.clientId,
       date: job.date,
       completion: job.completion,
       completedAt: job.completedAt,
@@ -219,6 +231,9 @@ export interface DispatchedMessage {
   clientId: string;
   messageType: string;
   dispatchedAt: string; // UTC — non-null by construction (query filters IS NOT NULL)
+  // Story 3.4/FR13: the Job this dispatched message produced, or null. Feeds the pure
+  // rebookingConversion derive (booked = rows with a non-null ref). Nudge-fatigue ignores it.
+  resultingJobRef: string | null;
 }
 
 /**
@@ -307,6 +322,7 @@ export async function listDispatchedMessages(
       clientId: messageLog.clientId,
       messageType: messageLog.messageType,
       dispatchedAt: messageLog.dispatchedAt,
+      resultingJobRef: messageLog.resultingJobRef,
     })
     .from(messageLog)
     .where(
@@ -314,6 +330,50 @@ export async function listDispatchedMessages(
     );
   // dispatchedAt is non-null by the WHERE filter; assert the projection type.
   return rows as DispatchedMessage[];
+}
+
+/**
+ * Story 3.4 (Task 3, FR13) — attribute a resulting booking back to the nudge that
+ * most likely produced it (DEV DECISION: time-window heuristic, best-effort). Guarded
+ * owner-scoped UPDATE: set `resulting_job_ref = jobId` on the SINGLE most-recent
+ * dispatched `rebooking_nudge` for `(ownerId, clientId)` that is still UNATTRIBUTED
+ * (`resulting_job_ref IS NULL`) and was dispatched on/after `sinceIso` (the caller's
+ * ATTRIBUTION_WINDOW). Idempotent-safe: a nudge already carrying a ref is excluded, so a
+ * second booking never steals a link; when no nudge qualifies the UPDATE matches zero
+ * rows and returns undefined (a booking with no preceding nudge simply attributes nothing).
+ * Owner-scoped (AD-8). The inner sub-select picks newest-first, LIMIT 1, so exactly one
+ * row is ever touched.
+ */
+export async function attributeRebookingNudge(
+  ownerId: string,
+  clientId: string,
+  jobId: string,
+  sinceIso: string,
+): Promise<MessageLog | undefined> {
+  const target = db
+    .select({ id: messageLog.id })
+    .from(messageLog)
+    .where(
+      and(
+        eq(messageLog.ownerId, ownerId),
+        eq(messageLog.clientId, clientId),
+        eq(messageLog.messageType, 'rebooking_nudge'),
+        isNull(messageLog.resultingJobRef),
+        isNotNull(messageLog.dispatchedAt),
+        gte(messageLog.dispatchedAt, sinceIso),
+      ),
+    )
+    .orderBy(desc(messageLog.dispatchedAt))
+    .limit(1);
+
+  const [row] = await db
+    .update(messageLog)
+    .set({ resultingJobRef: jobId })
+    .where(
+      and(eq(messageLog.ownerId, ownerId), inArray(messageLog.id, target)),
+    )
+    .returning();
+  return row;
 }
 
 // --- Tokens (Story 3.1, AD-6 capability + AD-8 owner-scoped) ---

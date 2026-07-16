@@ -10,6 +10,7 @@ import {
   getOwnerJobs,
   getRebookProposal,
   prepareRebook,
+  sendRebook,
   markOutcome,
   correctOutcome,
   cancelJob,
@@ -57,6 +58,20 @@ const btn: React.CSSProperties = {
   cursor: 'pointer',
 };
 
+// Story 3.4 (AC1): the post-job nudge is the completed-job HIGHLIGHTED variant of the
+// same rebook control — a call to action so the operator never forgets to ask for the
+// next job. It fires the identical prepareRebook flow; only the emphasis differs.
+const nudgeBtn: React.CSSProperties = {
+  padding: '0.4rem 0.7rem',
+  fontSize: '0.9rem',
+  cursor: 'pointer',
+  border: '1px solid #0a5c2b',
+  borderRadius: 4,
+  background: '#e6f4ea',
+  color: '#0a5c2b',
+  fontWeight: 600,
+};
+
 const cell: React.CSSProperties = {
   padding: '0.5rem 0.6rem',
   borderBottom: '1px solid #eee',
@@ -80,9 +95,10 @@ const COMPLETION_LABEL: Record<string, string> = {
 const REBOOKABLE = new Set(['booked', 'completed']);
 
 /**
- * The proposal panel (Story 3.3, Task 4): the proposed slot, the composed rebooking
- * draft, and the WhatsApp/SMS tap-to-send anchors. Sending is the operator's explicit
- * tap on an anchor (Epic 2) — this panel records NO dispatch. Reads ONLY via the action.
+ * The proposal panel (Story 3.3 slot/draft + Story 3.4 send). Renders the proposed slot,
+ * the composed rebooking draft, and — CHANGED in 3.4 — WhatsApp/SMS SEND FORMS (not plain
+ * anchors) posting to sendRebook, so a tap logs ONE dispatched rebooking_nudge MessageLog
+ * (Story 2.3 path) then opens the pre-filled chat. Reads ONLY via the action.
  */
 async function RebookPanel({ jobId }: { jobId: string }) {
   const res = await getRebookProposal(jobId);
@@ -119,6 +135,9 @@ async function RebookPanel({ jobId }: { jobId: string }) {
     );
   }
 
+  // Deep-link presence is the phone-presence gate only: whether the client CAN be sent to.
+  // The actual send goes through the sendRebook POST (which recomposes the SAME body and
+  // records the dispatch) — never a plain anchor, so the tap logs exactly once (Story 3.4).
   const waLink = deepLink(draft, 'whatsapp');
   const smsLink = deepLink(draft, 'sms');
   const send: React.CSSProperties = {
@@ -129,7 +148,7 @@ async function RebookPanel({ jobId }: { jobId: string }) {
     borderRadius: 4,
     background: '#fff',
     color: '#0a5c2b',
-    textDecoration: 'none',
+    cursor: 'pointer',
   };
 
   return (
@@ -151,14 +170,19 @@ async function RebookPanel({ jobId }: { jobId: string }) {
       </p>
       {waLink && smsLink ? (
         <div style={{ display: 'flex', gap: '0.75rem' }}>
-          {/* Plain anchors — the OS opens WhatsApp/SMS pre-filled ONLY on the
-              operator's tap. No dispatch is recorded here (Story 3.3 scope). */}
-          <a href={waLink} style={send}>
-            Open in WhatsApp
-          </a>
-          <a href={smsLink} style={send}>
-            Open in SMS
-          </a>
+          {/* Zero-JS send (Story 2.3/3.4): each control is a form POST to sendRebook. The
+              tap LOGS the dispatch ONCE (message_type = rebooking_nudge, nonce rebook:<id>)
+              then redirects to the wa.me/sms deep link so the OS opens the chat pre-filled.
+              A re-tap re-opens but never double-logs (idempotent per-job nonce). */}
+          {(['whatsapp', 'sms'] as const).map((channel) => (
+            <form key={channel} action={sendRebook} style={{ margin: 0 }}>
+              <input type="hidden" name="jobId" value={jobId} />
+              <input type="hidden" name="channel" value={channel} />
+              <button type="submit" style={send}>
+                {channel === 'whatsapp' ? 'Open in WhatsApp' : 'Open in SMS'}
+              </button>
+            </form>
+          ))}
         </div>
       ) : (
         <p role="status" style={{ color: '#b00020', margin: 0 }}>
@@ -325,12 +349,22 @@ export default async function JobsPage({
                     <div style={{ marginTop: '0.4rem' }}>
                       {/* Zero-JS POST (like the cancel/move forms): prepareRebook mints
                           the per-client link (the write, P3), then redirects to the
-                          ?rebook=<id> panel. No GET write-on-render. */}
+                          ?rebook=<id> panel. No GET write-on-render. Story 3.4 (AC1): a
+                          just-completed job with no rebooking nudge yet dispatched surfaces
+                          the HIGHLIGHTED "Send rebooking nudge" prompt (derive-on-read —
+                          j.needsRebookNudge, no stored flag); it fires the SAME flow. Once a
+                          nudge is dispatched the predicate flips false → plain Rebook. */}
                       <form action={prepareRebook}>
                         <input type="hidden" name="jobId" value={j.id} />
-                        <button type="submit" style={btn}>
-                          Rebook
-                        </button>
+                        {j.needsRebookNudge ? (
+                          <button type="submit" style={nudgeBtn}>
+                            Send rebooking nudge
+                          </button>
+                        ) : (
+                          <button type="submit" style={btn}>
+                            Rebook
+                          </button>
+                        )}
                       </form>
                     </div>
                   )}
