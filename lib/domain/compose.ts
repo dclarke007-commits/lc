@@ -45,13 +45,21 @@ export function resolveTemplate(
     return '';
   });
 
+  // Brace backstop (code-review 2026-07-16, AC3): the single-pass regex above
+  // resolves one balanced `{name}` at a time, so nested/doubled/unbalanced braces
+  // can strand a literal `{` or `}` — `{{amount}}` → `{$5}`, `{foo{bar}}` → `{foo}`,
+  // an unclosed `{amount` never matches at all. AC3 is absolute ("no raw brace-token
+  // can ever reach a client"), so strip ANY residual brace character. Braces are
+  // reserved for placeholders by contract; nothing legitimate survives here.
+  const debraced = substituted.replace(/[{}]/g, '');
+
   // Blank-collapse (Open gap 3 — dev decision): a blanked token can leave double
   // spaces ("owe  total" → "owe total"), a dangling space before punctuation
   // ("owe ." → "owe."), or a trailing space; tidy all three so client-facing copy
   // never reads as broken. Collapse intra-line runs to one space, drop a space
   // sitting just before sentence punctuation, strip per-line trailing spaces, and
   // trim the whole string. Newlines are preserved.
-  return substituted
+  return debraced
     .replace(/[^\S\n]{2,}/g, ' ')
     .replace(/[^\S\n]+([.,!?;:])/g, '$1')
     .replace(/[^\S\n]+$/gm, '')

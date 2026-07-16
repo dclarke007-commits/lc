@@ -21,6 +21,7 @@ import { resolveTemplate } from '../lib/domain/compose';
 import {
   validateTemplate,
   MESSAGE_TEMPLATE_TYPES,
+  MAX_TEMPLATE_BODY_LENGTH,
 } from '../lib/domain/messageTemplateConfig';
 
 function form(fields: Record<string, string>): FormData {
@@ -72,6 +73,34 @@ describe('resolveTemplate — no {token} ever leaks (AC3)', () => {
     // "{x}" is unknown → blank → "A  B" → collapsed to "A B".
     expect(resolveTemplate('A {x} B', {})).toBe('A B');
   });
+
+  // Brace backstop (code-review 2026-07-16): the single-pass regex can strand a
+  // literal brace on nested/doubled/unclosed input; the debrace sweep guarantees
+  // none survive. These are the exact leak cases the review found.
+  it('doubled braces {{amount}} keep the value but leak no brace', () => {
+    const out = resolveTemplate('You owe {{amount}}.', { amount: '$5' });
+    expect(out).not.toContain('{');
+    expect(out).not.toContain('}');
+    expect(out).toBe('You owe $5.');
+  });
+
+  it('nested braces {foo{bar}} never leak a stray brace', () => {
+    const out = resolveTemplate('{foo{bar}}', {});
+    expect(out).not.toContain('{');
+    expect(out).not.toContain('}');
+  });
+
+  it('an unclosed brace {amount does not leak a brace', () => {
+    const out = resolveTemplate('You owe {amount', { amount: '$5' });
+    expect(out).not.toContain('{');
+    expect(out).not.toContain('}');
+  });
+
+  it('a value that itself contains a brace-token cannot leak one', () => {
+    const out = resolveTemplate('Hi {client}!', { client: 'Bob {x}' });
+    expect(out).not.toContain('{');
+    expect(out).not.toContain('}');
+  });
 });
 
 // --- PURE: validateTemplate (AR15) ----------------------------------------
@@ -90,6 +119,22 @@ describe('validateTemplate (AR15)', () => {
   it('rejects a whitespace-only body', () => {
     const r = validateTemplate({ type: 'win_back', body: '   ' });
     expect(r).toEqual({ ok: false, reason: 'template-body-required' });
+  });
+
+  it('accepts a body exactly at the length cap', () => {
+    const body = 'x'.repeat(MAX_TEMPLATE_BODY_LENGTH);
+    expect(validateTemplate({ type: 'win_back', body })).toEqual({
+      ok: true,
+      data: { type: 'win_back', body },
+    });
+  });
+
+  it('rejects a body over the length cap (payload-abuse guard)', () => {
+    const body = 'x'.repeat(MAX_TEMPLATE_BODY_LENGTH + 1);
+    expect(validateTemplate({ type: 'win_back', body })).toEqual({
+      ok: false,
+      reason: 'template-body-too-long',
+    });
   });
 });
 

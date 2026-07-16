@@ -9,7 +9,10 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { getOwnerTemplates, saveMessageTemplate } from './actions';
 import { templateErrorMessage } from '@/lib/domain/templateErrors';
-import { MESSAGE_TEMPLATE_LABELS } from '@/lib/domain/messageTemplateConfig';
+import {
+  MESSAGE_TEMPLATE_LABELS,
+  isMessageTemplateType,
+} from '@/lib/domain/messageTemplateConfig';
 
 export const dynamic = 'force-dynamic';
 
@@ -44,9 +47,13 @@ export default async function TemplatesPage({
   const templates = await getOwnerTemplates();
   const sp = await searchParams;
   const errorMsg = templateErrorMessage(sp.error);
-  const savedLabel = sp.saved
-    ? MESSAGE_TEMPLATE_LABELS[sp.saved as keyof typeof MESSAGE_TEMPLATE_LABELS]
-    : undefined;
+  // Guard the lookup: a tampered ?saved=__proto__/constructor would otherwise
+  // resolve to a truthy inherited object/function and crash the render as a React
+  // child (code-review 2026-07-16). isMessageTemplateType only admits the four keys.
+  const savedLabel =
+    sp.saved && isMessageTemplateType(sp.saved)
+      ? MESSAGE_TEMPLATE_LABELS[sp.saved]
+      : undefined;
 
   return (
     <main style={{ padding: '1.5rem', maxWidth: 640 }}>

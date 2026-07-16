@@ -62,7 +62,7 @@ development_status:
 
   # --- Epic 2: Messaging Engine — Draft + Tap-to-Send ---
   epic-2: in-progress
-  2-1-operator-editable-message-templates: review
+  2-1-operator-editable-message-templates: done
   2-2-compose-messagedraft-deep-link-delivery: ready-for-dev
   2-3-dispatch-logging-drafted-vs-dispatched-idempotent: ready-for-dev
   2-4-booking-confirmation-message: ready-for-dev

@@ -54,6 +54,12 @@ export function isMessageTemplateType(
   return (MESSAGE_TEMPLATE_TYPES as readonly string[]).includes(value);
 }
 
+// Upper bound on a template body. The `body` column is unbounded `text`, so a
+// tampered multi-MB POST would otherwise be accepted and later composed into an
+// outbound message (code-review 2026-07-16). 2000 chars comfortably covers a
+// placeholder-bearing SMS/WhatsApp template while capping payload abuse.
+export const MAX_TEMPLATE_BODY_LENGTH = 2000;
+
 export interface TemplateInput {
   type: string;
   body: string;
@@ -66,12 +72,14 @@ export interface TemplateEdit {
 
 /**
  * Validate a template edit before the sole write path persists it (AR15). An
- * unknown `type` (form tampering) or an empty `body` writes NOTHING. Returns the
- * trimmed body so a template is never saved as pure whitespace.
+ * unknown `type` (form tampering), an empty `body`, or a body over the length cap
+ * writes NOTHING. Returns the trimmed body so a template is never saved as pure
+ * whitespace.
  */
 export function validateTemplate(input: TemplateInput): ActionResult<TemplateEdit> {
   if (!isMessageTemplateType(input.type)) return fail('template-type-invalid');
   const body = input.body.trim();
   if (body.length === 0) return fail('template-body-required');
+  if (body.length > MAX_TEMPLATE_BODY_LENGTH) return fail('template-body-too-long');
   return ok({ type: input.type, body });
 }

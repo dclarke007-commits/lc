@@ -4,7 +4,7 @@ baseline_commit: a95dc1892ade124e9dc6cc7e62f84ddfbf216e4d
 
 # Story 2.1: Operator-editable message templates
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -149,3 +149,22 @@ claude-opus-4-8[1m] (Claude Opus 4.8, 1M context)
 - 2026-07-16 — Story 2.1 implemented (Tasks 1–5). `MessageTemplate` model +
   `resolveTemplate` placeholder seam + editable templates surface. 125/125 tests,
   tsc + build clean. Status → review.
+
+### Review Findings
+
+Adversarial code review (Blind Hunter + Edge Case Hunter + Acceptance Auditor),
+2026-07-16, diff `a95dc18..4593581`. 3 patches, 1 deferred, 1 dismissed.
+
+- [x] [Review][Patch] `resolveTemplate` leaks stray braces on nested/doubled/unclosed brace input — the single-pass regex leaves outer braces on `{{amount}}` (→`{$5}`), strands `{foo}` on `{foo{bar}}`, and passes an unclosed `{amount` through verbatim. AC3 keystone says no raw brace-token ever reaches a client. Add a post-substitution `[{}]` strip backstop + tests. [lib/domain/compose.ts]
+- [x] [Review][Patch] Tampered `?saved=`/`?error=` prototype key crashes the RSC render (500) — `MESSAGE_TEMPLATE_LABELS['__proto__']` / `TEMPLATE_ERROR_MESSAGES['constructor']` return truthy inherited objects/functions, rendered as a React child → throw. Guard both lookups with `Object.hasOwn` / `isMessageTemplateType`. [app/(operator)/templates/page.tsx, lib/domain/templateErrors.ts]
+- [x] [Review][Patch] `validateTemplate` enforces no maximum body length — `text` column is unbounded; a tampered multi-MB `body` is accepted. Add an upper bound (2000 chars) with a machine reason. [lib/domain/messageTemplateConfig.ts]
+- [x] [Review][Defer] `capacityErrors.ts` shares the same prototype-key lookup crash — pre-existing in Story 1.3 (`CAPACITY_ERROR_MESSAGES[reason] ?? fallback`), not caused by this change. Logged to deferred-work. [lib/domain/capacityErrors.ts]
+
+Dismissed (1): `resolveTemplate`'s whitespace/punctuation tidy runs unconditionally and normalizes intentional double-spaces / space-before-punctuation even when nothing was blanked. By design — the normalization improves client-facing SMS hygiene far more often than it harms; the AC3 contract (no `{token}` leak) is unaffected.
+
+- 2026-07-16 — Code review applied (3 patches): (1) `resolveTemplate` debrace
+  backstop closes the AC3 nested/doubled/unclosed-brace leak; (2) `Object.hasOwn`
+  guards on `templateErrorMessage` + `isMessageTemplateType` guard on the surface's
+  `?saved` lookup close the prototype-key render crash; (3) `MAX_TEMPLATE_BODY_LENGTH`
+  (2000) bound in `validateTemplate`. +6 tests (131/131), tsc + build clean. 1 defer
+  (capacityErrors parallel), 1 dismiss (tidy by-design). Status → done.
