@@ -1,6 +1,10 @@
+---
+baseline_commit: 9795a9f4b5e53afc5f663ca0d5bf1532dc4728d8
+---
+
 # Story 1.7: Forecasting-lite — room-left, day-maxed, nearest-open
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -18,17 +22,17 @@ so that I can decide accept or pass mid-call.
 
 ## Tasks / Subtasks
 
-- [ ] **Task 1 — `derive.roomLeft` (AC: 1)** [Source: ARCHITECTURE-SPINE.md#AD-7, #AD-2, #AD-9]
-  - [ ] In `lib/domain/derive.ts`: `roomLeft = weeklyCeiling(14) − count(jobs this week where consumesSlot(job))`. Reuse `capacity.consumesSlot` (Story 1.4) — do NOT re-implement which states consume. Week = Mon–Sun operator-local (AD-9), config from Story 1.3.
-- [ ] **Task 2 — `derive.dayMaxed` (AC: 2)** [Source: ARCHITECTURE-SPINE.md#AD-7]
-  - [ ] `dayMaxed(day)` → true when consuming jobs on that working day ≥ its per-day cap (config from Story 1.3). Computed on read.
-- [ ] **Task 3 — nearest-open computation (AC: 3)** [Source: ARCHITECTURE-SPINE.md#AD-7; epics.md FR28]
-  - [ ] Given a day-maxed target, surface the nearest working days that still have room (not day-maxed, within weekly ceiling). Direction/horizon/count unspecified — see Open gaps; pick sensible defaults (future-facing, small window).
-- [ ] **Task 4 — Dashboard surface (AC: 1, 2, 3)** [Source: ARCHITECTURE-SPINE.md#AD-1, #AD-13, NFR1]
-  - [ ] RSC dashboard under `app/(operator)/` (auth-gated): show room-left this week, per-day day-maxed markers, nearest-open when a day is maxed. Phone-first, minimal client JS, **dynamic — never `use cache`** (AD-13), so mid-call values are live.
-  - [ ] Surface reads only via `derive` (surfaces → derive → db); no stored flags.
-- [ ] **Task 5 — Tests (AC: 1, 2, 3)**
-  - [ ] room-left = 14 − consuming-this-week (incl. no-show consumes, cancelled doesn't — via `consumesSlot`). day-maxed at per-day cap. nearest-open skips maxed days. All values recompute on read (no persisted flag).
+- [x] **Task 1 — `derive.roomLeft` (AC: 1)** [Source: ARCHITECTURE-SPINE.md#AD-7, #AD-2, #AD-9]
+  - [x] In `lib/domain/derive.ts`: `roomLeft = weeklyCeiling(14) − count(jobs this week where consumesSlot(job))`. Reuse `capacity.consumesSlot` (Story 1.4) — do NOT re-implement which states consume. Week = Mon–Sun operator-local (AD-9), config from Story 1.3.
+- [x] **Task 2 — `derive.dayMaxed` (AC: 2)** [Source: ARCHITECTURE-SPINE.md#AD-7]
+  - [x] `dayMaxed(day)` → true when consuming jobs on that working day ≥ its per-day cap (config from Story 1.3). Computed on read.
+- [x] **Task 3 — nearest-open computation (AC: 3)** [Source: ARCHITECTURE-SPINE.md#AD-7; epics.md FR28]
+  - [x] Given a day-maxed target, surface the nearest working days that still have room (not day-maxed, within weekly ceiling). Direction/horizon/count unspecified — see Open gaps; pick sensible defaults (future-facing, small window).
+- [x] **Task 4 — Dashboard surface (AC: 1, 2, 3)** [Source: ARCHITECTURE-SPINE.md#AD-1, #AD-13, NFR1]
+  - [x] RSC dashboard under `app/(operator)/` (auth-gated): show room-left this week, per-day day-maxed markers, nearest-open when a day is maxed. Phone-first, minimal client JS, **dynamic — never `use cache`** (AD-13), so mid-call values are live.
+  - [x] Surface reads only via `derive` (surfaces → derive → db); no stored flags.
+- [x] **Task 5 — Tests (AC: 1, 2, 3)**
+  - [x] room-left = 14 − consuming-this-week (incl. no-show consumes, cancelled doesn't — via `consumesSlot`). day-maxed at per-day cap. nearest-open skips maxed days. All values recompute on read (no persisted flag).
 
 ## Dev Notes
 
@@ -69,8 +73,39 @@ Only the three foundation derivations (room-left, day-maxed, nearest-open). Do N
 
 ### Agent Model Used
 
+claude-opus-4-8 (1M) — dev-story workflow, 2026-07-16.
+
 ### Debug Log References
+
+- `npx tsc --noEmit` — clean (exit 0).
+- `npx vitest run` — 107/107 passing (was 90; +15 `derive`, +2 `dashboard`; no regressions).
+- `npm run build` — compiled OK; `/` route is `ƒ (Dynamic)` server-rendered on demand (AD-13, never static/`use cache`).
 
 ### Completion Notes List
 
+- **Two invariants, two single-sources.** `derive` reuses `capacity.consumesSlot` for the AD-2 consuming-status rule (never re-defined) and `clock.weekRangeOfDate` for the AD-9 Mon–Sun week. The calendar-date week helpers (`isoWeekdayOfDate` / `addDaysToDate` / `weekRangeOfDate`) were added to `clock.ts` (the one-clock home) rather than re-implemented in `derive`. NOTE: `capacity.ts` still keeps its own private copies of that arithmetic (pre-existing, tested); unifying it onto `clock.ts` is a low-risk follow-up left out of scope to avoid touching the booking keystone.
+- **Pure derive, provable AD-7.** All functions are pure over `(jobs, config, anchorDate)` — no `Date`, no db — so "recomputed on read, no stored flag" is proven by mutating the in-memory row set between calls (unit test) and by flipping a real row to `cancelled` and re-reading (DB test: room 10→11).
+- **Open-gap decisions (operator-confirmed 2026-07-16):**
+  - *Nearest-open (FR28):* future-facing, surface the **single** next working day with room (below per-day cap AND under weekly ceiling), skipping non-working days. Bounded forward scan (`NEAREST_OPEN_MAX_WORKING_DAYS=28`) so a saturated horizon returns `[]` rather than looping.
+  - *Over-capacity (Open gap #2):* `roomLeft` clamps at 0; a separate `over = max(0, consuming − ceiling)` drives a "N over" badge so an FR39 override is visible without a confusing negative. Dashboard never crashes.
+  - *Non-working days (Open gap #3):* excluded from the week view and skipped by nearest-open (per Story 1.3 `workingDays`).
+- **Layering.** Surface (`page.tsx`) calls the action (`getDashboardCapacity`) only — never `derive`/db. Date labels use `Intl` in the surface (presentation), keeping AD-9 clock math in the domain. Owner resolves fail-loud on the read path (parity with `getOwnerJobs`).
+- Scope held to the three foundation derivations; `expectedNextDate`/`goneCold`/counter-metrics deliberately NOT built (their own stories). Closes Epic 1.
+
 ### File List
+
+- `lib/domain/derive.ts` — implemented `roomLeft`, `dayMaxed`, `nearestOpen`, `weekCapacity` (was a stub).
+- `lib/domain/clock.ts` — added calendar-date helpers `isoWeekdayOfDate`, `addDaysToDate`, `weekRangeOfDate`.
+- `lib/db/queries.ts` — added `listJobsFrom(ownerId, fromDateKey)` + `JobDateStatus` (and `gte` import).
+- `app/(operator)/actions.ts` — new dashboard read action `getDashboardCapacity()` + `DashboardCapacity`/`DashboardDay`.
+- `app/(operator)/page.tsx` — dashboard now renders the at-a-glance capacity view (room-left, per-day maxed, nearest-open).
+- `tests/derive.test.ts` — new, 15 pure unit tests (AC1/2/3 + derive-on-read).
+- `tests/dashboard.test.ts` — new, 2 DB integration tests (end-to-end read + cancel frees slot).
+- `_bmad-output/implementation-artifacts/1-7-*.md` — this story file (tracking).
+- `_bmad-output/implementation-artifacts/sprint-status.yaml` — status tracking.
+
+## Change Log
+
+| Date       | Change                                                                 |
+|------------|------------------------------------------------------------------------|
+| 2026-07-16 | Story 1.7 implemented: derive-on-read capacity dashboard (room-left, day-maxed, nearest-open). 107/107 tests, tsc + build clean. Status → review. |

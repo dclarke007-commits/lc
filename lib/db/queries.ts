@@ -3,7 +3,7 @@
 // value is resolved from the one seeded operator row. Later stories add a value
 // SOURCE (e.g. from the session), never a query retrofit.
 
-import { eq, and, asc, desc } from 'drizzle-orm';
+import { eq, and, asc, desc, gte } from 'drizzle-orm';
 import { db } from './client';
 import { operator, client, capacitySettings, job } from './schema';
 import type { Operator, Client, CapacitySettingsRow, Job } from './schema';
@@ -133,6 +133,30 @@ export async function listJobs(ownerId: string): Promise<JobListItem[]> {
     )
     .where(eq(job.ownerId, ownerId))
     .orderBy(desc(job.date), asc(job.id));
+}
+
+/** The minimal Job projection derive-on-read needs (Story 1.7): date + status. */
+export interface JobDateStatus {
+  date: string;
+  completion: string;
+}
+
+/**
+ * The owner's jobs scheduled on or after `fromDateKey` ('YYYY-MM-DD') — the
+ * bounded window derive (Story 1.7) reads to compute room-left/day-maxed for the
+ * current week and scan forward for nearest-open. Owner-scoped on the VALUE
+ * (AD-8); served by the (owner, date) index. Only the two fields derive uses are
+ * selected — no client join, no history before this week.
+ */
+export async function listJobsFrom(
+  ownerId: string,
+  fromDateKey: string,
+): Promise<JobDateStatus[]> {
+  return db
+    .select({ date: job.date, completion: job.completion })
+    .from(job)
+    .where(and(eq(job.ownerId, ownerId), gte(job.date, fromDateKey)))
+    .orderBy(asc(job.date));
 }
 
 /**

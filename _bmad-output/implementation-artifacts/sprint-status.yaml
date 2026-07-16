@@ -43,6 +43,7 @@
 generated: 2026-07-15
 last_updated: 2026-07-16
 project: LovesCleaning
+# note: 1-7 in review (dev-story complete) since 2026-07-16
 project_key: NOKEY
 tracking_system: file-system
 story_location: _bmad-output/implementation-artifacts
@@ -56,7 +57,7 @@ development_status:
   1-4-direct-booking-cap-enforcement-one-winner-concurrency: done
   1-5-mark-job-outcome-completed-no-show: review
   1-6-cancel-reschedule-capacity-release: done
-  1-7-forecasting-lite-room-left-day-maxed-nearest-open: ready-for-dev
+  1-7-forecasting-lite-room-left-day-maxed-nearest-open: review
   epic-1-retrospective: optional
 
   # --- Epic 2: Messaging Engine — Draft + Tap-to-Send ---

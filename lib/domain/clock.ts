@@ -173,3 +173,43 @@ export function isWorkingDay(
 ): boolean {
   return workingDays.includes(localISOWeekday(instant, tz));
 }
+
+// --- Calendar-date-key (Mon–Sun) arithmetic (AD-9) ---
+//
+// A Job's `date` is an operator-local CALENDAR day ('YYYY-MM-DD'), not an
+// instant — a cleaning is "on the 20th". Its weekday and week window are pure
+// Y-M-D arithmetic (tz-independent: the day is already local). These are the
+// same Mon–Sun rule the capacity counts use; derive-on-read (AD-7, Story 1.7)
+// consumes them so room-left/day-maxed and the booking caps agree on "the week".
+
+/** ISO weekday (1=Mon..7=Sun) of a 'YYYY-MM-DD' calendar date — tz-independent. */
+export function isoWeekdayOfDate(dateStr: string): number {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const dow = new Date(Date.UTC(y, m - 1, d)).getUTCDay(); // 0=Sun..6=Sat
+  return dow === 0 ? 7 : dow;
+}
+
+/** Shift a 'YYYY-MM-DD' calendar date by whole days (pure, no tz). */
+export function addDaysToDate(dateStr: string, deltaDays: number): string {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const t = new Date(Date.UTC(y, m - 1, d) + deltaDays * 86_400_000);
+  const mm = String(t.getUTCMonth() + 1).padStart(2, '0');
+  const dd = String(t.getUTCDate()).padStart(2, '0');
+  return `${t.getUTCFullYear()}-${mm}-${dd}`;
+}
+
+/**
+ * The Mon–Sun week [monday, nextMonday) containing `dateStr`, as calendar-date
+ * strings (exclusive end). Mon–Sun is operator-local by construction: `date` is
+ * already a local calendar day, and a date's weekday is tz-independent (AD-9).
+ */
+export function weekRangeOfDate(dateStr: string): {
+  monday: string;
+  nextMonday: string;
+} {
+  const wd = isoWeekdayOfDate(dateStr);
+  return {
+    monday: addDaysToDate(dateStr, -(wd - 1)),
+    nextMonday: addDaysToDate(dateStr, 8 - wd),
+  };
+}
