@@ -5,8 +5,8 @@
 
 import { eq, and, asc, desc } from 'drizzle-orm';
 import { db } from './client';
-import { operator, client, capacitySettings } from './schema';
-import type { Operator, Client, CapacitySettingsRow } from './schema';
+import { operator, client, capacitySettings, job } from './schema';
+import type { Operator, Client, CapacitySettingsRow, Job } from './schema';
 
 /**
  * Resolve the single owner's id — the AD-8 owner_id value every future query
@@ -92,6 +92,64 @@ export async function getCapacitySettings(
     .select()
     .from(capacitySettings)
     .where(eq(capacitySettings.ownerId, ownerId))
+    .limit(1);
+  return row;
+}
+
+// --- Job reads (Story 1.5, AD-8: owner_id FILTER value on every query) ---
+
+/**
+ * A job row plus its client's name — the shape the jobs surface renders. Kept as
+ * a projection (not the raw Job) so the surface never needs a second lookup.
+ */
+export interface JobListItem {
+  id: string;
+  date: string;
+  completion: string;
+  completedAt: string | null;
+  payment: string;
+  clientName: string;
+}
+
+/**
+ * List the owner's jobs with the client's name, newest scheduled date first. The
+ * owner_id filter is on the VALUE (AD-8); the client join is also owner-scoped, so
+ * no other tenant's row is reachable through this path.
+ */
+export async function listJobs(ownerId: string): Promise<JobListItem[]> {
+  return db
+    .select({
+      id: job.id,
+      date: job.date,
+      completion: job.completion,
+      completedAt: job.completedAt,
+      payment: job.payment,
+      clientName: client.name,
+    })
+    .from(job)
+    .innerJoin(
+      client,
+      and(eq(job.clientId, client.id), eq(client.ownerId, ownerId)),
+    )
+    .where(eq(job.ownerId, ownerId))
+    .orderBy(desc(job.date), asc(job.id));
+}
+
+/**
+ * Read one job by id, owner-scoped. Both predicates are required: an id that
+ * belongs to a different owner returns undefined, never another tenant's row.
+ */
+export async function getJob(
+  ownerId: string,
+  id: string,
+): Promise<Job | undefined> {
+  // A non-UUID id can never match a real row — treat as "not found" rather than
+  // letting Postgres throw an invalid-uuid error into RSC render.
+  if (!UUID_RE.test(id)) return undefined;
+  const [row] = await db
+    .select()
+    .from(job)
+    .where(and(eq(job.ownerId, ownerId), eq(job.id, id)))
     .limit(1);
   return row;
 }
