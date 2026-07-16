@@ -111,7 +111,11 @@ export default async function DashboardPage() {
                   {d.consuming}/{d.perDayCap}
                 </td>
                 <td style={cell}>
-                  {d.maxed ? (
+                  {d.past ? (
+                    <span style={{ color: '#999' }}>Past</span>
+                  ) : d.open ? (
+                    <span style={{ color: '#0a5c2b' }}>Open</span>
+                  ) : d.maxed ? (
                     <span style={{ color: '#b00020' }}>
                       Day-maxed
                       {d.nextOpen
@@ -119,7 +123,9 @@ export default async function DashboardPage() {
                         : ' · no open day soon'}
                     </span>
                   ) : (
-                    <span style={{ color: '#0a5c2b' }}>Open</span>
+                    // Under its per-day cap, but the WEEK is at the ceiling — not
+                    // bookable without an override. Distinct from "Day-maxed".
+                    <span style={{ color: '#b00020' }}>Week full</span>
                   )}
                 </td>
               </tr>

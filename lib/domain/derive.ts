@@ -33,6 +33,8 @@ export interface DayCapacity {
   isoWeekday: number; // 1=Mon..7=Sun
   consuming: number; // consuming jobs on this day (AD-2)
   maxed: boolean; // consuming >= perDayCap (FR27)
+  past: boolean; // date < the anchor (today) — already elapsed, not bookable
+  open: boolean; // actually bookable: not past, under per-day cap AND week under ceiling
 }
 
 /** The current week's capacity view — the dashboard's primary read (FR26/27). */
@@ -52,6 +54,11 @@ export interface WeekCapacity {
 // product limit (with default count=1 the scan returns on the first open day).
 const NEAREST_OPEN_DEFAULT_COUNT = 1;
 const NEAREST_OPEN_MAX_WORKING_DAYS = 28;
+// Hard calendar backstop: even a config with a single working day per week reaches
+// 28 working days within this many calendar days. Bounding the WALK (not only
+// working-days-seen) guarantees termination when workingDays is empty or holds no
+// valid weekday — otherwise workingDaysSeen never increments and the loop spins.
+const NEAREST_OPEN_MAX_SCAN_DAYS = NEAREST_OPEN_MAX_WORKING_DAYS * 7;
 
 /** consuming-job count per date-key (AD-2 predicate applied once). */
 function consumingByDay(jobs: DeriveJob[]): Map<string, number> {
@@ -138,7 +145,8 @@ export function nearestOpen(
   let delta = 1;
   while (
     open.length < count &&
-    workingDaysSeen < NEAREST_OPEN_MAX_WORKING_DAYS
+    workingDaysSeen < NEAREST_OPEN_MAX_WORKING_DAYS &&
+    delta <= NEAREST_OPEN_MAX_SCAN_DAYS
   ) {
     const candidate = addDaysToDate(fromDate, delta);
     if (config.workingDays.includes(isoWeekdayOfDate(candidate))) {
@@ -164,22 +172,31 @@ export function weekCapacity(
 ): WeekCapacity {
   const { monday, nextMonday } = weekRangeOfDate(anchorDate);
   const byDay = consumingByDay(jobs);
+  const consuming = weekConsuming(byDay, monday);
+  // The weekly ceiling gates EVERY day: a day under its per-day cap in a week
+  // that is already full is not bookable (same rule commitBooking enforces).
+  const weekUnderCeiling = consuming < config.weeklyCeiling;
 
   const days: DayCapacity[] = [];
   for (let i = 0; i < 7; i++) {
     const date = addDaysToDate(monday, i);
     const isoWeekday = isoWeekdayOfDate(date);
     if (!config.workingDays.includes(isoWeekday)) continue;
-    const consuming = byDay.get(date) ?? 0;
+    const dayConsuming = byDay.get(date) ?? 0;
+    const maxed = dayConsuming >= config.perDayCap;
+    // `anchorDate` is "today" for the dashboard — a day before it has elapsed and
+    // is not bookable (commitBooking rejects past dates), so it is never "open".
+    const past = date < anchorDate;
     days.push({
       date,
       isoWeekday,
-      consuming,
-      maxed: consuming >= config.perDayCap,
+      consuming: dayConsuming,
+      maxed,
+      past,
+      open: !past && !maxed && weekUnderCeiling,
     });
   }
 
-  const consuming = weekConsuming(byDay, monday);
   return {
     weekStart: monday,
     weekEnd: nextMonday,

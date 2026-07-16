@@ -17,8 +17,10 @@ export interface DashboardDay {
   isoWeekday: number; // 1=Mon..7=Sun
   consuming: number;
   perDayCap: number;
-  maxed: boolean;
-  nextOpen: string | null; // populated only when maxed; null if none in horizon
+  maxed: boolean; // per-day cap reached (FR27)
+  past: boolean; // already elapsed (before today) — not bookable
+  open: boolean; // bookable now: not past, under per-day cap AND week under ceiling
+  nextOpen: string | null; // set only for a maxed, non-past day; null otherwise
 }
 
 /** The at-a-glance capacity view the dashboard renders (all derived on read). */
@@ -73,8 +75,14 @@ export async function getDashboardCapacity(): Promise<DashboardCapacity> {
     consuming: d.consuming,
     perDayCap: config.perDayCap,
     maxed: d.maxed,
-    // FR28: when a day is maxed, surface the single next open working day.
-    nextOpen: d.maxed ? (nearestOpen(jobs, config, d.date)[0] ?? null) : null,
+    past: d.past,
+    open: d.open,
+    // FR28: when a maxed day is today or future, surface the single next open
+    // working day. A PAST maxed day gets none — nearestOpen scans forward from the
+    // day itself, which for a past day could otherwise point at an already-elapsed
+    // (unbookable) date.
+    nextOpen:
+      d.maxed && !d.past ? (nearestOpen(jobs, config, d.date)[0] ?? null) : null,
   }));
 
   return {

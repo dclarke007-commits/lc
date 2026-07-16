@@ -22,7 +22,11 @@ import {
   DEFAULT_CAPACITY,
   type CapacityConfig,
 } from '@/lib/domain/capacityConfig';
-import { localDateKey } from '@/lib/domain/clock';
+import {
+  localDateKey,
+  isoWeekdayOfDate as isoWeekdayOf,
+  weekRangeOfDate as weekRange,
+} from '@/lib/domain/clock';
 
 // AD-2: the ONE consuming-status set. consumesSlot is the single predicate, and
 // the SQL capacity counts below filter on this exact list, so the rule is defined
@@ -57,34 +61,10 @@ function isRealDate(dateStr: string): boolean {
   );
 }
 
-/** ISO weekday (1=Mon..7=Sun) of a 'YYYY-MM-DD' calendar date — tz-independent. */
-function isoWeekdayOf(dateStr: string): number {
-  const [y, m, d] = dateStr.split('-').map(Number);
-  const dow = new Date(Date.UTC(y, m - 1, d)).getUTCDay(); // 0=Sun..6=Sat
-  return dow === 0 ? 7 : dow;
-}
-
-/** Shift a 'YYYY-MM-DD' calendar date by whole days (pure, no tz). */
-function shiftDate(dateStr: string, deltaDays: number): string {
-  const [y, m, d] = dateStr.split('-').map(Number);
-  const t = new Date(Date.UTC(y, m - 1, d) + deltaDays * 86_400_000);
-  const mm = String(t.getUTCMonth() + 1).padStart(2, '0');
-  const dd = String(t.getUTCDate()).padStart(2, '0');
-  return `${t.getUTCFullYear()}-${mm}-${dd}`;
-}
-
-/**
- * The Mon–Sun week [monday, nextMonday) containing `dateStr`, as calendar-date
- * strings (exclusive end). Mon–Sun is operator-local by construction: `date` is
- * already a local calendar day, and a date's weekday is tz-independent (AD-9).
- */
-function weekRange(dateStr: string): { monday: string; nextMonday: string } {
-  const wd = isoWeekdayOf(dateStr);
-  return {
-    monday: shiftDate(dateStr, -(wd - 1)),
-    nextMonday: shiftDate(dateStr, 8 - wd),
-  };
-}
+// The Mon–Sun week arithmetic (`isoWeekdayOf`, `weekRange`) and calendar-date
+// shifting now live in lib/domain/clock.ts — the ONE clock (AD-9), imported above.
+// derive.ts (Story 1.7) reads the same helpers, so the booking caps and the
+// dashboard can never disagree on "the week."
 
 // Shared under-lock helpers so the capacity RULE lives in ONE place (AD-2) and is
 // reused by both commitBooking (INSERT a new slot) and reschedule (MOVE an

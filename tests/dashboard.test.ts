@@ -77,9 +77,14 @@ describe('Dashboard capacity read (Story 1.7, derive-on-read)', () => {
     const mon = cap.days.find((d) => d.date === MON)!;
     expect(mon.consuming).toBe(3);
     expect(mon.maxed).toBe(true);
-    // Monday is maxed → surface the next open working day. Tuesday has 1/3 and the
-    // week is under ceiling, so nearest-open is Tuesday.
-    expect(mon.nextOpen).toBe(TUE);
+    // Monday is maxed. If the test runs ON Monday it is today (not past) → next
+    // open is Tuesday (1/3, week under ceiling). If it runs later in the week
+    // Monday has elapsed → a past maxed day surfaces NO next-open (review P1).
+    if (mon.past) {
+      expect(mon.nextOpen).toBeNull();
+    } else {
+      expect(mon.nextOpen).toBe(TUE);
+    }
 
     const tue = cap.days.find((d) => d.date === TUE)!;
     expect(tue.maxed).toBe(false);

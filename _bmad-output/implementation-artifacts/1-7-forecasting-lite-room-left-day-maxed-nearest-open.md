@@ -4,7 +4,7 @@ baseline_commit: 9795a9f4b5e53afc5f663ca0d5bf1532dc4728d8
 
 # Story 1.7: Forecasting-lite — room-left, day-maxed, nearest-open
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -109,3 +109,15 @@ claude-opus-4-8 (1M) — dev-story workflow, 2026-07-16.
 | Date       | Change                                                                 |
 |------------|------------------------------------------------------------------------|
 | 2026-07-16 | Story 1.7 implemented: derive-on-read capacity dashboard (room-left, day-maxed, nearest-open). 107/107 tests, tsc + build clean. Status → review. |
+| 2026-07-16 | Code review (3-layer adversarial): 1 decision + 3 patches applied (AD-9 unify, nextOpen today-floor, day-status ceiling/past accuracy, nearestOpen loop bound), 2 deferred. 111/111 tests, tsc clean. Status → done. Closes Epic 1. |
+
+### Review Findings
+
+Adversarial code-review 2026-07-16 (Blind Hunter + Edge Case Hunter + Acceptance Auditor) on commit 38bf942 vs 9795a9f. 1 decision, 3 patch, 2 deferred, 0 dismissed.
+
+- [x] [Review][Decision→Patch] AD-9 week math duplicated — **RESOLVED (unify now):** deleted `capacity.ts` private `isoWeekdayOf`/`shiftDate`/`weekRange`; it now imports `weekRangeOfDate`/`isoWeekdayOfDate` from `clock.ts`. One source for the Mon–Sun rule (booking caps + dashboard). Full suite (booking/reschedule/capacity) re-run green. [blind+auditor]
+- [x] [Review][Patch] Per-day `nextOpen` lacks a `today` floor — **FIXED:** `nextOpen` now set only for a maxed **and non-past** day (`DayCapacity.past`); a past maxed day surfaces none. [app/(operator)/actions.ts; lib/domain/derive.ts]
+- [x] [Review][Patch] Day "Open" status ignores the weekly ceiling / shows elapsed days as Open — **FIXED:** `weekCapacity` now emits `past` (date < today) and `open` (not past AND under per-day cap AND week under ceiling); page renders Past / Open / Day-maxed / Week full accordingly. [lib/domain/derive.ts weekCapacity; app/(operator)/page.tsx]
+- [x] [Review][Patch] `nearestOpen` infinite loop on empty/invalid `workingDays` — **FIXED:** added `NEAREST_OPEN_MAX_SCAN_DAYS` calendar-day backstop so the walk terminates regardless of working-days-seen. Tests for `workingDays: []` and `[8]`. [lib/domain/derive.ts nearestOpen]
+- [x] [Review][Defer] Redundant owner resolution in `getDashboardCapacity` (getOwnerCapacity + getOwnerId) — wasteful now, latent two-owner inconsistency if a real owner source lands [app/(operator)/actions.ts:57-65] — deferred
+- [x] [Review][Defer] Consuming job on a now-non-working day lowers roomLeft but appears in no day row (requires dropping a weekday over an existing booking) [lib/domain/derive.ts weekConsuming vs weekCapacity] — deferred, rare edge

@@ -116,15 +116,21 @@ describe('derive.nearestOpen (AC3, FR28)', () => {
     expect(nearestOpen(jobs, cfg, MON)).toEqual(['2026-07-20']);
   });
 
-  it('returns an array (never loops) when scanning a mostly-saturated horizon', () => {
+  it('returns [] and terminates when workingDays is empty (review P3 — no infinite loop)', () => {
+    expect(nearestOpen([], { ...cfg, workingDays: [] }, MON)).toEqual([]);
+  });
+
+  it('returns [] and terminates when workingDays holds no valid weekday (review P3)', () => {
+    expect(nearestOpen([], { ...cfg, workingDays: [8] }, MON)).toEqual([]);
+  });
+
+  it('terminates on a single-working-day config where near weeks are full', () => {
     const monOnly: CapacityConfig = { ...cfg, workingDays: [1], weeklyCeiling: 1 };
-    // Book several upcoming Mondays so near-term weeks are at ceiling; the bound
-    // guarantees termination and a well-typed result either way.
     const jobs: DeriveJob[] = [
-      { date: '2026-07-20', completion: 'booked' },
-      { date: '2026-07-27', completion: 'booked' },
+      { date: '2026-07-20', completion: 'booked' }, // next Monday full
     ];
-    expect(Array.isArray(nearestOpen(jobs, monOnly, MON))).toBe(true);
+    // 2026-07-27 (the following Monday) is the first open working day.
+    expect(nearestOpen(jobs, monOnly, MON)).toEqual(['2026-07-27']);
   });
 });
 
@@ -158,6 +164,32 @@ describe('derive.weekCapacity (AC1+AC2 aggregate)', () => {
     expect(wk.consuming).toBe(15);
     expect(wk.roomLeft).toBe(0);
     expect(wk.over).toBe(1);
+  });
+});
+
+describe('derive.weekCapacity past / open (review P2)', () => {
+  it('days before the anchor are past and never open; the anchor day is not past', () => {
+    const wk = weekCapacity([], cfg, WED); // anchor Wednesday
+    const mon = wk.days.find((d) => d.date === MON)!;
+    expect(mon.past).toBe(true);
+    expect(mon.open).toBe(false); // elapsed → not bookable
+    const wed = wk.days.find((d) => d.date === WED)!;
+    expect(wed.past).toBe(false);
+    expect(wed.open).toBe(true);
+  });
+
+  it('a day under its per-day cap but in a ceiling-full week is NOT open', () => {
+    const jobs = booked(MON, 3).concat(
+      booked(TUE, 3),
+      booked(WED, 3),
+      booked('2026-07-16', 3),
+      booked('2026-07-17', 2), // week total = 14 (at ceiling); Sat 07-18 empty
+    );
+    const wk = weekCapacity(jobs, cfg, MON); // anchor Monday → nothing past
+    const sat = wk.days.find((d) => d.date === '2026-07-18')!;
+    expect(sat.consuming).toBe(0);
+    expect(sat.maxed).toBe(false); // under per-day cap
+    expect(sat.open).toBe(false); // but the week is full → not bookable
   });
 });
 
