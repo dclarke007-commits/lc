@@ -4,7 +4,7 @@ baseline_commit: ecda2ab490463cdf454b3978702df44fc716a1da
 
 # Story 1.3: Configure availability & caps
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -106,3 +106,22 @@ Scope held: config + clock only; no cap enforcement / commitBooking (1.4), no fo
 - `drizzle/0003_low_centennial.sql` (+ meta) (new) — capacity_settings migration.
 - `tests/capacity.test.ts` (new, 7) — defaults, persist+reload, UPSERT, rejections.
 - `tests/clock.test.ts` (new, 6) — Mon–Sun bounds incl. UTC-day≠local-day + day-flip.
+
+### Review Findings
+
+_Code review 2026-07-16 (commit 3a03e3b, 3 adversarial layers: Blind Hunter, Edge Case Hunter, Acceptance Auditor). 1 decision, 5 patch, 4 defer, 4 dismissed._
+
+- [x] [Review][Decision] getOwnerCapacity fail mode — RESOLVED: patch (fail-loud + logged). `getOwnerId` wrapped in try/catch that `console.error`s and rethrows `owner-unresolved` (parity with the write path); no silent DEFAULT_CAPACITY masking. [app/(operator)/settings/actions.ts:28]
+
+- [x] [Review][Patch] zonedWallToUtc mishandles nonexistent (spring-forward gap) wall times → APPLIED: round-trip disambiguation (gap→post-gap forward, overlap→earlier); regression-tested via Asia/Tehran Monday-midnight gap [lib/domain/clock.ts:55-97]
+- [x] [Review][Patch] Clock tests omit DST-transition week + CST → APPLIED: +4 tests (CST week, 167h spring week, 169h fall week, Tehran gap) [tests/clock.test.ts]
+- [x] [Review][Patch] /settings unreachable → APPLIED: added `<nav>` links (Clients, Availability & caps) to operator dashboard [app/(operator)/page.tsx]
+- [x] [Review][Patch] Oversized valid integers (> int4) → APPLIED: `MAX_INT4` upper bound on perDayCap/weeklyCeiling/price → field-level reason [lib/domain/capacityConfig.ts]
+- [x] [Review][Patch] Money sub-cent rounding → APPLIED: reject sub-cent input (`price-invalid`) with binary-float tolerance instead of silent rounding [app/(operator)/settings/actions.ts:60-66]
+
+- [x] [Review][Defer] zonedWallToUtc drops milliseconds when measuring the offset (latent; no current caller passes ms) [lib/domain/clock.ts:75-83] — deferred, latent
+- [x] [Review][Defer] Redundant non-unique `owner_id` index fully covered by the unique index (needs a new migration to drop) [lib/db/schema.ts] — deferred, micro-cleanup
+- [x] [Review][Defer] Clock helpers throw RangeError on an unvalidated tz (latent; stored tz is validated) — ensure Story 1.4 passes the stored tz [lib/domain/clock.ts:28] — deferred, forward-looking
+- [x] [Review][Defer] Timezone is a free-text input on a phone-first surface; a zero-JS `<select>` of common zones better fits NFR1 [app/(operator)/settings/page.tsx] — deferred, UX-fit
+
+_Dismissed (4): no DB CHECK constraints (AD-1 single-write-path is the intended gate); weeklyCeiling > 14 (AC1 makes the ceiling editable by design); $0 default price (spec allows ≥ 0, explicit intent); isValidTimezone accepts exotic/link IANA zones (they are Intl-constructible and function correctly)._

@@ -55,8 +55,15 @@ function partsInZone(instant: Date, tz: string): ZonedParts {
 /**
  * Convert a wall-clock date/time in `tz` to the UTC instant it denotes. The tz
  * offset varies with the date (DST), so we guess (treating the fields as UTC),
- * measure the offset at that guess, correct, then refine once to settle DST
- * boundaries. offset = localWall - utc.
+ * measure the offset, and correct. Around DST transitions a wall time can be
+ * nonexistent (spring-forward gap) or occur twice (fall-back overlap); both are
+ * resolved deterministically by round-tripping each candidate back to its local
+ * wall time:
+ *   - unique match → that instant;
+ *   - two matches (overlap) → the EARLIER instant ('compatible' disambiguation);
+ *   - no match (gap) → the LATER (post-gap) instant, so a midnight day/week
+ *     boundary never falls back onto the previous local day.
+ * Whole-second math (Intl exposes no ms); the input ms is re-applied at the end.
  */
 function zonedWallToUtc(
   year: number,
@@ -68,24 +75,27 @@ function zonedWallToUtc(
   ms: number,
   tz: string,
 ): Date {
-  const asUtcMs = Date.UTC(year, month - 1, day, hour, minute, second, ms);
-  let instant = new Date(asUtcMs);
-  for (let i = 0; i < 2; i++) {
-    const p = partsInZone(instant, tz);
-    const wallAsUtc = Date.UTC(
-      p.year,
-      p.month - 1,
-      p.day,
-      p.hour,
-      p.minute,
-      p.second,
-    );
-    const offset = wallAsUtc - instant.getTime(); // localWall - utc
-    const corrected = asUtcMs - offset;
-    if (corrected === instant.getTime()) break;
-    instant = new Date(corrected);
-  }
-  return instant;
+  // The requested wall time as whole seconds, encoded in a UTC millisecond value.
+  const target = Date.UTC(year, month - 1, day, hour, minute, second);
+  // Local wall time seen at `utcMs`, re-encoded the same way (for comparison).
+  const wallReadAt = (utcMs: number): number => {
+    const p = partsInZone(new Date(utcMs), tz);
+    return Date.UTC(p.year, p.month - 1, p.day, p.hour, p.minute, p.second);
+  };
+  const offsetAt = (utcMs: number): number => wallReadAt(utcMs) - utcMs;
+
+  const utc1 = target - offsetAt(target);
+  const utc2 = target - offsetAt(utc1);
+  const m1 = wallReadAt(utc1) === target;
+  const m2 = wallReadAt(utc2) === target;
+
+  let base: number;
+  if (m1 && m2) base = Math.min(utc1, utc2); // overlap → earlier occurrence
+  else if (m1) base = utc1;
+  else if (m2) base = utc2;
+  else base = Math.max(utc1, utc2); // gap → post-gap instant
+
+  return new Date(base + ms);
 }
 
 /** Add `delta` whole days to a calendar date (pure Y-M-D arithmetic, no tz). */

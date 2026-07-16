@@ -26,7 +26,18 @@ import {
  * and it keeps the defaults in ONE place (the domain), never the DB.
  */
 export async function getOwnerCapacity(): Promise<CapacityConfig> {
-  const ownerId = await getOwnerId();
+  // Fail LOUD, not silent: an unresolved owner is a deploy-invariant violation
+  // (the operator is a seeded singleton), so we log and rethrow rather than
+  // masking it behind DEFAULT_CAPACITY — the write path logs the same way, and a
+  // silent default here would hide a real DB/seed failure. The RSC render surface
+  // shows the error boundary. (code-review 2026-07-16; parity with saveCapacitySettings.)
+  let ownerId: string;
+  try {
+    ownerId = await getOwnerId();
+  } catch (err) {
+    console.error('[settings] getOwnerId failed (read path)', err);
+    throw new Error('owner-unresolved');
+  }
   const row = await getCapacitySettings(ownerId);
   if (!row) return DEFAULT_CAPACITY;
   return {
@@ -56,9 +67,16 @@ function readCapacityForm(formData: FormData): {
   const weeklyCeiling = Number(String(formData.get('weeklyCeiling') ?? ''));
 
   // Price input is in DOLLARS → convert to integer cents (AR16). Empty/NaN
-  // dollars round to NaN and are rejected downstream.
-  const dollars = Number(String(formData.get('defaultJobPrice') ?? ''));
-  const defaultJobPriceCents = Math.round(dollars * 100);
+  // dollars become NaN and are rejected downstream. Reject sub-cent precision
+  // (e.g. "20000.999") rather than silently rounding a value the operator typed;
+  // a tiny binary-float tolerance keeps legit 2-decimal inputs (1.005*100 =
+  // 100.4999… is genuinely sub-cent → NaN → 'price-invalid'). (code-review 2026-07-16)
+  const rawCents = Number(String(formData.get('defaultJobPrice') ?? '')) * 100;
+  const roundedCents = Math.round(rawCents);
+  const defaultJobPriceCents =
+    Number.isFinite(rawCents) && Math.abs(rawCents - roundedCents) < 1e-6
+      ? roundedCents
+      : NaN;
 
   const timezone = String(formData.get('timezone') ?? '').trim();
 

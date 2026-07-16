@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { SESSION_COOKIE, verifySession } from '@/lib/auth/session';
@@ -20,6 +21,10 @@ export default async function DashboardPage() {
       <p style={{ color: '#555' }}>
         Signed in. The book is empty — scaffolding only (Story 1.1).
       </p>
+      <nav style={{ marginTop: '1rem', display: 'flex', gap: '1rem' }}>
+        <Link href="/clients">Clients</Link>
+        <Link href="/settings">Availability &amp; caps</Link>
+      </nav>
     </main>
   );
 }

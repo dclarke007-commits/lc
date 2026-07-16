@@ -34,6 +34,11 @@ export interface CapacityInput {
   timezone: string;
 }
 
+// Postgres int4 ceiling. Values above this pass Number.isInteger but overflow
+// the column on INSERT, surfacing as an opaque write failure instead of a
+// field-level reason — so we reject them here (code-review 2026-07-16).
+const MAX_INT4 = 2_147_483_647;
+
 function isValidTimezone(tz: string): boolean {
   if (!tz) return false;
   try {
@@ -74,16 +79,24 @@ export function validateCapacity(
   }
   const normalisedDays = [...unique].sort((a, b) => a - b);
 
-  if (!Number.isInteger(perDayCap) || perDayCap <= 0) {
+  if (!Number.isInteger(perDayCap) || perDayCap <= 0 || perDayCap > MAX_INT4) {
     return { ok: false, reason: 'per-day-cap-invalid' };
   }
-  if (!Number.isInteger(weeklyCeiling) || weeklyCeiling <= 0) {
+  if (
+    !Number.isInteger(weeklyCeiling) ||
+    weeklyCeiling <= 0 ||
+    weeklyCeiling > MAX_INT4
+  ) {
     return { ok: false, reason: 'weekly-ceiling-invalid' };
   }
   if (weeklyCeiling < perDayCap) {
     return { ok: false, reason: 'ceiling-below-per-day' };
   }
-  if (!Number.isInteger(defaultJobPriceCents) || defaultJobPriceCents < 0) {
+  if (
+    !Number.isInteger(defaultJobPriceCents) ||
+    defaultJobPriceCents < 0 ||
+    defaultJobPriceCents > MAX_INT4
+  ) {
     return { ok: false, reason: 'price-invalid' };
   }
   if (!isValidTimezone(timezone)) {
