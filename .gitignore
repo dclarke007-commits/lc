@@ -4,6 +4,8 @@
 
 # Local binary DB (regenerable)
 ruvector.db
+*.rvf
+*.rvf.lock
 _bmad-output/**/runs/
 
 # dependencies

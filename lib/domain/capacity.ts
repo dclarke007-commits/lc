@@ -379,14 +379,24 @@ export async function reschedule(
         nextMonday,
         jobId,
       );
+      // The per-day cap always applies. The weekly ceiling applies ONLY to a
+      // cross-week move: a move WITHIN the same Mon–Sun week does not change the
+      // week's membership count, so it is capacity-neutral for the ceiling —
+      // blocking it would trap a job inside an over-ceiling week (reachable via
+      // the FR39 override). weekCount already excludes this job, so for a same-week
+      // destination it would double-punish the move.
+      const sameWeek = weekRange(current.date).monday === monday;
       if (dayCount >= config.perDayCap) return fail('day-maxed');
-      if (weekCount >= config.weeklyCeiling) return fail('week-full');
+      if (!sameWeek && weekCount >= config.weeklyCeiling) return fail('week-full');
 
       // One UPDATE frees the old slot and claims the new one — capacity is never
       // transiently double-held or lost (AD-12). completion is left untouched.
+      // Clear `overridden`: a successful reschedule passed the cap check WITHOUT
+      // an override (reschedule has no override path), so the moved booking no
+      // longer bypasses a full cap and must not keep inflating the FR39 metric.
       const [row] = await tx
         .update(job)
-        .set({ date: newDate })
+        .set({ date: newDate, overridden: false })
         .where(and(eq(job.ownerId, ownerId), eq(job.id, jobId)))
         .returning();
       return ok(row);

@@ -17,7 +17,7 @@ const LIFECYCLE_ERROR_MESSAGES: Record<string, string> = {
   'non-working-day': 'That is not one of your working days.',
   'date-past': 'That date has already passed.',
   'day-maxed': 'That day is already full — pick another date.',
-  'week-full': 'That week is already full (14 jobs) — pick another week.',
+  'week-full': 'That week is already full — pick another week.',
   'reschedule-failed': 'Could not reschedule the job — please try again.',
 };
 

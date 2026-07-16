@@ -6,7 +6,7 @@
 
 const BOOKING_ERROR_MESSAGES: Record<string, string> = {
   'day-maxed': 'That day is full. Turn on override to book past the cap.',
-  'week-full': 'That week is full (14 jobs). Turn on override to book past it.',
+  'week-full': 'That week is full. Turn on override to book past it.',
   'non-working-day': 'That is not one of your working days.',
   'date-past': 'That date has already passed.',
   'client-not-found': 'Pick a client from your list.',

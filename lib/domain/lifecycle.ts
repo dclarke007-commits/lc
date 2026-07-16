@@ -69,6 +69,11 @@ async function transition(
   ownerId: string,
   jobId: string,
   to: Completion,
+  // Optional source-state constraint: when set, the CURRENT state must equal it
+  // or the transition is rejected as illegal — lets a caller (e.g. markCancelled)
+  // narrow a whitelist-legal target to a single legal source, without opening a
+  // second write path. Checked under the same row lock as the whitelist.
+  requireFrom?: Completion,
 ): Promise<ActionResult<Job>> {
   if (!UUID_RE.test(jobId)) return fail('job-not-found');
 
@@ -86,8 +91,12 @@ async function transition(
         .limit(1);
 
       if (!current) return fail('job-not-found');
+      // Source-state constraint (if any) THEN the whitelist. Either reject writes
+      // NOTHING — the (empty) transaction commits, which is fine.
+      if (requireFrom && current.completion !== requireFrom) {
+        return fail('illegal-transition');
+      }
       if (!canTransition(current.completion, to)) {
-        // Reject writes NOTHING — the (empty) transaction commits, which is fine.
         return fail('illegal-transition');
       }
 
@@ -140,7 +149,10 @@ export function markCancelled(
   ownerId: string,
   jobId: string,
 ): Promise<ActionResult<Job>> {
-  return transition(ownerId, jobId, 'cancelled');
+  // requireFrom 'booked': cancel is booked→cancelled ONLY. A completed job is
+  // reversed via the correctOutcome CORRECTION path (completed→cancelled), not
+  // this ordinary cancel — so the two stay cleanly separated.
+  return transition(ownerId, jobId, 'cancelled', 'booked');
 }
 
 /**

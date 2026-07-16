@@ -176,6 +176,23 @@ describe('lifecycle state machine (Story 1.5)', () => {
     expect((await readJob(j.id))?.completion).toBe('no-show'); // untouched
   });
 
+  // --- Review patch: cancel is booked-ONLY. A completed job's reversal goes
+  // through the correctOutcome CORRECTION path, NOT markCancelled — even though
+  // completed→cancelled is whitelist-legal, the requireFrom='booked' guard blocks
+  // it here so the cancel and correction paths stay separate. ---
+  it('markCancelled on a completed job → illegal-transition (booked-only guard)', async () => {
+    const j = await insertJob('completed');
+    const before = await readJob(j.id);
+    const result = await markCancelled(ownerId, j.id);
+    expect(result).toEqual({ ok: false, reason: 'illegal-transition' });
+    const row = await readJob(j.id);
+    expect(row?.completion).toBe('completed'); // untouched
+    expect(row?.completedAt).toBe(before?.completedAt);
+    // ...but the CORRECTION path still reverses a completed job.
+    const corrected = await correctOutcome(ownerId, j.id, 'cancelled');
+    expect(corrected.ok).toBe(true);
+  });
+
   // --- AC3: an illegal correction target is rejected, nothing written ---
   it('an illegal correction target (no-show→completed) is rejected (AC3)', async () => {
     const j = await insertJob('no-show');

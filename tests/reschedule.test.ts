@@ -284,4 +284,38 @@ describe('capacity.reschedule (Story 1.6)', () => {
     expect(row?.date).toBe(MON); // unchanged — owner scoping held
     expect(consumesSlot(row!)).toBe(true);
   });
+
+  // --- Review patch: an intra-week move must NOT be blocked by the weekly ceiling,
+  // even when the week is OVER the ceiling (reachable via the FR39 override). ---
+  it('an intra-week move succeeds inside an over-ceiling week (review patch)', async () => {
+    await setCaps(3, 1); // weekly ceiling = 1
+    const stay = await book(MON); // week at ceiling (1)
+    await book(TUE, { override: true }); // override past the ceiling → week has 2
+    expect(await weekCount()).toBe(2); // over the ceiling
+
+    const res = await reschedule({ ownerId, jobId: stay.id, newDate: WED, now: NOW });
+    expect(res.ok).toBe(true); // same-week move is capacity-neutral → allowed
+    if (!res.ok) return;
+    expect(res.data.date).toBe(WED);
+    expect(await weekCount()).toBe(2); // membership unchanged
+  });
+
+  // --- Review patch: a successful reschedule clears a stale `overridden` flag. ---
+  it('reschedule clears a stale overridden flag when moving to an under-cap slot (review patch)', async () => {
+    await setCaps(3, 1); // ceiling 1
+    await book(MON); // week at the ceiling
+    const over = await book(TUE, { override: true }); // overridden=true (bypassed ceiling)
+    expect(over.overridden).toBe(true);
+
+    // Move the overridden job to the NEXT (empty) week — it no longer bypasses a cap.
+    const res = await reschedule({
+      ownerId,
+      jobId: over.id,
+      newDate: NEXT_MON,
+      now: NOW,
+    });
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    expect(res.data.overridden).toBe(false); // stale override cleared
+  });
 });
