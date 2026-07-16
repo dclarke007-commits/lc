@@ -1,6 +1,10 @@
+---
+baseline_commit: a95dc1892ade124e9dc6cc7e62f84ddfbf216e4d
+---
+
 # Story 2.1: Operator-editable message templates
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -18,24 +22,24 @@ so that outbound texts sound like me and carry the right details.
 
 ## Tasks / Subtasks
 
-- [ ] **Task 1 — `MessageTemplate` Drizzle schema keyed by `(owner_id, type)` (AC: 1, 2)** [Source: ARCHITECTURE-SPINE.md#AD-8, #AD-5, #Consistency-Conventions]
-  - [ ] `MessageTemplate` table in `lib/db/` (Drizzle): `uuid` PK; `owner_id` FK (AD-8, present in every query from v1); `type` enum `booking_confirmation | rebooking_nudge | win_back | payment_reminder`; `body` text (the editable template string); `updated_at` UTC ISO-8601 (AD-9). Unique constraint on `(owner_id, type)` — exactly one template per type per owner (the four are a fixed, closed set, not user-addable).
-  - [ ] Entity naming singular PascalCase (`MessageTemplate`), consistent with `Client`/`Job`/`MessageLog` (Consistency-Conventions: Naming).
-  - [ ] Generate + apply migration.
-- [ ] **Task 2 — Seed the four default templates (AC: 1)** [Source: ARCHITECTURE-SPINE.md#Structural-Seed, epics.md FR20]
-  - [ ] Seed migration (or seed step riding the Operator-seed row, Story 1.1) inserts one row per `type` for the operator `owner_id`, each with sensible default copy containing the relevant `{client}`/`{slot}`/`{amount}` placeholders. The four types are exactly: booking confirmation, rebooking nudge, win-back check-in, payment reminder (FR20). Idempotent — re-running seed does not duplicate rows (rely on the `(owner_id, type)` unique constraint / upsert-on-conflict-do-nothing).
-  - [ ] Default copy is a dev decision (see Open gaps) but MUST use only the three sanctioned placeholder tokens and read as the operator's own voice.
-- [ ] **Task 3 — Placeholder-resolution helper (never leaks a `{token}`) (AC: 3)** [Source: ARCHITECTURE-SPINE.md#AD-5]
-  - [ ] In `lib/domain/compose.ts` (co-located with `compose`, AD-5), export a pure `resolveTemplate(body, values)` helper: substitutes `{client}`, `{slot}`, `{amount}` with provided string values; a placeholder whose value is `undefined`/`null`/empty resolves to **empty/safe text**, never a literal `{amount}` (or any `{token}`) leak (AC3).
-  - [ ] Recognize ONLY the three sanctioned tokens; any unknown `{foo}` token in a body is likewise stripped/blanked so no raw brace-token can ever reach a client. Whitespace-collapse after blanking is a dev decision (see Open gaps).
-  - [ ] Pure function, no framework/db imports — `lib/domain` may not import a layer above it (dependency direction: surfaces → actions → domain → db). This helper is the seam 2.2's `compose` consumes.
-- [ ] **Task 4 — View + edit templates surface + Server Action (AC: 1, 2)** [Source: ARCHITECTURE-SPINE.md#AD-1, #Consistency-Conventions (Errors)]
-  - [ ] RSC settings surface under `app/(operator)/` (auth-gated, consistent with Story 1.3's capacity settings). Lists all four templates with their current `body` (defaults on first load), phone-first, minimal client JS, dynamic (no `use cache`). Surface never imports `lib/db` (AD-1).
-  - [ ] Verb-first Server Action (e.g. `saveMessageTemplate`) in `app/(operator)/**/actions.ts` — the sole write path (AD-1). Scoped by `owner_id`; upserts the row for the given `type`. Typed return `{ ok, data } | { ok:false, reason }` (AR15); no thrown errors cross the action boundary.
-  - [ ] On save, the template persists per `owner_id` and becomes the single source later composes read (Story 2.2's `compose` and Story 2.4's booking-confirmation both consume it — never re-hardcode message copy downstream).
-- [ ] **Task 5 — Unit tests (AC: 1, 2, 3)**
-  - [ ] Four types seeded; `(owner_id, type)` uniqueness enforced; edit persists and re-reads the new body scoped to `owner_id`.
-  - [ ] `resolveTemplate`: all placeholders filled → fully substituted; missing/empty value → blank, no literal `{token}`; unknown `{token}` → stripped, never leaks; body with no placeholders → unchanged.
+- [x] **Task 1 — `MessageTemplate` Drizzle schema keyed by `(owner_id, type)` (AC: 1, 2)** [Source: ARCHITECTURE-SPINE.md#AD-8, #AD-5, #Consistency-Conventions]
+  - [x] `MessageTemplate` table in `lib/db/` (Drizzle): `uuid` PK; `owner_id` FK (AD-8, present in every query from v1); `type` enum `booking_confirmation | rebooking_nudge | win_back | payment_reminder`; `body` text (the editable template string); `updated_at` UTC ISO-8601 (AD-9). Unique constraint on `(owner_id, type)` — exactly one template per type per owner (the four are a fixed, closed set, not user-addable).
+  - [x] Entity naming singular PascalCase (`MessageTemplate`), consistent with `Client`/`Job`/`MessageLog` (Consistency-Conventions: Naming).
+  - [x] Generate + apply migration.
+- [x] **Task 2 — Seed the four default templates (AC: 1)** [Source: ARCHITECTURE-SPINE.md#Structural-Seed, epics.md FR20]
+  - [x] Seed migration (or seed step riding the Operator-seed row, Story 1.1) inserts one row per `type` for the operator `owner_id`, each with sensible default copy containing the relevant `{client}`/`{slot}`/`{amount}` placeholders. The four types are exactly: booking confirmation, rebooking nudge, win-back check-in, payment reminder (FR20). Idempotent — re-running seed does not duplicate rows (rely on the `(owner_id, type)` unique constraint / upsert-on-conflict-do-nothing).
+  - [x] Default copy is a dev decision (see Open gaps) but MUST use only the three sanctioned placeholder tokens and read as the operator's own voice.
+- [x] **Task 3 — Placeholder-resolution helper (never leaks a `{token}`) (AC: 3)** [Source: ARCHITECTURE-SPINE.md#AD-5]
+  - [x] In `lib/domain/compose.ts` (co-located with `compose`, AD-5), export a pure `resolveTemplate(body, values)` helper: substitutes `{client}`, `{slot}`, `{amount}` with provided string values; a placeholder whose value is `undefined`/`null`/empty resolves to **empty/safe text**, never a literal `{amount}` (or any `{token}`) leak (AC3).
+  - [x] Recognize ONLY the three sanctioned tokens; any unknown `{foo}` token in a body is likewise stripped/blanked so no raw brace-token can ever reach a client. Whitespace-collapse after blanking is a dev decision (see Open gaps).
+  - [x] Pure function, no framework/db imports — `lib/domain` may not import a layer above it (dependency direction: surfaces → actions → domain → db). This helper is the seam 2.2's `compose` consumes.
+- [x] **Task 4 — View + edit templates surface + Server Action (AC: 1, 2)** [Source: ARCHITECTURE-SPINE.md#AD-1, #Consistency-Conventions (Errors)]
+  - [x] RSC settings surface under `app/(operator)/` (auth-gated, consistent with Story 1.3's capacity settings). Lists all four templates with their current `body` (defaults on first load), phone-first, minimal client JS, dynamic (no `use cache`). Surface never imports `lib/db` (AD-1).
+  - [x] Verb-first Server Action (e.g. `saveMessageTemplate`) in `app/(operator)/**/actions.ts` — the sole write path (AD-1). Scoped by `owner_id`; upserts the row for the given `type`. Typed return `{ ok, data } | { ok:false, reason }` (AR15); no thrown errors cross the action boundary.
+  - [x] On save, the template persists per `owner_id` and becomes the single source later composes read (Story 2.2's `compose` and Story 2.4's booking-confirmation both consume it — never re-hardcode message copy downstream).
+- [x] **Task 5 — Unit tests (AC: 1, 2, 3)**
+  - [x] Four types seeded; `(owner_id, type)` uniqueness enforced; edit persists and re-reads the new body scoped to `owner_id`.
+  - [x] `resolveTemplate`: all placeholders filled → fully substituted; missing/empty value → blank, no literal `{token}`; unknown `{token}` → stripped, never leaks; body with no placeholders → unchanged.
 
 ## Dev Notes
 
@@ -93,8 +97,55 @@ No `compose` → `MessageDraft` construction (Story 2.2 — but DO build `resolv
 
 ### Agent Model Used
 
+claude-opus-4-8[1m] (Claude Opus 4.8, 1M context)
+
 ### Debug Log References
+
+- Test-caught behavior: a blanked placeholder immediately before punctuation left
+  `"You owe ."` (single space, not a double-space → generic collapse missed it).
+  Open gap 3 leaves dangling-punctuation tidy as a dev decision (min-bar: no
+  `{token}` leak — already met). Decision: tidy space-before-punctuation in
+  `resolveTemplate` so client-facing copy never reads as broken. Re-ran: 125/125.
 
 ### Completion Notes List
 
+- **Task 1** — `messageTemplate` Drizzle table + `messageTemplateType` pgEnum in
+  `lib/db/schema.ts`, keyed by unique `(owner_id, type)` (closed 4-type set), `body`
+  text, `updated_at` UTC. Migration `drizzle/0005_worthless_skreet.sql` generated +
+  applied. Followed story data model exactly (no `created_at` — Simplicity gate).
+- **Task 2** — `seedMessageTemplates(ownerId)` in `lib/db/seed.ts`: inserts the four
+  defaults, idempotent via `onConflictDoNothing` on `(owner_id, type)`; wired into the
+  direct-run entrypoint after the operator seed. Default copy lives in the domain
+  (`DEFAULT_TEMPLATE_BODIES`), never a DB default.
+- **Task 3** — `resolveTemplate(body, values)` in `lib/domain/compose.ts` (pure, AD-5):
+  substitutes only the three sanctioned tokens; missing/empty value → blank; ANY other
+  brace-token (incl. `{ amount }` / `{foo}`) is stripped so no raw `{token}` can reach a
+  client (AC3). Whitespace/punctuation tidy applied.
+- **Task 4** — Templates settings surface: RSC `app/(operator)/templates/page.tsx`
+  (one `<form>` per template, zero client JS, never imports `lib/db`) + verb-first
+  `saveMessageTemplate` action (`app/(operator)/templates/actions.ts`, sole write path,
+  AR15 typed return, upsert on `(owner_id,type)`); `getMessageTemplates` query helper
+  (owner-scoped) + `templateErrors.ts` reason→message map. Domain `validateTemplate`
+  rejects unknown type / empty body, writing nothing.
+- **Task 5** — `tests/template.test.ts`: 14 tests (7 pure `resolveTemplate` AC3, 3 pure
+  `validateTemplate` AR15, 4 DB — seed idempotency/uniqueness + edit-persists-per-owner
+  AC1/AC2). Full suite 125/125, `tsc` clean, production build clean (`/templates` ƒ).
+
 ### File List
+
+- `lib/db/schema.ts` (M) — `messageTemplateType` enum + `messageTemplate` table.
+- `lib/db/seed.ts` (M) — `seedMessageTemplates` + direct-run wiring.
+- `lib/db/queries.ts` (M) — `getMessageTemplates(ownerId)`.
+- `lib/domain/messageTemplateConfig.ts` (A) — closed type set, labels, default copy, `validateTemplate`.
+- `lib/domain/compose.ts` (M) — `resolveTemplate` (replaces stub).
+- `lib/domain/templateErrors.ts` (A) — reason→message map.
+- `app/(operator)/templates/actions.ts` (A) — `getOwnerTemplates`, `saveMessageTemplate`.
+- `app/(operator)/templates/page.tsx` (A) — RSC templates surface.
+- `tests/template.test.ts` (A) — 14 tests.
+- `drizzle/0005_worthless_skreet.sql` (A) + `drizzle/meta/*` (M) — migration.
+
+### Change Log
+
+- 2026-07-16 — Story 2.1 implemented (Tasks 1–5). `MessageTemplate` model +
+  `resolveTemplate` placeholder seam + editable templates surface. 125/125 tests,
+  tsc + build clean. Status → review.

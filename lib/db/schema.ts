@@ -200,3 +200,49 @@ export const job = pgTable(
 
 export type Job = typeof job.$inferSelect;
 export type NewJob = typeof job.$inferInsert;
+
+// Message template type (Story 2.1, FR20). The FOUR outbound templates are a
+// fixed, CLOSED set — booking confirmation, rebooking nudge, win-back check-in,
+// payment reminder — not user-addable (Simplicity gate). Modeled as a Postgres
+// enum so the DB is physically incapable of persisting a fifth type.
+export const messageTemplateType = pgEnum('message_template_type', [
+  'booking_confirmation',
+  'rebooking_nudge',
+  'win_back',
+  'payment_reminder',
+]);
+
+// MessageTemplate (Story 2.1, FR20) — the operator's editable outbound copy, one
+// row per (owner, type). `body` is the raw template string carrying the three
+// sanctioned placeholders {client}/{slot}/{amount}; lib/domain/compose.ts's
+// resolveTemplate substitutes them (never leaking a raw {token}, AC3). Templates
+// are DATA, transport-agnostic (AD-5): no wa.me/sms concern lives here. Default
+// copy is SEEDED (lib/db/seed.ts), never a DB column default. `updated_at` is a
+// UTC instant (AD-9). Owner-scoped on every read/write (AD-8).
+export const messageTemplate = pgTable(
+  'message_template',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    // AD-8 tenancy seam: owner_id FK on every row, scoped on read and write.
+    // NOT NULL — an ownerless template is a cross-tenant leak.
+    ownerId: uuid('owner_id')
+      .notNull()
+      .references(() => operator.id, { onDelete: 'restrict' }),
+    type: messageTemplateType('type').notNull(),
+    // The editable template string with {client}/{slot}/{amount} placeholders.
+    body: text('body').notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'string' })
+      .defaultNow()
+      .notNull(),
+  },
+  (t) => [
+    // Exactly one template per type per owner — the four are a closed set. The
+    // seed and the save action both UPSERT on this conflict target.
+    uniqueIndex('message_template_owner_type_uq').on(t.ownerId, t.type),
+    // Reads are always owner-scoped (AD-8); index the filter column.
+    index('message_template_owner_id_idx').on(t.ownerId),
+  ],
+);
+
+export type MessageTemplate = typeof messageTemplate.$inferSelect;
+export type NewMessageTemplate = typeof messageTemplate.$inferInsert;

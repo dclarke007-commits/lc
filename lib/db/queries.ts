@@ -5,8 +5,20 @@
 
 import { eq, and, asc, desc, gte } from 'drizzle-orm';
 import { db } from './client';
-import { operator, client, capacitySettings, job } from './schema';
-import type { Operator, Client, CapacitySettingsRow, Job } from './schema';
+import {
+  operator,
+  client,
+  capacitySettings,
+  job,
+  messageTemplate,
+} from './schema';
+import type {
+  Operator,
+  Client,
+  CapacitySettingsRow,
+  Job,
+  MessageTemplate,
+} from './schema';
 
 /**
  * Resolve the single owner's id — the AD-8 owner_id value every future query
@@ -176,4 +188,22 @@ export async function getJob(
     .where(and(eq(job.ownerId, ownerId), eq(job.id, id)))
     .limit(1);
   return row;
+}
+
+// --- Message templates (Story 2.1, AD-8: owner_id FILTER value on every query) ---
+
+/**
+ * Read the owner's message templates (Story 2.1, FR20). Owner-scoped on the
+ * VALUE (AD-8), so no other tenant's copy is reachable. Ordered by `type` for a
+ * stable surface render; the four rows exist once the seed has run. The action
+ * layer maps these onto the closed type set (defaults fill any not-yet-seeded).
+ */
+export async function getMessageTemplates(
+  ownerId: string,
+): Promise<MessageTemplate[]> {
+  return db
+    .select()
+    .from(messageTemplate)
+    .where(eq(messageTemplate.ownerId, ownerId))
+    .orderBy(asc(messageTemplate.type));
 }
