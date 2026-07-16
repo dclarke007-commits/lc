@@ -140,3 +140,18 @@ Created:
 ### Change Log
 
 - 2026-07-16 — Story 1.6 implemented: cancel (booked→cancelled via lifecycle, slot auto-released) and atomic move-the-row reschedule (destination-week cap check, identity preserved, idempotent). Closed deferred D1/D2 from Story 1.5. tsc clean; 87/87 tests.
+- 2026-07-16 — Code review (3 adversarial layers) + 4 patches applied (commit b3b6eb0): intra-week reschedule week-ceiling fix, stale `overridden` clear, `week-full` message de-hardcoded (AR16), `markCancelled` booked-only guard. tsc clean; 90/90 tests.
+
+## Senior Developer Review (AI)
+
+**Date:** 2026-07-16 · **Reviewer:** Opus 4.8 (adversarial: Blind Hunter / Edge Case Hunter / Acceptance Auditor) · **Outcome:** Changes Requested → all resolved.
+
+The destination-only reschedule advisory lock was independently confirmed sound (freeing a slot can't breach a cap; consumption conserved; no deadlock). Both ACs met; D1/D2 confirmed closed in the whitelist; scope respected.
+
+**Action Items (all resolved in b3b6eb0):**
+- [x] [Med] Intra-week reschedule wrongly blocked by the weekly ceiling in an over-ceiling week → week-full check now applies to cross-week moves only. [capacity.ts]
+- [x] [Low] Stale `overridden=true` after a reschedule inflated the FR39 metric → cleared on the move. [capacity.ts]
+- [x] [Low] `week-full` banner hardcoded "(14 jobs)" vs configurable ceiling (AR16) → number dropped in both error maps.
+- [x] [Low] `markCancelled` docstring overclaimed booked-only → added a `requireFrom='booked'` guard so it is genuinely booked-only; completed reversal stays on the correction path. [lifecycle.ts]
+- Dismissed: "reuse commitBooking" directive — move-the-row was the authorized mechanism (Open-gap #1); AD-2 counting/config authority is shared.
+- Deferred (operator-accepted): cancel is terminal in v1, no undo — see deferred-work.md.
