@@ -4,11 +4,21 @@ baseline_commit: c1922ead1c79ea8e914d7cddff5a3d9d22d2c04f
 
 # Story 2.3: Dispatch logging (drafted vs dispatched, idempotent)
 
-Status: review
+Status: done
 
 ## Change Log
 
 - 2026-07-16 — Implemented (dev-story). MessageLog schema + migration 0006; drafted/dispatched writes (Option B nonce idempotency); nudge-fatigue derive-on-read; zero-JS send-tap logging. 153/153 tests, typecheck + build clean. Status → review.
+- 2026-07-16 — Code reviewed (Epic 2 batch, 3-layer adversarial). Findings below.
+
+### Review Findings (code review 2026-07-16)
+
+- [x] [Review][Decision] `drafted_at` not written on render for the /draft surface — **RESOLVED: accepted (operator decision 2026-07-16).** The drafted row is materialized at send-tap; writing on a GET preview-render would mean DB-writes-on-reads + unbounded row churn on refresh. Fatigue honesty (the AC's real intent) is fully preserved — the counter reads only dispatched_at, and 2.4's confirmation path writes drafted_at at commit. AC1's literal "on render" wording stands as a documented deviation. [app/(operator)/draft/actions.ts recordDispatch]
+- [x] [Review][Patch] Phantom dispatch — FIXED: `sendDraft` now builds the deliverable link BEFORE recording; a phoneless/tampered tap logs nothing and redirects to `?error=no-phone`. Regression: tests/review-fixes.test.ts. [app/(operator)/draft/actions.ts sendDraft]
+- [x] [Review][Patch] Amount not validated — FIXED: `previewDraft` accepts only `^\d+(\.\d{1,2})?$` (rejects negative/hex/exponential/>2dp) → null → blank. Regression: tests/review-fixes.test.ts. [app/(operator)/draft/actions.ts previewDraft]
+- [x] [Review][Defer] `upsertMessageDraft` ignores clientId/type on (owner,nonce) conflict — non-exploitable (random/deterministic nonce, stored row authoritative); see deferred-work.md
+- [x] [Review][Defer] /draft fresh-nonce-per-render can double-log on re-preview — by-design tradeoff; see deferred-work.md
+- [x] [Review][Defer] `nudgeFatigueForClient` unguarded vs invalid tz/anchor — no bad-tz caller until Epic 6; see deferred-work.md
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 

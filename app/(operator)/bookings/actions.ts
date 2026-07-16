@@ -25,6 +25,7 @@ import {
   confirmationDraftNonce,
   type MessageDraft,
 } from '@/lib/domain/compose';
+import { formatDateKey } from '@/lib/domain/clock';
 import { DEFAULT_TEMPLATE_BODIES } from '@/lib/domain/messageTemplateConfig';
 
 /** Owner's clients for the booking surface's picker (owner-scoped read). */
@@ -151,9 +152,15 @@ export async function getConfirmationDraft(
     templates.find((t) => t.type === 'booking_confirmation')?.body ??
     DEFAULT_TEMPLATE_BODIES.booking_confirmation;
 
+  // {slot} is a display string (code-review 2026-07-16, P4): format the Job's raw
+  // calendar day to "Mon, Aug 3" so the client-facing confirmation never reads a bare
+  // ISO date. The send form carries this SAME formatted slot so the re-compose in
+  // sendDraft reproduces an identical body.
+  const slot = formatDateKey(job.date);
+
   const draft = compose(
     { name: client.name, phone: client.phone },
-    job.date,
+    slot,
     job.priceCents,
     { type: 'booking_confirmation', body },
   );
@@ -162,7 +169,7 @@ export async function getConfirmationDraft(
     draft,
     clientId: job.clientId,
     nonce: confirmationDraftNonce(job.id),
-    slot: job.date,
+    slot,
     amountDollars: (job.priceCents / 100).toString(),
   });
 }

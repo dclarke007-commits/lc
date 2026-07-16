@@ -16,6 +16,7 @@ import { operator, client, capacitySettings, job, messageLog } from '../lib/db/s
 import { seedOperator } from '../lib/db/seed';
 import { getOwnerId } from '../lib/db/queries';
 import { confirmationDraftNonce } from '../lib/domain/compose';
+import { formatDateKey } from '../lib/domain/clock';
 import { createBooking, getConfirmationDraft } from '../app/(operator)/bookings/actions';
 import { recordDispatch } from '../app/(operator)/draft/actions';
 
@@ -112,7 +113,9 @@ describe('Story 2.4 — booking-confirmation draft off commit', () => {
     expect(draftRes.data.draft.type).toBe('booking_confirmation');
     expect(draftRes.data.draft.recipient).toBe('555-0100'); // the Job's client phone
     expect(draftRes.data.draft.body).toContain('Ada Test'); // {client} resolved
-    expect(draftRes.data.slot).toBe(DATE);
+    // P4 (code-review): {slot} is a friendly display date, not the raw ISO key.
+    expect(draftRes.data.slot).toBe(formatDateKey(DATE));
+    expect(draftRes.data.slot).not.toBe(DATE);
     expect(draftRes.data.nonce).toBe(confirmationDraftNonce(res.data.id));
   });
 

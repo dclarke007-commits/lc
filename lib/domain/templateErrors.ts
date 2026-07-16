@@ -14,6 +14,7 @@ const TEMPLATE_ERROR_MESSAGES: Record<string, string> = {
   // Story 2.3 dispatch-logging reasons.
   'draft-nonce-missing': 'Could not record that send — please reload and try again.',
   'dispatch-log-failed': 'Could not record that send — please try again.',
+  'no-phone': 'This client has no usable phone number — add one to send.',
 };
 
 /** Human-readable text for a template action reason. Unknown → safe fallback. */

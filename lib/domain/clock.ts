@@ -213,3 +213,20 @@ export function weekRangeOfDate(dateStr: string): {
     nextMonday: addDaysToDate(dateStr, 8 - wd),
   };
 }
+
+/**
+ * Human-friendly rendering of a 'YYYY-MM-DD' calendar day, e.g. "Mon, Aug 3"
+ * (code-review 2026-07-16, P4). A Job's `date` is a tz-independent calendar day, so
+ * we format it via a UTC-pinned Date — never applying a local offset that could shift
+ * it to the previous/next day. Used for the `{slot}` display string in client-facing
+ * messages so a confirmation reads "...for Mon, Aug 3" rather than a bare ISO date.
+ */
+export function formatDateKey(dateStr: string): string {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString('en-US', {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+    timeZone: 'UTC',
+  });
+}

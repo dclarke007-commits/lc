@@ -4,7 +4,12 @@ baseline_commit: d6be27c
 
 # Story 2.2: Compose → MessageDraft → deep-link delivery
 
-Status: review
+Status: done
+
+<!-- Code reviewed in the Epic 2 batch (2026-07-16). Its findings — normalizePhone
+US-10-digit assumption + intl/leading-zero, and the sms: ?&body= form — are the
+story's own documented open gaps; both deferred to deferred-work.md. No patch to 2.2. -->
+
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 

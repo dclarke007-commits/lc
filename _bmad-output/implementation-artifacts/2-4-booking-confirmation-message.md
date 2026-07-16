@@ -4,11 +4,18 @@ baseline_commit: 1d9b193b687a643199a1bc1e0756487384714a21
 
 # Story 2.4: Booking-confirmation message
 
-Status: review
+Status: done
 
 ## Change Log
 
 - 2026-07-16 — Implemented (dev-story). Wired booking-confirmation draft into the `commitBooking` success path (best-effort, outside txn); Job-keyed nonce dedup; `resulting_job_ref` attribution; reused 2.2/2.3 send+log path on the post-booking surface. 159/159 tests, typecheck + build clean. Status → review. Closes Epic 2.
+- 2026-07-16 — Code reviewed (Epic 2 batch, 3-layer adversarial). Findings below.
+
+### Review Findings (code review 2026-07-16)
+
+- [x] [Review][Patch] `bookingErrorMessage` prototype-key crash — FIXED: added the `Object.hasOwn` guard (mirrors templateErrors.ts). Regression: tests/review-fixes.test.ts. [lib/domain/bookingErrors.ts]
+- [x] [Review][Patch] Confirmation `{slot}` renders raw ISO date — FIXED: `getConfirmationDraft` now formats via new `clock.formatDateKey` → "Mon, Aug 3"; the send form carries the same formatted slot so the re-compose matches. Regression: tests/review-fixes.test.ts + confirmation.test.ts. [app/(operator)/bookings/actions.ts]
+- Dismissed (no change): compose-at-render vs commit (no body column → observably equivalent); `getConfirmationDraft` reads the Job's own fields (AC3 intent holds; a literal re-fetch is unavoidable given the redirect architecture).
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 

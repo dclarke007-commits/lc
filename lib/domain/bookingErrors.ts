@@ -23,7 +23,12 @@ const BOOKING_ERROR_MESSAGES: Record<string, string> = {
 /** Human-readable text for a booking action reason. Unknown → safe fallback. */
 export function bookingErrorMessage(reason: string | undefined): string | null {
   if (!reason) return null;
-  return (
-    BOOKING_ERROR_MESSAGES[reason] ?? 'Something went wrong — please try again.'
-  );
+  // Own-property check, not `[reason] ?? fallback` (code-review 2026-07-16, P2):
+  // a tampered ?error=__proto__/constructor/toString would otherwise return a
+  // truthy inherited object/function that the RSC renders as a React child → 500.
+  // Mirrors the guard in templateErrors.ts.
+  if (!Object.hasOwn(BOOKING_ERROR_MESSAGES, reason)) {
+    return 'Something went wrong — please try again.';
+  }
+  return BOOKING_ERROR_MESSAGES[reason];
 }

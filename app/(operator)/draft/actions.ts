@@ -73,13 +73,16 @@ export async function previewDraft(
   const body =
     templates.find((t) => t.type === type)?.body ?? DEFAULT_TEMPLATE_BODIES[type];
 
-  // Parse optional dollar input → integer cents (AR16). Blank/non-numeric → null
-  // so `{amount}` resolves to safe-blank rather than a bogus figure.
-  const rawCents = Number(amountDollars) * 100;
-  const amountCents =
-    amountDollars.trim() !== '' && Number.isFinite(rawCents)
-      ? Math.round(rawCents)
-      : null;
+  // Parse optional dollar input → integer cents (AR16). Accept ONLY a plain
+  // non-negative decimal with ≤2 places (code-review 2026-07-16, P3): the form's
+  // `min={0}`/`step` are client-side only, so a direct-URL tamper like
+  // amount=-50 / 0x10 / 1e9 would otherwise pass `Number.isFinite` and render
+  // "$-50.00" / "$16.00" / "$1000000000.00" into the client-facing message. Anything
+  // that is not a clean money string → null → `{amount}` resolves to safe-blank.
+  const trimmedAmount = amountDollars.trim();
+  const amountCents = /^\d+(\.\d{1,2})?$/.test(trimmedAmount)
+    ? Math.round(Number(trimmedAmount) * 100)
+    : null;
 
   const draft = compose(
     { name: client.name, phone: client.phone },
@@ -153,16 +156,20 @@ export async function sendDraft(formData: FormData): Promise<void> {
       type,
     )}&slot=${encodeURIComponent(slot)}&amount=${encodeURIComponent(amount)}${extra}`;
 
+  // Build the deliverable link BEFORE logging (code-review 2026-07-16, P1 — no
+  // phantom dispatch): a dispatch is only honest if the message can actually open.
+  // Compose is a pure read; recording (the sole write) happens only once we know a
+  // link exists, so a phoneless/tampered tap never stamps dispatched_at (which would
+  // inflate nudge-fatigue) and the operator gets a real error instead of a silent
+  // no-op. redirect() throws NEXT_REDIRECT, so each branch terminates the action.
+  const preview = await previewDraft(clientId, type, slot, amount);
+  if (!preview.ok) redirect(back(`&error=${encodeURIComponent(preview.reason)}`));
+
+  const link = deepLink(preview.data, channel);
+  if (!link) redirect(back('&error=no-phone'));
+
   const res = await recordDispatch(clientId, type, nonce);
   if (!res.ok) redirect(back(`&error=${encodeURIComponent(res.reason)}`));
 
-  // Rebuild the deep link for the redirect (compose is a pure read; the log above is
-  // the only write). No usable phone → fall back to the preview rather than a broken
-  // link (deepLink already returns null for that case).
-  const preview = await previewDraft(clientId, type, slot, amount);
-  if (preview.ok) {
-    const link = deepLink(preview.data, channel);
-    if (link) redirect(link);
-  }
-  redirect(back(''));
+  redirect(link);
 }
