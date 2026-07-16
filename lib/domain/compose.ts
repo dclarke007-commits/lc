@@ -6,7 +6,11 @@
 // template→text resolution; MessageDraft construction and the wa.me/sms delivery
 // adapter are Story 2.2, never here (AD-5: compose ≠ deliver).
 
-import { TEMPLATE_PLACEHOLDERS, type TemplatePlaceholder } from './messageTemplateConfig';
+import {
+  TEMPLATE_PLACEHOLDERS,
+  type TemplatePlaceholder,
+  type MessageTemplateType,
+} from './messageTemplateConfig';
 
 // Matches any brace-token `{...}` (no nested braces). We inspect EVERY match, not
 // just the three sanctioned names, so an unknown or malformed token can never
@@ -64,4 +68,58 @@ export function resolveTemplate(
     .replace(/[^\S\n]+([.,!?;:])/g, '$1')
     .replace(/[^\S\n]+$/gm, '')
     .trim();
+}
+
+// --- Story 2.2: compose → MessageDraft (the transport-agnostic half of AD-5) ---
+
+// A channel-agnostic outbound message (AR6/AD-5). Deliberately carries NO transport
+// detail — no `url`, no `wa.me`/`sms:`, no channel field. `recipient` is the client's
+// raw phone (normalization is the delivery adapter's job, never the draft's); `body`
+// is the resolved template text; `type` is the message KIND, not a channel. A future
+// auto-send transport is a new `lib/delivery` adapter over this same shape — zero
+// change here (AD-5).
+export interface MessageDraft {
+  recipient: string;
+  body: string;
+  type: MessageTemplateType;
+}
+
+// The minimal client fields compose needs. Phone is the raw stored string.
+export interface ComposeClient {
+  name: string;
+  phone: string;
+}
+
+// The persisted template compose reads (Story 2.1). Only type + body are consumed.
+export interface ComposeTemplate {
+  type: MessageTemplateType;
+  body: string;
+}
+
+/** Render integer cents (AR16) as a display USD string, e.g. 20000 → "$200.00". */
+function formatAmount(amountCents: number): string {
+  return `$${(amountCents / 100).toFixed(2)}`;
+}
+
+/**
+ * Turn `(client, slot, amount, template)` into a channel-agnostic `MessageDraft`
+ * (AC1). PURE and transport-agnostic: no framework/db/delivery import, no deep-link
+ * string, no side effect. Reuses Story 2.1's `resolveTemplate` for placeholder fill
+ * (a missing value → blank, never a `{token}` leak). compose owns the two value
+ * formats the resolver delegates to its caller: the `{slot}` display string (passed
+ * in, already formatted) and `{amount}` (integer cents → USD here). `amountCents`
+ * null → `{amount}` resolves to blank.
+ */
+export function compose(
+  client: ComposeClient,
+  slot: string,
+  amountCents: number | null,
+  template: ComposeTemplate,
+): MessageDraft {
+  const body = resolveTemplate(template.body, {
+    client: client.name,
+    slot,
+    amount: amountCents == null ? '' : formatAmount(amountCents),
+  });
+  return { recipient: client.phone, body, type: template.type };
 }

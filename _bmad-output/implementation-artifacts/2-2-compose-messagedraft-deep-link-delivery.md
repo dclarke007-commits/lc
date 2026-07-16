@@ -1,6 +1,10 @@
+---
+baseline_commit: d6be27c
+---
+
 # Story 2.2: Compose → MessageDraft → deep-link delivery
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -18,21 +22,21 @@ so that I send without retyping.
 
 ## Tasks / Subtasks
 
-- [ ] **Task 1 — `MessageDraft` shape + `compose()` in `lib/domain/compose.ts` (AC: 1)** [Source: ARCHITECTURE-SPINE.md#AD-5, #Design-Paradigm]
-  - [ ] Define `MessageDraft{ recipient, body, type }` — a plain domain value. `recipient` = the client's phone (raw, un-normalized string as stored on `Client`); `body` = the resolved template text; `type` = the message kind (`booking-confirmation|rebooking-nudge|win-back|payment-reminder`), NOT a transport channel. **No `url`, no `wa.me`, no `sms:`, no channel field** lives on the draft (AD-5).
-  - [ ] `compose(client, slot, amount, template)` is PURE and transport-agnostic: it consumes Story 2.1's persisted template + placeholder resolution to produce `body`, sets `recipient` from `client`, and stamps `type`. No framework imports; no `lib/delivery` import; no DB write; no deep-link string anywhere in this module.
-  - [ ] Placeholder resolution reuses 2.1's contract: `{client}`/`{slot}`/`{amount}` fill from the args; a missing value resolves to empty/safe text, never a literal `{amount}` leak (2.1 AC3). `amount` renders as integer-cents → USD per Conventions.
-- [ ] **Task 2 — `lib/delivery/deeplink.ts` adapter — the ONLY transport (AC: 2)** [Source: ARCHITECTURE-SPINE.md#AD-5, #Source-tree]
-  - [ ] In `lib/delivery/deeplink.ts`: a v1 adapter that takes a `MessageDraft` and renders a deep-link URL. This is the **only** module in the codebase where `wa.me` / `sms:` (transport) exists (AD-5). Templates and `compose` never reference it.
-  - [ ] Build the URL from `recipient` + URL-encoded `body`: WhatsApp `https://wa.me/<phone>?text=<encoded body>`; SMS `sms:<phone>?&body=<encoded body>` (or `sms:<phone>&body=…` — platform-encoding is a flagged gap, see Open gaps). Phone-number normalization to the `wa.me` E.164-digits form happens HERE, not in `compose` (see Open gaps).
-  - [ ] The adapter only **renders** a link; it does not open, send, or log anything. Auto-send later = a new adapter beside this one, with zero template/compose change (AD-5, Deferred).
-- [ ] **Task 3 — Tap-to-send surface (AC: 2, 3)** [Source: ARCHITECTURE-SPINE.md#AD-1, #Consistency-Conventions Messaging]
-  - [ ] Operator surface renders the drafted `body` (review/preview) and a send control that navigates to the adapter's deep-link on the operator's explicit tap — the OS then opens WhatsApp/SMS pre-filled. The tap is required; nothing fires on render or on draft creation (AD-5, no-autonomous-send).
-  - [ ] No dispatch logging here — `drafted_at`/`dispatched_at` are Story 2.3's job; this story renders + opens only. (Scope boundary below.)
-- [ ] **Task 4 — Unit tests (AC: 1, 2, 3)**
-  - [ ] `compose` returns exactly `{recipient, body, type}` with NO transport key; snapshot the object to assert no `url`/`wa.me`/`sms:` substring appears in any field. Placeholder fill + missing-value → empty (no `{amount}` leak). Purity: same inputs → same draft, no side effects.
-  - [ ] Adapter renders correct `wa.me`/`sms:` URLs with URL-encoded body; phone normalization cases. A `MessageDraft` fixture round-trips to a link WITHOUT the draft itself carrying the link.
-  - [ ] No-autonomous-send: assert no send/dispatch occurs without an explicit tap (render produces a link but does not follow it).
+- [x] **Task 1 — `MessageDraft` shape + `compose()` in `lib/domain/compose.ts` (AC: 1)** [Source: ARCHITECTURE-SPINE.md#AD-5, #Design-Paradigm]
+  - [x] Define `MessageDraft{ recipient, body, type }` — a plain domain value. `recipient` = the client's phone (raw, un-normalized string as stored on `Client`); `body` = the resolved template text; `type` = the message kind (`booking-confirmation|rebooking-nudge|win-back|payment-reminder`), NOT a transport channel. **No `url`, no `wa.me`, no `sms:`, no channel field** lives on the draft (AD-5).
+  - [x] `compose(client, slot, amount, template)` is PURE and transport-agnostic: it consumes Story 2.1's persisted template + placeholder resolution to produce `body`, sets `recipient` from `client`, and stamps `type`. No framework imports; no `lib/delivery` import; no DB write; no deep-link string anywhere in this module.
+  - [x] Placeholder resolution reuses 2.1's contract: `{client}`/`{slot}`/`{amount}` fill from the args; a missing value resolves to empty/safe text, never a literal `{amount}` leak (2.1 AC3). `amount` renders as integer-cents → USD per Conventions.
+- [x] **Task 2 — `lib/delivery/deeplink.ts` adapter — the ONLY transport (AC: 2)** [Source: ARCHITECTURE-SPINE.md#AD-5, #Source-tree]
+  - [x] In `lib/delivery/deeplink.ts`: a v1 adapter that takes a `MessageDraft` and renders a deep-link URL. This is the **only** module in the codebase where `wa.me` / `sms:` (transport) exists (AD-5). Templates and `compose` never reference it.
+  - [x] Build the URL from `recipient` + URL-encoded `body`: WhatsApp `https://wa.me/<phone>?text=<encoded body>`; SMS `sms:<phone>?&body=<encoded body>` (or `sms:<phone>&body=…` — platform-encoding is a flagged gap, see Open gaps). Phone-number normalization to the `wa.me` E.164-digits form happens HERE, not in `compose` (see Open gaps).
+  - [x] The adapter only **renders** a link; it does not open, send, or log anything. Auto-send later = a new adapter beside this one, with zero template/compose change (AD-5, Deferred).
+- [x] **Task 3 — Tap-to-send surface (AC: 2, 3)** [Source: ARCHITECTURE-SPINE.md#AD-1, #Consistency-Conventions Messaging]
+  - [x] Operator surface renders the drafted `body` (review/preview) and a send control that navigates to the adapter's deep-link on the operator's explicit tap — the OS then opens WhatsApp/SMS pre-filled. The tap is required; nothing fires on render or on draft creation (AD-5, no-autonomous-send).
+  - [x] No dispatch logging here — `drafted_at`/`dispatched_at` are Story 2.3's job; this story renders + opens only. (Scope boundary below.)
+- [x] **Task 4 — Unit tests (AC: 1, 2, 3)**
+  - [x] `compose` returns exactly `{recipient, body, type}` with NO transport key; snapshot the object to assert no `url`/`wa.me`/`sms:` substring appears in any field. Placeholder fill + missing-value → empty (no `{amount}` leak). Purity: same inputs → same draft, no side effects.
+  - [x] Adapter renders correct `wa.me`/`sms:` URLs with URL-encoded body; phone normalization cases. A `MessageDraft` fixture round-trips to a link WITHOUT the draft itself carrying the link.
+  - [x] No-autonomous-send: assert no send/dispatch occurs without an explicit tap (render produces a link but does not follow it).
 
 ## Dev Notes
 
@@ -74,8 +78,52 @@ No `MessageLog` table, no `drafted_at`/`dispatched_at`, no idempotent dispatch l
 
 ### Agent Model Used
 
+claude-opus-4-8[1m] (Claude Opus 4.8, 1M context)
+
 ### Debug Log References
+
+- Surface approach (Task 3): no real trigger exists until Story 2.4 (booking-
+  confirmation on commit). Per user decision, built a **minimal preview surface**
+  (`/draft`) — a zero-JS GET picker (client + type + optional slot/amount) that
+  composes a real draft from the persisted template and renders the body + two
+  deep-link anchors. Proves compose→deliver end-to-end without inventing a fake
+  booking trigger.
 
 ### Completion Notes List
 
+- **Task 1** — `MessageDraft{recipient, body, type}` + pure `compose(client, slot,
+  amountCents, template)` in `lib/domain/compose.ts` (co-located with `resolveTemplate`,
+  AD-5). No transport key on the draft; compose owns the two value formats the resolver
+  delegates to its caller — the `{slot}` display string (passed in) and `{amount}`
+  (integer cents → USD, AR16). `amountCents` null → `{amount}` blanks. No framework/db/
+  delivery import.
+- **Task 2** — `lib/delivery/deeplink.ts` — the ONLY module with `wa.me`/`sms:` (AD-5).
+  `normalizePhone` (strip non-digits; 10-digit → US `1`-prefix; else passthrough; empty →
+  null) + `deepLink(draft, channel)` rendering `https://wa.me/<digits>?text=<enc>` and
+  `sms:<digits>?&body=<enc>`, body always `encodeURIComponent`-escaped. Returns null on
+  no usable phone so the surface degrades. Renders only — never opens/sends/logs.
+- **Task 3** — Minimal preview surface `app/(operator)/draft/` (RSC page + read action).
+  The action `previewDraft`/`listDraftClients` is the sole DB path (AD-1); the surface
+  never imports lib/db, calls the action for the draft, then calls lib/delivery (a pure
+  sibling of domain) for the deep-link anchors. Zero client JS (GET form + `<a>` links);
+  the OS opens WhatsApp/SMS pre-filled only on the operator's tap (FR19, no autonomous
+  send). No MessageLog/dispatch (Story 2.3).
+- **Task 4** — `tests/compose.test.ts`: 12 tests (compose returns `{recipient,body,type}`
+  with no transport key, USD format, null-amount blank, purity; `normalizePhone` cases;
+  `deepLink` wa.me/sms encoding, null-phone degrade, draft-carries-no-link). Full suite
+  143/143, tsc clean, build clean (`/draft` ƒ).
+
 ### File List
+
+- `lib/domain/compose.ts` (M) — `MessageDraft`, `ComposeClient/Template`, `compose`, `formatAmount`.
+- `lib/delivery/deeplink.ts` (M) — `normalizePhone`, `deepLink` (replaces stub).
+- `app/(operator)/draft/actions.ts` (A) — `listDraftClients`, `previewDraft`.
+- `app/(operator)/draft/page.tsx` (A) — minimal preview + tap-to-send surface.
+- `lib/domain/templateErrors.ts` (M) — added `client-not-found` reason.
+- `tests/compose.test.ts` (A) — 12 tests.
+
+### Change Log
+
+- 2026-07-16 — Story 2.2 implemented (Tasks 1–4). Channel-agnostic `compose` →
+  `MessageDraft` + `lib/delivery/deeplink` adapter + minimal `/draft` preview
+  surface. 143/143 tests, tsc + build clean. Status → review.

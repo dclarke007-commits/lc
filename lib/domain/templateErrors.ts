@@ -8,6 +8,7 @@ const TEMPLATE_ERROR_MESSAGES: Record<string, string> = {
   'template-type-invalid': 'That template type is not recognized.',
   'template-body-required': 'Template text cannot be empty.',
   'template-body-too-long': 'Template text is too long.',
+  'client-not-found': 'That client could not be found.',
   'owner-unresolved': 'No operator is set up. Run the operator seed.',
   'template-write-failed': 'Could not save — please try again.',
 };
