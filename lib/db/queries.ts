@@ -322,32 +322,103 @@ export async function listDispatchedMessages(
 // persist and look up the server-side token row that makes a credential revocable.
 
 /**
- * Idempotently persist the per-client token row (Story 3.1, Task 2), one live link per
- * (owner, client, capability). On conflict we UPDATE `token_value` to the freshly-signed
- * value and RETURN the row in the SAME statement (code-review P1):
- *   - DO UPDATE (not DO NOTHING) so a re-mint after the signing input changes — e.g. a
- *     rotated CLIENT_TOKEN_SECRET — refreshes the stored token instead of stranding the
- *     old one; the previous token_value is overwritten, so its link stops resolving.
- *     With an unchanged secret the token is deterministic and this writes the same value.
- *   - RETURNING avoids a select-after-insert race: a concurrent revoke could delete the
- *     row between insert and a follow-up select, returning undefined → the atomic
- *     returning() always yields the just-written row. Owner-scoped write (AD-8).
+ * The one live per-client token row, or undefined. Owner-scoped read (AD-8) on the
+ * (owner, client, capability) unique key — the read half of ensureClientToken's
+ * read-or-create: an existing link is returned verbatim (stable URL, D1), so a re-mint
+ * never re-signs and can never resurrect a rotated/revoked value.
  */
-export async function upsertClientToken(
+export async function findClientToken(
+  ownerId: string,
+  clientId: string,
+  capability: Token['capability'],
+): Promise<Token | undefined> {
+  const [row] = await db
+    .select()
+    .from(token)
+    .where(
+      and(
+        eq(token.ownerId, ownerId),
+        eq(token.clientId, clientId),
+        eq(token.capability, capability),
+      ),
+    )
+    .limit(1);
+  return row;
+}
+
+/**
+ * Create the per-client token row ONLY if one does not already exist (race-safe first
+ * mint). `onConflictDoNothing` + `returning()` yields the just-inserted row, or nothing
+ * when a concurrent insert won the (owner, client, capability) unique key — in which
+ * case we return the existing row. NEVER overwrites an existing link (that is
+ * rotateClientTokenRow's job), so the URL stays stable on every re-mint (D1).
+ */
+export async function insertClientTokenIfAbsent(
   ownerId: string,
   clientId: string,
   tokenValue: string,
   capability: Token['capability'],
+  nonce: string,
 ): Promise<Token> {
   const [row] = await db
     .insert(token)
-    .values({ ownerId, clientId, tokenValue, capability })
+    .values({ ownerId, clientId, tokenValue, capability, nonce })
+    .onConflictDoNothing({
+      target: [token.ownerId, token.clientId, token.capability],
+    })
+    .returning();
+  if (row) return row;
+  // Lost the first-mint race — the concurrent insert is the live link. It exists by
+  // the unique-key conflict we just hit, so this read is guaranteed to find it.
+  const existing = await findClientToken(ownerId, clientId, capability);
+  return existing as Token;
+}
+
+/**
+ * Rotate the per-client link: overwrite `token_value` + `nonce` with a freshly-signed,
+ * fresh-nonce value (creating the row if absent). Durable revoke-and-reissue (D1): the
+ * old `token_value` is replaced, so the previously-issued (possibly leaked) link stops
+ * resolving forever, while the client gets a new working link. Owner-scoped (AD-8).
+ */
+export async function rotateClientTokenRow(
+  ownerId: string,
+  clientId: string,
+  tokenValue: string,
+  capability: Token['capability'],
+  nonce: string,
+): Promise<Token> {
+  const [row] = await db
+    .insert(token)
+    .values({ ownerId, clientId, tokenValue, capability, nonce })
     .onConflictDoUpdate({
       target: [token.ownerId, token.clientId, token.capability],
-      set: { tokenValue },
+      set: { tokenValue, nonce },
     })
     .returning();
   return row;
+}
+
+/**
+ * Revoke the per-client link by deleting its row — verification then fails closed even
+ * though the HMAC is still valid. Returns true if a row was removed. Owner-scoped (AD-8).
+ * Durable (D1): because the token now embeds a persisted random nonce, a later re-mint
+ * (ensureClientToken) creates a NEW nonce → a NEW value; the deleted link never returns.
+ */
+export async function deleteClientToken(
+  ownerId: string,
+  clientId: string,
+  capability: Token['capability'],
+): Promise<boolean> {
+  const result = await db
+    .delete(token)
+    .where(
+      and(
+        eq(token.ownerId, ownerId),
+        eq(token.clientId, clientId),
+        eq(token.capability, capability),
+      ),
+    );
+  return (result.rowCount ?? 0) > 0;
 }
 
 /**

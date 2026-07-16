@@ -5,12 +5,15 @@
 // on a weak/missing key. A bearer can do EXACTLY what the token's claims scope,
 // nothing more.
 //
-// DETERMINISTIC by design: sign() over the canonical {clientId, ownerId, capability}
-// yields the same string every time, so exactly one stable link exists per client
-// (idempotent re-mint). Rotation/revocation is handled by the DB row (lib/db), not by
-// the signature — delete the row and verification fails closed even though the HMAC
-// is still valid.
+// Per-link RANDOM nonce (code-review D1, 2026-07-16): the payload folds in a nonce
+// generated once and persisted with the token row, so the signature is NOT a pure
+// function of {clientId, ownerId, capability}. Re-mint reuses the stored nonce (the
+// link stays stable — one link per client); rotateClientToken issues a fresh nonce
+// (a genuinely new link) and revoke/delete kills the row. This makes revocation
+// DURABLE: a deleted link can never be reproduced by re-signing, and the old value
+// stops resolving even though its HMAC is still mathematically valid.
 
+import { randomBytes } from 'node:crypto';
 import { signPayload, verifyPayload } from '@/lib/auth/hmac';
 
 /** What a token bearer may do. MUST match the `token_capability` DB enum exactly. */
@@ -23,6 +26,18 @@ export interface ClientTokenClaims {
   clientId: string;
   ownerId: string;
   capability: TokenCapability;
+  // Per-link random nonce (D1). Persisted in the token row; folded into the
+  // signature so a re-mint reproduces the value ONLY while the stored nonce is
+  // unchanged, and a rotate/revoke makes the old value unresolvable forever.
+  nonce: string;
+}
+
+/**
+ * A fresh, unguessable per-link nonce (128 bits, hex). Generated ONCE per link and
+ * persisted; do not regenerate on an idempotent re-mint (that would change the URL).
+ */
+export function generateTokenNonce(): string {
+  return randomBytes(16).toString('hex');
 }
 
 /** A weak HMAC key is unacceptable — same bar as the operator session (FIX 4). */
@@ -71,6 +86,7 @@ export async function signClientToken(
       clientId: claims.clientId,
       ownerId: claims.ownerId,
       capability: claims.capability,
+      nonce: claims.nonce,
     },
     secret,
   );
@@ -90,13 +106,15 @@ export async function verifyClientToken(
   if (!secret || secret.length < MIN_SECRET_LENGTH) return null;
   const payload = await verifyPayload(token, secret);
   if (!payload) return null;
-  const { clientId, ownerId, capability } = payload;
+  const { clientId, ownerId, capability, nonce } = payload;
   if (
     typeof clientId === 'string' &&
     typeof ownerId === 'string' &&
-    isCapability(capability)
+    isCapability(capability) &&
+    typeof nonce === 'string' &&
+    nonce.length > 0
   ) {
-    return { clientId, ownerId, capability };
+    return { clientId, ownerId, capability, nonce };
   }
   return null;
 }

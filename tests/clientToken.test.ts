@@ -16,6 +16,7 @@ const CLAIMS: ClientTokenClaims = {
   clientId: '11111111-1111-1111-1111-111111111111',
   ownerId: '22222222-2222-2222-2222-222222222222',
   capability: 'book-client',
+  nonce: 'a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6',
 };
 
 describe('client booking token (HMAC)', () => {
@@ -24,10 +25,37 @@ describe('client booking token (HMAC)', () => {
     expect(await verifyClientToken(token, SECRET)).toEqual(CLAIMS);
   });
 
-  it('is DETERMINISTIC — same claims produce the same token (one stable link per client)', async () => {
+  it('signing is a pure function — the SAME claims (incl. nonce) produce the same token', async () => {
     const a = await signClientToken(CLAIMS, SECRET);
     const b = await signClientToken(CLAIMS, SECRET);
     expect(a).toBe(b);
+  });
+
+  it('D1: a different nonce yields a DIFFERENT token (rotation produces a new link)', async () => {
+    const a = await signClientToken(CLAIMS, SECRET);
+    const b = await signClientToken(
+      { ...CLAIMS, nonce: 'f0e1d2c3b4a5968778695a4b3c2d1e0f' },
+      SECRET,
+    );
+    expect(a).not.toBe(b);
+    // The verified claims carry the nonce back, so the row can pin the current one (D1).
+    expect((await verifyClientToken(b, SECRET))?.nonce).toBe(
+      'f0e1d2c3b4a5968778695a4b3c2d1e0f',
+    );
+  });
+
+  it('D1: rejects a validly-signed token that carries no nonce (fail-closed)', async () => {
+    // HMAC-valid payload but missing the required nonce claim — must be rejected so a
+    // pre-D1 (nonce-less) token can never resolve.
+    const noNonce = await signPayload(
+      {
+        clientId: CLAIMS.clientId,
+        ownerId: CLAIMS.ownerId,
+        capability: CLAIMS.capability,
+      },
+      SECRET,
+    );
+    expect(await verifyClientToken(noNonce, SECRET)).toBeNull();
   });
 
   it('is unguessable/non-enumerable — adjacent client ids yield unrelated tokens', async () => {

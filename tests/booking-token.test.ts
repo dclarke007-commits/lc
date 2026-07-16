@@ -12,10 +12,14 @@ import {
   getOwnerId,
   getCapacitySettings,
   listJobsFrom,
-  upsertClientToken,
   findTokenByValue,
 } from '../lib/db/queries';
-import { ensureClientToken, resolveBookingView } from '../lib/domain/booking';
+import {
+  ensureClientToken,
+  rotateClientToken,
+  revokeClientToken,
+  resolveBookingView,
+} from '../lib/domain/booking';
 import { signClientToken, getClientTokenSecret } from '../lib/auth/clientToken';
 import { DEFAULT_CAPACITY, type CapacityConfig } from '../lib/domain/capacityConfig';
 import { localDateKey, weekRangeOfDate } from '../lib/domain/clock';
@@ -146,7 +150,12 @@ describe('Client booking token surface (Story 3.1)', () => {
     // cross into another owner's rows).
     const secret = getClientTokenSecret();
     const foreign = await signClientToken(
-      { clientId: clientA, ownerId: crypto.randomUUID(), capability: 'book-client' },
+      {
+        clientId: clientA,
+        ownerId: crypto.randomUUID(),
+        capability: 'book-client',
+        nonce: 'deadbeefdeadbeefdeadbeefdeadbeef',
+      },
       secret,
     );
     expect((await resolveBookingView(foreign)).ok).toBe(false);
@@ -155,7 +164,12 @@ describe('Client booking token surface (Story 3.1)', () => {
   it('AC3: a non-per-client capability (book-public) cannot drive the per-client view', async () => {
     const secret = getClientTokenSecret();
     const publicish = await signClientToken(
-      { clientId: clientA, ownerId, capability: 'book-public' },
+      {
+        clientId: clientA,
+        ownerId,
+        capability: 'book-public',
+        nonce: 'cafebabecafebabecafebabecafebabe',
+      },
       secret,
     );
     expect((await resolveBookingView(publicish)).ok).toBe(false);
@@ -178,17 +192,51 @@ describe('Client booking token surface (Story 3.1)', () => {
     expect(res.view.clientName).toBe('Bob B');
   });
 
-  it('P1: re-minting with a changed signature REFRESHES the row (secret rotation heals, no stale token)', async () => {
-    // Simulate a rotated CLIENT_TOKEN_SECRET: same (owner, client, capability) but a
-    // different signed string. upsert must DO UPDATE (not DO NOTHING) so the stored
-    // token_value becomes the new one — the old link stops resolving, and re-mint never
-    // returns a stale token. Still exactly one live link.
+  it('P1/D1: ensureClientToken HEALS a stale stored token (secret rotation) via the same nonce', async () => {
     await ensureClientToken(ownerId, clientA);
-    const rotated = `rotated.${'x'.repeat(24)}`;
-    const row = await upsertClientToken(ownerId, clientA, rotated, 'book-client');
-    expect(row.tokenValue).toBe(rotated);
+    const [row0] = await db.select().from(token).where(eq(token.clientId, clientA));
+    // Stand in for a rotated CLIENT_TOKEN_SECRET: the stored value no longer verifies.
+    const stale = `stale.${'x'.repeat(24)}`;
+    await db
+      .update(token)
+      .set({ tokenValue: stale })
+      .where(eq(token.clientId, clientA));
+
+    const healed = await ensureClientToken(ownerId, clientA);
+    // A fresh, VALID link — not the stale stored string — and it resolves.
+    expect(healed).not.toBe(stale);
+    expect((await resolveBookingView(healed)).ok).toBe(true);
+    // Nonce (identity) preserved across the heal; still exactly one live row.
     const rows = await db.select().from(token).where(eq(token.clientId, clientA));
     expect(rows).toHaveLength(1);
-    expect(await findTokenByValue(rotated)).toBeDefined();
+    expect(rows[0].nonce).toBe(row0.nonce);
+    expect(await findTokenByValue(healed)).toBeDefined();
+  });
+
+  it('D1: rotateClientToken issues a NEW link and the OLD one stops resolving (durable reissue)', async () => {
+    const before = await ensureClientToken(ownerId, clientB);
+    expect((await resolveBookingView(before)).ok).toBe(true);
+
+    const after = await rotateClientToken(ownerId, clientB);
+    expect(after).not.toBe(before);
+    expect((await resolveBookingView(before)).ok).toBe(false); // old (leaked) link dead
+    expect((await resolveBookingView(after)).ok).toBe(true); // new link works
+    const rows = await db.select().from(token).where(eq(token.clientId, clientB));
+    expect(rows).toHaveLength(1); // still exactly one live link
+  });
+
+  it('D1: revoke is DURABLE — a re-mint after revoke does NOT resurrect the old link', async () => {
+    const leaked = await ensureClientToken(ownerId, clientA);
+    expect((await resolveBookingView(leaked)).ok).toBe(true);
+
+    expect(await revokeClientToken(ownerId, clientA)).toBe(true);
+    expect((await resolveBookingView(leaked)).ok).toBe(false); // revoked, fails closed
+
+    // Re-minting (e.g. Story 3.3 regenerating links) creates a FRESH nonce → a new
+    // value; the deleted/leaked link can never come back (the pre-D1 resurrection bug).
+    const reminted = await ensureClientToken(ownerId, clientA);
+    expect(reminted).not.toBe(leaked);
+    expect((await resolveBookingView(leaked)).ok).toBe(false); // still dead
+    expect((await resolveBookingView(reminted)).ok).toBe(true);
   });
 });

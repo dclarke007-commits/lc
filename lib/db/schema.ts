@@ -352,6 +352,14 @@ export const token = pgTable(
     // The signed, unguessable token STRING (base64url(payload).base64url(hmac)).
     // Stored + UNIQUE so resolution is an O(1) lookup and re-minting is idempotent.
     tokenValue: text('token_value').notNull(),
+    // Per-link random nonce, folded INTO the signed payload (code-review D1,
+    // 2026-07-16). Without it the signature is a pure function of
+    // {client,owner,capability}, so a re-mint reproduces a revoked (deleted) link
+    // verbatim — revocation isn't durable. The nonce is generated once, PERSISTED
+    // here, and reused on every idempotent re-mint (so the link stays stable);
+    // rotating it (rotateClientToken) mints a genuinely new link and kills the old.
+    // App-set to match the signed payload — deliberately NO DB default.
+    nonce: text('nonce').notNull(),
     // What the bearer may do — exactly one capability (AD-6). Stored AND carried in
     // the HMAC claim; verification requires the two to agree.
     capability: tokenCapability('capability').notNull(),

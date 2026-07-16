@@ -16,12 +16,16 @@ import {
   getClientTokenSecret,
   signClientToken,
   verifyClientToken,
+  generateTokenNonce,
   type TokenCapability,
   type ClientTokenClaims,
 } from '@/lib/auth/clientToken';
 import {
   findTokenByValue,
-  upsertClientToken,
+  findClientToken,
+  insertClientTokenIfAbsent,
+  rotateClientTokenRow,
+  deleteClientToken,
   getClient,
   getCapacitySettings,
   listJobsFrom,
@@ -34,28 +38,100 @@ import { weekCapacity, nearestOpen } from '@/lib/domain/derive';
 const PER_CLIENT_CAPABILITY: TokenCapability = 'book-client';
 
 /**
- * Mint + persist the ONE stable per-client booking link (Task 2). The signature is
- * deterministic over {clientId, ownerId, capability}, and the row upsert is idempotent
- * on (owner, client, capability), so calling this repeatedly for a client yields the
- * SAME token every time — one live link per client. Revoke later by deleting the row.
- * Returns the token string to embed in the client's URL.
+ * Return the ONE stable per-client booking link, creating it on first call (Task 2 /
+ * code-review D1). READ-OR-CREATE, not upsert: if a row already exists we return its
+ * stored token verbatim — so calling this repeatedly (e.g. Story 3.3 regenerating links
+ * to send) yields the SAME URL and, crucially, can NEVER resurrect a rotated/revoked
+ * link. Only a first mint signs, folding in a fresh persisted random nonce (D1) so the
+ * signature is unguessable and revocation is durable. Returns the token to embed in the
+ * client's URL. Revoke with revokeClientToken; reissue with rotateClientToken.
  */
 export async function ensureClientToken(
   ownerId: string,
   clientId: string,
 ): Promise<string> {
   const secret = getClientTokenSecret();
+  const existing = await findClientToken(
+    ownerId,
+    clientId,
+    PER_CLIENT_CAPABILITY,
+  );
+  if (existing) {
+    // Stable link: return the stored value AS LONG AS it still verifies. If the
+    // CLIENT_TOKEN_SECRET was rotated, the stored signature no longer validates —
+    // re-sign with the SAME persisted nonce (identity unchanged, D1 durability kept)
+    // and refresh the row so the client is never handed a dead link (heals rotation,
+    // Story 3.1 P1). A stale row does NOT resurrect a revoked link: revocation deletes
+    // the row, so this branch is never reached for a revoked client.
+    if (await verifyClientToken(existing.tokenValue, secret)) {
+      return existing.tokenValue;
+    }
+    const healed = await signClientToken(
+      { clientId, ownerId, capability: PER_CLIENT_CAPABILITY, nonce: existing.nonce },
+      secret,
+    );
+    const row = await rotateClientTokenRow(
+      ownerId,
+      clientId,
+      healed,
+      PER_CLIENT_CAPABILITY,
+      existing.nonce,
+    );
+    return row.tokenValue;
+  }
+
+  const nonce = generateTokenNonce();
   const tokenValue = await signClientToken(
-    { clientId, ownerId, capability: PER_CLIENT_CAPABILITY },
+    { clientId, ownerId, capability: PER_CLIENT_CAPABILITY, nonce },
     secret,
   );
-  const row = await upsertClientToken(
+  const row = await insertClientTokenIfAbsent(
     ownerId,
     clientId,
     tokenValue,
     PER_CLIENT_CAPABILITY,
+    nonce,
   );
   return row.tokenValue;
+}
+
+/**
+ * Rotate the client's link (D1 durable reissue): mint a fresh nonce → a genuinely NEW
+ * token value and overwrite the row. The previously-issued link (possibly leaked) stops
+ * resolving immediately and forever, while the client gets a working new URL. Returns
+ * the new token string. Use when a link may be compromised but the client should keep
+ * booking access.
+ */
+export async function rotateClientToken(
+  ownerId: string,
+  clientId: string,
+): Promise<string> {
+  const secret = getClientTokenSecret();
+  const nonce = generateTokenNonce();
+  const tokenValue = await signClientToken(
+    { clientId, ownerId, capability: PER_CLIENT_CAPABILITY, nonce },
+    secret,
+  );
+  const row = await rotateClientTokenRow(
+    ownerId,
+    clientId,
+    tokenValue,
+    PER_CLIENT_CAPABILITY,
+    nonce,
+  );
+  return row.tokenValue;
+}
+
+/**
+ * Revoke the client's link (D1): delete the row so the token fails closed on the next
+ * request even though its HMAC is still valid. Durable — a later ensureClientToken mints
+ * a brand-new nonce/value, never the deleted one. Returns true if a link was removed.
+ */
+export async function revokeClientToken(
+  ownerId: string,
+  clientId: string,
+): Promise<boolean> {
+  return deleteClientToken(ownerId, clientId, PER_CLIENT_CAPABILITY);
 }
 
 /** A genuinely-open day the client may book (day under cap AND week under ceiling). */
@@ -114,13 +190,17 @@ export async function resolveTokenClaims(
   if (!claims.clientId || !claims.ownerId) return null;
 
   // 3. Revocation: the row must exist AND agree with the signed claims. A deleted row
-  // (revoked link) or any mismatch fails closed here.
+  // (revoked link) or any mismatch fails closed here. The nonce agreement (D1) makes a
+  // rotated link's OLD value fail closed even in the unreachable case that its string
+  // ever re-collided — the row now carries the CURRENT nonce, and a superseded token
+  // embeds the old one.
   const row = await findTokenByValue(tokenValue);
   if (
     !row ||
     row.ownerId !== claims.ownerId ||
     row.clientId !== claims.clientId ||
-    row.capability !== claims.capability
+    row.capability !== claims.capability ||
+    row.nonce !== claims.nonce
   ) {
     return null;
   }
