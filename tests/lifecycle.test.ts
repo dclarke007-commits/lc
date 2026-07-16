@@ -15,6 +15,7 @@ import { consumesSlot } from '../lib/domain/capacity';
 import {
   markCompleted,
   markNoShow,
+  markCancelled,
   correctOutcome,
 } from '../lib/domain/lifecycle';
 
@@ -128,22 +129,51 @@ describe('lifecycle state machine (Story 1.5)', () => {
     expect(result.data.completedAt).toBeNull();
   });
 
-  // --- AC3 correction: resurrecting a terminal state back to booked is legal ---
-  it('correction no-show→booked is legal (AC3)', async () => {
+  // --- Story 1.6 (D2): resurrection back to `booked` is now CLOSED. It used to
+  // re-consume a slot with NO cap/ceiling recheck (keystone bug); both paths are
+  // now illegal-transition and write nothing. ---
+  it('no-show→booked resurrection is illegal (D2 closed, Story 1.6)', async () => {
     const j = await insertJob('no-show');
     const result = await correctOutcome(ownerId, j.id, 'booked');
-    expect(result.ok).toBe(true);
-    if (!result.ok) return;
-    expect(result.data.completion).toBe('booked');
-    expect(result.data.completedAt).toBeNull();
+    expect(result).toEqual({ ok: false, reason: 'illegal-transition' });
+    expect((await readJob(j.id))?.completion).toBe('no-show'); // untouched
   });
 
-  it('correction cancelled→booked is legal (AC3)', async () => {
+  it('cancelled→booked resurrection is illegal (D2 closed, Story 1.6)', async () => {
     const j = await insertJob('cancelled');
     const result = await correctOutcome(ownerId, j.id, 'booked');
+    expect(result).toEqual({ ok: false, reason: 'illegal-transition' });
+    expect((await readJob(j.id))?.completion).toBe('cancelled'); // untouched
+  });
+
+  // --- Story 1.6 (D1): completed→booked is NOT AD-10-legal — rejected, unchanged. ---
+  it('completed→booked correction is illegal (D1 closed, AD-10 quote-exact)', async () => {
+    const j = await insertJob('completed');
+    const before = await readJob(j.id);
+    const result = await correctOutcome(ownerId, j.id, 'booked');
+    expect(result).toEqual({ ok: false, reason: 'illegal-transition' });
+    const row = await readJob(j.id);
+    expect(row?.completion).toBe('completed'); // untouched
+    expect(row?.completedAt).toBe(before?.completedAt);
+  });
+
+  // --- Story 1.6 (Task 1): cancel a booked job → cancelled, frees the slot. ---
+  it('markCancelled booked→cancelled frees the slot, keeps completed_at null (Task 1)', async () => {
+    const j = await insertJob('booked');
+    const result = await markCancelled(ownerId, j.id);
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.data.completion).toBe('booked');
+    expect(result.data.completion).toBe('cancelled');
+    expect(result.data.completedAt).toBeNull();
+    // cancelled does NOT consume — the slot frees automatically (AD-2/AD-7).
+    expect(consumesSlot(result.data)).toBe(false);
+  });
+
+  it('markCancelled on a no-show → illegal-transition, row unchanged (Task 1)', async () => {
+    const j = await insertJob('no-show');
+    const result = await markCancelled(ownerId, j.id);
+    expect(result).toEqual({ ok: false, reason: 'illegal-transition' });
+    expect((await readJob(j.id))?.completion).toBe('no-show'); // untouched
   });
 
   // --- AC3: an illegal correction target is rejected, nothing written ---

@@ -6,7 +6,13 @@
 
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
-import { getOwnerJobs, markOutcome, correctOutcome } from './actions';
+import {
+  getOwnerJobs,
+  markOutcome,
+  correctOutcome,
+  cancelJob,
+  rescheduleJob,
+} from './actions';
 import { lifecycleErrorMessage } from '@/lib/domain/lifecycleErrors';
 
 export const dynamic = 'force-dynamic';
@@ -24,6 +30,20 @@ async function submitOutcome(formData: FormData): Promise<void> {
 async function submitCorrection(formData: FormData): Promise<void> {
   'use server';
   const result = await correctOutcome(formData);
+  if (!result.ok) redirect(`/jobs?error=${result.reason}`);
+  redirect('/jobs?done=1');
+}
+
+async function submitCancel(formData: FormData): Promise<void> {
+  'use server';
+  const result = await cancelJob(formData);
+  if (!result.ok) redirect(`/jobs?error=${result.reason}`);
+  redirect('/jobs?done=1');
+}
+
+async function submitReschedule(formData: FormData): Promise<void> {
+  'use server';
+  const result = await rescheduleJob(formData);
   if (!result.ok) redirect(`/jobs?error=${result.reason}`);
   redirect('/jobs?done=1');
 }
@@ -51,9 +71,17 @@ const COMPLETION_LABEL: Record<string, string> = {
 /** The outcome/correction controls for one job, chosen by its current state. */
 function JobControls({ id, completion }: { id: string; completion: string }) {
   if (completion === 'booked') {
-    // NORMAL marks.
+    // NORMAL marks + cancel + reschedule (Story 1.6). Cancel frees the slot
+    // (cancelled does not consume); reschedule moves the row under the cap check.
     return (
-      <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
+      <div
+        style={{
+          display: 'flex',
+          gap: '0.4rem',
+          flexWrap: 'wrap',
+          alignItems: 'center',
+        }}
+      >
         <form action={submitOutcome}>
           <input type="hidden" name="jobId" value={id} />
           <input type="hidden" name="outcome" value="completed" />
@@ -66,6 +94,28 @@ function JobControls({ id, completion }: { id: string; completion: string }) {
           <input type="hidden" name="outcome" value="no-show" />
           <button type="submit" style={btn}>
             Mark no-show
+          </button>
+        </form>
+        <form action={submitCancel}>
+          <input type="hidden" name="jobId" value={id} />
+          <button type="submit" style={btn}>
+            Cancel
+          </button>
+        </form>
+        <form
+          action={submitReschedule}
+          style={{ display: 'flex', gap: '0.25rem', alignItems: 'center' }}
+        >
+          <input type="hidden" name="jobId" value={id} />
+          <input
+            type="date"
+            name="newDate"
+            required
+            aria-label="New date"
+            style={{ padding: '0.35rem', fontSize: '0.9rem' }}
+          />
+          <button type="submit" style={btn}>
+            Move
           </button>
         </form>
       </div>

@@ -13,8 +13,10 @@ import { ok, fail, type ActionResult } from '@/lib/domain/result';
 import {
   markCompleted,
   markNoShow,
+  markCancelled,
   correctOutcome as correctOutcomeLifecycle,
 } from '@/lib/domain/lifecycle';
+import { reschedule } from '@/lib/domain/capacity';
 
 /** Owner's jobs for the jobs surface (owner-scoped read). */
 export async function getOwnerJobs(): Promise<JobListItem[]> {
@@ -88,6 +90,59 @@ export async function correctOutcome(
   }
 
   const result = await correctOutcomeLifecycle(ownerId, jobId, to);
+  if (!result.ok) return result;
+
+  revalidatePath('/jobs');
+  return ok(result.data);
+}
+
+/**
+ * Cancel a booked job (FR41). Reads jobId, resolves the owner fail-closed, and
+ * delegates to lifecycle.markCancelled (booked→cancelled). The freed slot
+ * reappears in capacity automatically — room-left is derived-on-read (AD-7), so
+ * there is no counter to adjust here. Typed AR15.
+ */
+export async function cancelJob(
+  formData: FormData,
+): Promise<ActionResult<Job>> {
+  const jobId = String(formData.get('jobId') ?? '').trim();
+
+  let ownerId: string;
+  try {
+    ownerId = await getOwnerId();
+  } catch (err) {
+    console.error('[jobs] getOwnerId failed', err);
+    return fail('owner-unresolved');
+  }
+
+  const result = await markCancelled(ownerId, jobId);
+  if (!result.ok) return result;
+
+  revalidatePath('/jobs');
+  return ok(result.data);
+}
+
+/**
+ * Reschedule a booked job to a new date (FR41), atomically under the cap check.
+ * Reads jobId + newDate, resolves the owner fail-closed, and delegates the
+ * transaction + destination-week lock + cap re-check + move to capacity.reschedule
+ * (AD-12/AD-2/AD-3). Writes nothing on reject. Typed AR15.
+ */
+export async function rescheduleJob(
+  formData: FormData,
+): Promise<ActionResult<Job>> {
+  const jobId = String(formData.get('jobId') ?? '').trim();
+  const newDate = String(formData.get('newDate') ?? '').trim();
+
+  let ownerId: string;
+  try {
+    ownerId = await getOwnerId();
+  } catch (err) {
+    console.error('[jobs] getOwnerId failed', err);
+    return fail('owner-unresolved');
+  }
+
+  const result = await reschedule({ ownerId, jobId, newDate });
   if (!result.ok) return result;
 
   revalidatePath('/jobs');

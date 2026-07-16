@@ -4,12 +4,10 @@
 // enforced in exactly one place.
 //
 // State machine (AD-10):
-//   NORMAL   (from `booked` only):  booked → completed | no-show
-//   CORRECTION (explicit operator override — the ONLY exit from a
-//               terminal/completed state):
-//                 completed → cancelled | booked
-//                 no-show   → booked
-//                 cancelled → booked
+//   NORMAL     (from `booked`):  booked → completed | no-show | cancelled
+//   CORRECTION (explicit operator override):  completed → cancelled
+//   `no-show` and `cancelled` are TERMINAL (see LEGAL_TRANSITIONS for why the
+//   resurrection paths are closed).
 // It is a small whitelist by design — arbitrary transitions are NOT opened.
 //
 // completed_at: set to now() ONLY when transitioning TO `completed`; cleared to
@@ -43,10 +41,17 @@ type Completion = (typeof COMPLETIONS)[number];
 // The ONE legal-transition whitelist (AD-10). current → allowed targets. Anything
 // not listed is rejected as illegal-transition, writing nothing.
 const LEGAL_TRANSITIONS: Record<Completion, readonly Completion[]> = {
-  booked: ['completed', 'no-show'], // NORMAL marks
-  completed: ['cancelled', 'booked'], // CORRECTION out of completed
-  'no-show': ['booked'], // CORRECTION: resurrect a mistaken no-show
-  cancelled: ['booked'], // CORRECTION: resurrect a mistaken cancel
+  // AD-10 NORMAL marks + cancel (Story 1.6): booked → completed | no-show | cancelled.
+  booked: ['completed', 'no-show', 'cancelled'],
+  // AD-10 permits ONLY completed → cancelled out of completed. completed → booked
+  // is NOT in the invariant (was D1) — removed in Story 1.6 for quote-exactness.
+  completed: ['cancelled'],
+  // Terminal. Resurrection → booked re-consumes a slot with NO cap/ceiling recheck
+  // (was D2, keystone bug) — closed fail-closed in Story 1.6. To undo a mistaken
+  // cancel/no-show today, re-book (commitBooking is cap-checked) or reschedule; a
+  // capacity-checked resurrection can be re-opened in a later story if needed.
+  'no-show': [],
+  cancelled: [],
 };
 
 function canTransition(from: string, to: string): boolean {
@@ -124,15 +129,30 @@ export function markNoShow(
 }
 
 /**
+ * Cancel a booked job: booked → cancelled (Story 1.6, FR41). `cancelled` does NOT
+ * consume (consumesSlot false), so the slot is released automatically — room-left
+ * / day-maxed recompute on read with no stored counter to decrement (AD-7).
+ * completed_at stays null. A cancelled job is NOT counted `completed` for lapse
+ * (FR17) or repeat-rate (Epic 3). Only a booked job can be cancelled here; any
+ * other source state → illegal-transition, writing nothing.
+ */
+export function markCancelled(
+  ownerId: string,
+  jobId: string,
+): Promise<ActionResult<Job>> {
+  return transition(ownerId, jobId, 'cancelled');
+}
+
+/**
  * Explicit operator CORRECTION path. `to` is validated against the SAME
  * legal-transition whitelist as the normal marks — this function shares
  * `transition()` and adds no separate guard, so the whitelist alone decides
- * legality. In practice the correction UI only surfaces this on terminal/
- * completed rows; a booked row's normal targets (completed/no-show) also pass
- * here, so callers must not rely on this function to *reject* normal marks.
- * An illegal target is rejected as illegal-transition, writing nothing. A
- * completed→cancelled correction frees the slot automatically (cancelled does
- * not consume).
+ * legality. After Story 1.6 the only correction the whitelist still permits is
+ * completed → cancelled (booked's normal targets also pass here, so callers must
+ * not rely on this function to *reject* normal marks). An illegal target — e.g.
+ * any resurrection back to `booked` — is rejected as illegal-transition, writing
+ * nothing. A completed→cancelled correction frees the slot automatically
+ * (cancelled does not consume).
  */
 export function correctOutcome(
   ownerId: string,

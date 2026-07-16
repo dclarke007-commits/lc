@@ -13,7 +13,7 @@
 // — it speaks to the db client. Surfaces NEVER reach here directly; they call the
 // Server Action, which calls commitBooking.
 
-import { and, eq, gte, lt, inArray, sql } from 'drizzle-orm';
+import { and, eq, ne, gte, lt, inArray, sql } from 'drizzle-orm';
 import { db } from '@/lib/db/client';
 import { job, capacitySettings, client } from '@/lib/db/schema';
 import type { Job } from '@/lib/db/schema';
@@ -84,6 +84,76 @@ function weekRange(dateStr: string): { monday: string; nextMonday: string } {
     monday: shiftDate(dateStr, -(wd - 1)),
     nextMonday: shiftDate(dateStr, 8 - wd),
   };
+}
+
+// Shared under-lock helpers so the capacity RULE lives in ONE place (AD-2) and is
+// reused by both commitBooking (INSERT a new slot) and reschedule (MOVE an
+// existing one). The tx type is derived from db.transaction's callback param so
+// the helpers run inside the caller's transaction + advisory lock.
+type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+/**
+ * The operator's persisted capacity config, or the domain defaults on first run
+ * (single source, AR16 — never re-hardcode 3/14/Mon–Sat downstream).
+ */
+async function resolveConfig(tx: Tx, ownerId: string): Promise<CapacityConfig> {
+  const [settings] = await tx
+    .select()
+    .from(capacitySettings)
+    .where(eq(capacitySettings.ownerId, ownerId))
+    .limit(1);
+  return settings
+    ? {
+        workingDays: settings.workingDays,
+        perDayCap: settings.perDayCap,
+        weeklyCeiling: settings.weeklyCeiling,
+        defaultJobPriceCents: settings.defaultJobPriceCents,
+        timezone: settings.timezone,
+      }
+    : DEFAULT_CAPACITY;
+}
+
+/**
+ * Count CONSUMING jobs (AD-2) on `date`'s day and its Mon–Sun week, optionally
+ * EXCLUDING one job id — the job being MOVED in a reschedule, so it is never
+ * counted against itself (a same-week move must not be blocked by its own slot).
+ * The ONE capacity-counting rule; both commitBooking and reschedule call it under
+ * the week-scoped advisory lock.
+ */
+async function countConsuming(
+  tx: Tx,
+  ownerId: string,
+  date: string,
+  monday: string,
+  nextMonday: string,
+  excludeJobId?: string,
+): Promise<{ dayCount: number; weekCount: number }> {
+  const consuming = [...CONSUMING_COMPLETIONS];
+  const notSelf = excludeJobId ? [ne(job.id, excludeJobId)] : [];
+  const [dayRow] = await tx
+    .select({ c: sql<number>`count(*)::int` })
+    .from(job)
+    .where(
+      and(
+        eq(job.ownerId, ownerId),
+        eq(job.date, date),
+        inArray(job.completion, consuming),
+        ...notSelf,
+      ),
+    );
+  const [weekRow] = await tx
+    .select({ c: sql<number>`count(*)::int` })
+    .from(job)
+    .where(
+      and(
+        eq(job.ownerId, ownerId),
+        gte(job.date, monday),
+        lt(job.date, nextMonday),
+        inArray(job.completion, consuming),
+        ...notSelf,
+      ),
+    );
+  return { dayCount: dayRow.c, weekCount: weekRow.c };
 }
 
 export interface CommitBookingInput {
@@ -166,20 +236,7 @@ export async function commitBooking(
 
       // Config = the operator's persisted capacity, or the domain defaults on
       // first-run (single source, AR16 — never re-hardcode 3/14/Mon–Sat).
-      const [settings] = await tx
-        .select()
-        .from(capacitySettings)
-        .where(eq(capacitySettings.ownerId, ownerId))
-        .limit(1);
-      const config: CapacityConfig = settings
-        ? {
-            workingDays: settings.workingDays,
-            perDayCap: settings.perDayCap,
-            weeklyCeiling: settings.weeklyCeiling,
-            defaultJobPriceCents: settings.defaultJobPriceCents,
-            timezone: settings.timezone,
-          }
-        : DEFAULT_CAPACITY;
+      const config = await resolveConfig(tx, ownerId);
 
       // Availability gates — NOT capacity, so the cap override never bypasses
       // them. Reject a non-working weekday, and a date already past in the
@@ -193,30 +250,13 @@ export async function commitBooking(
       }
 
       // Re-check BOTH caps under the lock, counting only consuming jobs (AD-2).
-      const consuming = [...CONSUMING_COMPLETIONS];
-      const [dayRow] = await tx
-        .select({ c: sql<number>`count(*)::int` })
-        .from(job)
-        .where(
-          and(
-            eq(job.ownerId, ownerId),
-            eq(job.date, date),
-            inArray(job.completion, consuming),
-          ),
-        );
-      const [weekRow] = await tx
-        .select({ c: sql<number>`count(*)::int` })
-        .from(job)
-        .where(
-          and(
-            eq(job.ownerId, ownerId),
-            gte(job.date, monday),
-            lt(job.date, nextMonday),
-            inArray(job.completion, consuming),
-          ),
-        );
-      const dayCount = dayRow.c;
-      const weekCount = weekRow.c;
+      const { dayCount, weekCount } = await countConsuming(
+        tx,
+        ownerId,
+        date,
+        monday,
+        nextMonday,
+      );
       const overCap =
         dayCount >= config.perDayCap || weekCount >= config.weeklyCeiling;
 
@@ -248,5 +288,112 @@ export async function commitBooking(
     // AR15: fail closed with a machine reason, but log for observability.
     console.error('[capacity] commitBooking failed', err);
     return fail('booking-failed');
+  }
+}
+
+export interface RescheduleInput {
+  ownerId: string;
+  jobId: string;
+  newDate: string; // operator-local 'YYYY-MM-DD'
+  now?: Date; // "now" for the past-date check; injectable for tests
+}
+
+/**
+ * Reschedule a BOOKED job to newDate, atomically under the destination-week cap
+ * check (AD-12/AD-2/AD-3). The row MOVES (its `date` changes) — identity/history
+ * are preserved and `completion` is NEVER touched, so lifecycle stays the sole
+ * completion writer (AD-10). The original slot frees automatically: once the row
+ * sits on newDate, its old day/week simply no longer count it (derive-on-read,
+ * AD-7 — no stored counter to decrement).
+ *
+ * Only the DESTINATION week is locked. Freeing the source slot can never breach a
+ * cap, so the source week needs no lock; the destination is serialized on the
+ * SAME (owner, week-monday) advisory key commitBooking uses, so a concurrent
+ * booking/reschedule into that week can't race the cap past its limit (AD-3).
+ *
+ * Idempotent: moving to the date the job already occupies is a no-op success.
+ * Capacity is never transiently double-held or lost — the single UPDATE both
+ * frees the old slot and claims the new one in one statement (AD-12).
+ */
+export async function reschedule(
+  input: RescheduleInput,
+): Promise<ActionResult<Job>> {
+  const { ownerId, jobId, newDate } = input;
+
+  // Request-shape validation (no DB). Reject before opening a transaction.
+  if (!isRealDate(newDate)) return fail('date-invalid');
+  // A non-UUID id can never match a real row — treat as job-not-found rather than
+  // letting Postgres throw a uuid-syntax error out of the transaction.
+  if (!UUID_RE.test(jobId)) return fail('job-not-found');
+
+  const { monday, nextMonday } = weekRange(newDate);
+  const now = input.now ?? new Date();
+
+  try {
+    return await db.transaction(async (tx) => {
+      // NOTE: as in commitBooking, returning fail() COMMITS an empty transaction
+      // (drizzle only rolls back on a THROWN error). Every reject path below runs
+      // before the UPDATE, so nothing is written on reject.
+
+      // AD-3: lock the DESTINATION week (owner, newWeekMonday) — the same key
+      // commitBooking uses — so the cap re-check + move serialize against any
+      // concurrent claim into that week.
+      await tx.execute(
+        sql`select pg_advisory_xact_lock(hashtext(${ownerId}), hashtext(${monday}))`,
+      );
+
+      // Load + row-lock the job (owner-scoped, AD-8). Only a BOOKED job can move.
+      const [current] = await tx
+        .select()
+        .from(job)
+        .where(and(eq(job.ownerId, ownerId), eq(job.id, jobId)))
+        .for('update')
+        .limit(1);
+      if (!current) return fail('job-not-found');
+      if (current.completion !== 'booked') return fail('not-reschedulable');
+
+      // Idempotent no-op: already on the requested date. Return the row unchanged
+      // — a double-tapped reschedule can never double-consume (it is one row).
+      if (current.date === newDate) return ok(current);
+
+      const config = await resolveConfig(tx, ownerId);
+
+      // Availability gates (same as commitBooking) — NOT capacity, so they are
+      // always enforced. Can't move onto a non-working weekday or into the past
+      // in the operator's local tz (AD-9). "Today" is allowed.
+      if (!config.workingDays.includes(isoWeekdayOf(newDate))) {
+        return fail('non-working-day');
+      }
+      if (newDate < localDateKey(now, config.timezone)) {
+        return fail('date-past');
+      }
+
+      // Cap re-check on the DESTINATION, EXCLUDING this job so an intra-week move
+      // is not blocked by the job's own current slot. Per-day is the narrower
+      // reason, so it wins when both are full. Reschedule never overrides (AC2).
+      const { dayCount, weekCount } = await countConsuming(
+        tx,
+        ownerId,
+        newDate,
+        monday,
+        nextMonday,
+        jobId,
+      );
+      if (dayCount >= config.perDayCap) return fail('day-maxed');
+      if (weekCount >= config.weeklyCeiling) return fail('week-full');
+
+      // One UPDATE frees the old slot and claims the new one — capacity is never
+      // transiently double-held or lost (AD-12). completion is left untouched.
+      const [row] = await tx
+        .update(job)
+        .set({ date: newDate })
+        .where(and(eq(job.ownerId, ownerId), eq(job.id, jobId)))
+        .returning();
+      return ok(row);
+    });
+  } catch (err) {
+    // AR15: fail closed with a machine reason, but log for observability.
+    console.error('[capacity] reschedule failed', err);
+    return fail('reschedule-failed');
   }
 }
