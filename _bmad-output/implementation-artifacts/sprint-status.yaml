@@ -55,7 +55,7 @@ development_status:
   1-3-configure-availability-caps: done
   1-4-direct-booking-cap-enforcement-one-winner-concurrency: done
   1-5-mark-job-outcome-completed-no-show: review
-  1-6-cancel-reschedule-capacity-release: review
+  1-6-cancel-reschedule-capacity-release: done
   1-7-forecasting-lite-room-left-day-maxed-nearest-open: ready-for-dev
   epic-1-retrospective: optional
 

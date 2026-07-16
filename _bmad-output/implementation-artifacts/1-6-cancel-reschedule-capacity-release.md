@@ -4,7 +4,7 @@ baseline_commit: 9a416135f11ea1b0b7233b4ed91bd6f534d353c2
 
 # Story 1.6: Cancel & reschedule with capacity release
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
