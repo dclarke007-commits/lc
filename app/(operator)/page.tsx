@@ -23,6 +23,7 @@ export default async function DashboardPage() {
       </p>
       <nav style={{ marginTop: '1rem', display: 'flex', gap: '1rem' }}>
         <Link href="/clients">Clients</Link>
+        <Link href="/bookings">Book a job</Link>
         <Link href="/settings">Availability &amp; caps</Link>
       </nav>
     </main>

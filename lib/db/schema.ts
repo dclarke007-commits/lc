@@ -11,6 +11,8 @@ import {
   uuid,
   text,
   integer,
+  boolean,
+  date,
   timestamp,
   uniqueIndex,
   index,
@@ -131,3 +133,70 @@ export const capacitySettings = pgTable(
 
 export type CapacitySettingsRow = typeof capacitySettings.$inferSelect;
 export type NewCapacitySettings = typeof capacitySettings.$inferInsert;
+
+// Job lifecycle status (AD-2). `booked|completed|no-show` consume capacity;
+// `cancelled` does not — but capacity.consumesSlot() is the ONE predicate that
+// decides that (never re-derive the set elsewhere). Insert-as-`booked`; the
+// completed/no-show/cancelled transitions land in Stories 1.5/1.6.
+export const jobCompletion = pgEnum('job_completion', [
+  'booked',
+  'completed',
+  'no-show',
+  'cancelled',
+]);
+
+// Payment state (Epic 5 ledger). A new booking is `owed` until marked paid.
+export const jobPayment = pgEnum('job_payment', ['paid', 'owed']);
+
+// Job (Story 1.4, FR9/FR39) — a booked slot. A row in `jobs` ALWAYS represents
+// consumed capacity per consumesSlot (AD-2). Inserted only by
+// capacity.commitBooking inside one transaction under the day-scoped advisory
+// lock (AD-3). `date` is the operator-local scheduled CALENDAR day (no tz — a
+// cleaning is "on the 20th"); per-day and weekly-14 counts are calendar
+// arithmetic over it. `created_at`/`completed_at` are instants → UTC (AD-9).
+export const job = pgTable(
+  'job',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    // AD-8 tenancy seam — owner_id FK on every row, scoped on every query.
+    ownerId: uuid('owner_id')
+      .notNull()
+      .references(() => operator.id, { onDelete: 'restrict' }),
+    clientId: uuid('client_id')
+      .notNull()
+      .references(() => client.id, { onDelete: 'restrict' }),
+    // Operator-local scheduled calendar day, 'YYYY-MM-DD'. NOT an instant.
+    date: date('date', { mode: 'string' }).notNull(),
+    completion: jobCompletion('completion').notNull().default('booked'),
+    payment: jobPayment('payment').notNull().default('owed'),
+    // FR39 override flag — true when the booking was committed past a full cap.
+    // Feeds the overbooking counter-metric. Never a separate insert path (AD-2).
+    overridden: boolean('overridden').notNull().default(false),
+    // Money as integer cents, USD (AR16). Defaulted from capacity config at
+    // commit time (domain single source), never a DB column default.
+    priceCents: integer('price_cents').notNull(),
+    // AD-12 idempotency — per booking-attempt key (operator-direct: a hidden
+    // per-form nonce). A repeat submit with the same key returns the same Job.
+    idempotencyKey: text('idempotency_key').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
+      .defaultNow()
+      .notNull(),
+    // Set when the job is marked completed (Story 1.5); null while `booked`.
+    completedAt: timestamp('completed_at', {
+      withTimezone: true,
+      mode: 'string',
+    }),
+  },
+  (t) => [
+    // Reads are owner-scoped (AD-8). The (owner, date) composite serves the
+    // per-day and weekly-14 capacity counts inside commitBooking.
+    index('job_owner_date_idx').on(t.ownerId, t.date),
+    index('job_client_id_idx').on(t.clientId),
+    // AD-12: at most one Job per (owner, idempotency_key) — the DB backstop for
+    // idempotent commitBooking. A repeat attempt can never create a second row.
+    uniqueIndex('job_owner_idempotency_uq').on(t.ownerId, t.idempotencyKey),
+  ],
+);
+
+export type Job = typeof job.$inferSelect;
+export type NewJob = typeof job.$inferInsert;
