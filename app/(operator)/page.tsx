@@ -138,6 +138,7 @@ export default async function DashboardPage() {
         <Link href="/clients">Clients</Link>
         <Link href="/bookings">Book a job</Link>
         <Link href="/jobs">Jobs</Link>
+        <Link href="/link">Public link</Link>
         <Link href="/settings">Availability &amp; caps</Link>
       </nav>
     </main>

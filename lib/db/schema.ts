@@ -380,6 +380,15 @@ export const token = pgTable(
       t.clientId,
       t.capability,
     ),
+    // Exactly ONE public token per owner (Story 4.1, AD-6). The index above CANNOT
+    // enforce this: Postgres treats NULL client_id values as DISTINCT, so multiple
+    // book-public rows (all client_id NULL) would coexist under it. This PARTIAL
+    // unique index scopes to the client-less rows only — at most one per
+    // (owner, capability) where client_id IS NULL. The public insert/rotate upsert
+    // uses this as the conflict arbiter (targetWhere client_id IS NULL).
+    uniqueIndex('token_owner_public_uq')
+      .on(t.ownerId, t.capability)
+      .where(sql`${t.clientId} is null`),
   ],
 );
 

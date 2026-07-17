@@ -38,6 +38,7 @@ import {
 import { deepLink, type DeliveryChannel } from '@/lib/delivery/deeplink';
 import { recordDispatch } from '@/app/(operator)/draft/actions';
 import { ensureClientToken } from '@/lib/domain/booking';
+import { bookingBaseUrl } from '@/lib/domain/urls';
 import { localDateKey, weekRangeOfDate, formatDateKey } from '@/lib/domain/clock';
 import {
   DEFAULT_CAPACITY,
@@ -207,21 +208,8 @@ export interface RebookProposal {
 // never produce a draft (code-review P2).
 const REBOOKABLE_COMPLETIONS = new Set(['booked', 'completed']);
 
-/**
- * The absolute origin for the client-facing booking link, hardened (code-review P4).
- * Strips a trailing slash so we never emit `//book/…`. In production APP_BASE_URL is
- * REQUIRED: when unset we FAIL CLOSED rather than hand a real client a localhost link.
- * In dev/test an unset var keeps the `http://localhost:3000` default. Returns a typed
- * result so the caller surfaces `base-url-unset` instead of a broken URL.
- */
-function bookingBaseUrl(): ActionResult<string> {
-  const raw = process.env.APP_BASE_URL;
-  if (!raw) {
-    if (process.env.NODE_ENV === 'production') return fail('base-url-unset');
-    return ok('http://localhost:3000');
-  }
-  return ok(raw.replace(/\/+$/, ''));
-}
+// bookingBaseUrl now lives in lib/domain/urls.ts (shared with Story 4.1's public
+// link surface) — imported above.
 
 /**
  * Story 3.3 — the one-tap rebooking PROPOSAL (FR10/FR11), mirroring

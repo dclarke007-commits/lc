@@ -12,6 +12,7 @@
 // exists (fail closed).
 
 import { resolveBookingView } from '@/lib/domain/booking';
+import { resolvePublicBookingView } from '@/lib/domain/publicToken';
 import { formatDateKey } from '@/lib/domain/clock';
 import { confirmBooking } from './actions';
 
@@ -49,6 +50,51 @@ export default async function BookPage({
 }) {
   const { token } = await params;
   const { booked, error } = await searchParams;
+
+  // Story 4.1 — the ONE public self-serve token, resolved FIRST. A per-client token
+  // fails verifyPublicToken fast (distinct PUBLIC_TOKEN_SECRET + the book-public
+  // capability guard) with no DB hit, then falls through to the per-client path below.
+  // The public surface is VIEW-ONLY here: a stranger sees the operator's open days, but
+  // the submission (→ provisional client + PendingRequest) is Story 4.2, so no confirm
+  // form is rendered — the slots are non-interactive.
+  const publicResult = await resolvePublicBookingView(token);
+  if (publicResult.ok) {
+    const { openSlots, nextOpen } = publicResult.view;
+    return (
+      <main style={mainStyle}>
+        <h1 style={{ fontSize: '1.25rem' }}>Book a cleaning</h1>
+        <p style={{ color: '#555' }}>Here are our open days this week:</p>
+
+        {openSlots.length > 0 ? (
+          <ul style={{ listStyle: 'none', padding: 0, margin: '1rem 0' }}>
+            {openSlots.map((slot) => (
+              <li
+                key={slot.date}
+                style={{
+                  ...slotButtonStyle,
+                  cursor: 'default',
+                  marginBottom: '0.5rem',
+                }}
+              >
+                {WEEKDAY_LABEL[slot.isoWeekday]} · {formatDateKey(slot.date)}
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p style={{ color: '#555', margin: '1rem 0' }}>
+            No open days this week.
+            {nextOpen ? ` Next opening: ${formatDateKey(nextOpen)}.` : ''}
+          </p>
+        )}
+
+        <p style={{ color: '#888', fontSize: '0.9rem', marginTop: '1rem' }}>
+          To request one of these days, get in touch — online requests are coming
+          soon.
+        </p>
+      </main>
+    );
+  }
+
   const result = await resolveBookingView(token);
 
   // Fail closed: one generic message for every failure mode (invalid signature,

@@ -508,3 +508,119 @@ export async function findTokenByValue(
     .limit(1);
   return row;
 }
+
+// --- Public token (Story 4.1, AD-6) — the ONE client-less booking token ------
+// Siblings of the per-client helpers above, for the lone public token whose
+// client_id IS NULL. Because client_id is NULL, the (owner, client, capability)
+// unique key cannot dedupe them (NULLs distinct) — so these use the PARTIAL unique
+// index token_owner_public_uq (owner, capability WHERE client_id IS NULL) as the
+// conflict arbiter (targetWhere), guaranteeing exactly one public token per owner.
+
+/**
+ * The one live public token row, or undefined. Owner-scoped read (AD-8) on the
+ * client-less rows only (client_id IS NULL) — the read half of ensurePublicToken's
+ * read-or-create, returning the existing link verbatim (stable URL, D1).
+ */
+export async function findPublicToken(
+  ownerId: string,
+  capability: Token['capability'],
+): Promise<Token | undefined> {
+  const [row] = await db
+    .select()
+    .from(token)
+    .where(
+      and(
+        eq(token.ownerId, ownerId),
+        isNull(token.clientId),
+        eq(token.capability, capability),
+      ),
+    )
+    .limit(1);
+  return row;
+}
+
+/**
+ * Create the public token row ONLY if one does not already exist (race-safe first
+ * mint). `onConflictDoNothing` on the PARTIAL index (targetWhere client_id IS NULL)
+ * + `returning()` yields the just-inserted row, or nothing when a concurrent insert
+ * won — in which case we return the existing row. NEVER overwrites (that is
+ * rotatePublicTokenRow's job), so the URL stays stable on every re-mint (D1).
+ */
+export async function insertPublicTokenIfAbsent(
+  ownerId: string,
+  tokenValue: string,
+  capability: Token['capability'],
+  nonce: string,
+): Promise<Token> {
+  const [row] = await db
+    .insert(token)
+    .values({ ownerId, clientId: null, tokenValue, capability, nonce })
+    .onConflictDoNothing({
+      target: [token.ownerId, token.capability],
+      where: isNull(token.clientId),
+    })
+    .returning();
+  if (row) return row;
+  // Lost the first-mint race — the concurrent insert is the live link. It exists by the
+  // conflict we just hit; but if it was revoked in the interim (F3), re-mint upstream
+  // rather than cast undefined to Token.
+  const existing = await findPublicToken(ownerId, capability);
+  if (!existing) {
+    throw new Error('public token vanished after insert conflict (concurrent revoke)');
+  }
+  return existing;
+}
+
+/**
+ * Rotate the public link: overwrite `token_value` + `nonce` with a freshly-signed,
+ * fresh-nonce value (creating the row if absent) on the PARTIAL-index conflict.
+ * Durable revoke-and-reissue (D1): the old `token_value` is replaced, so the
+ * previously-issued (possibly leaked) link stops resolving forever. Owner-scoped.
+ */
+export async function rotatePublicTokenRow(
+  ownerId: string,
+  tokenValue: string,
+  capability: Token['capability'],
+  nonce: string,
+  // Heal-only guard (F2): when provided, the upsert UPDATE only fires if the row still
+  // holds this value — so a concurrent rotatePublicToken (which already changed it) WINS
+  // and the heal becomes a no-op (returns undefined) instead of clobbering the fresh
+  // link back to a stale value. Omitted for a genuine rotate (always overwrite).
+  expectedTokenValue?: string,
+): Promise<Token | undefined> {
+  const [row] = await db
+    .insert(token)
+    .values({ ownerId, clientId: null, tokenValue, capability, nonce })
+    .onConflictDoUpdate({
+      target: [token.ownerId, token.capability],
+      targetWhere: isNull(token.clientId),
+      set: { tokenValue, nonce },
+      ...(expectedTokenValue
+        ? { setWhere: eq(token.tokenValue, expectedTokenValue) }
+        : {}),
+    })
+    .returning();
+  return row;
+}
+
+/**
+ * Revoke the public link by deleting its (client-less) row — verification then fails
+ * closed even though the HMAC is still valid. Returns true if a row was removed.
+ * Owner-scoped (AD-8). Durable (D1): a later ensurePublicToken mints a NEW nonce → a
+ * NEW value; the deleted link never returns.
+ */
+export async function deletePublicToken(
+  ownerId: string,
+  capability: Token['capability'],
+): Promise<boolean> {
+  const result = await db
+    .delete(token)
+    .where(
+      and(
+        eq(token.ownerId, ownerId),
+        isNull(token.clientId),
+        eq(token.capability, capability),
+      ),
+    );
+  return (result.rowCount ?? 0) > 0;
+}

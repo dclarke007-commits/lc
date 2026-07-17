@@ -27,12 +27,8 @@ import {
   rotateClientTokenRow,
   deleteClientToken,
   getClient,
-  getCapacitySettings,
-  listJobsFrom,
 } from '@/lib/db/queries';
-import { DEFAULT_CAPACITY, type CapacityConfig } from '@/lib/domain/capacityConfig';
-import { localDateKey, weekRangeOfDate } from '@/lib/domain/clock';
-import { weekCapacity, nearestOpen } from '@/lib/domain/derive';
+import { deriveOwnerOpenWeek, type OpenSlot } from '@/lib/domain/openWeek';
 
 /** The per-client capability minted here (view one client's slots + book them, 3.2). */
 const PER_CLIENT_CAPABILITY: TokenCapability = 'book-client';
@@ -134,11 +130,8 @@ export async function revokeClientToken(
   return deleteClientToken(ownerId, clientId, PER_CLIENT_CAPABILITY);
 }
 
-/** A genuinely-open day the client may book (day under cap AND week under ceiling). */
-export interface OpenSlot {
-  date: string; // operator-local 'YYYY-MM-DD'
-  isoWeekday: number; // 1=Mon..7=Sun
-}
+/** Back-compat re-export: OpenSlot now lives in openWeek.ts (the shared derive). */
+export type { OpenSlot };
 
 /** The client-facing view: one client's open slots for the current operator week. */
 export interface BookingView {
@@ -227,51 +220,13 @@ export async function resolveBookingView(
   const client = await getClient(claims.ownerId, claims.clientId);
   if (!client) return INVALID;
 
-  // Genuinely-open slots: the operator's config + this-week-forward jobs, owner-scoped,
-  // fed to the pure Story 1.7 derive. Defaults on first-run (no settings row) come from
-  // the domain, never the DB (single source, AR16). Wrapped in try/catch (code-review
-  // P2): a corrupt/invalid config.timezone makes localDateKey's Intl.DateTimeFormat
-  // throw — on this PUBLIC surface that must fail closed to the generic invalid-link,
-  // never surface a 500 (AD-6 fail-closed), so we log and return INVALID.
-  try {
-    const settings = await getCapacitySettings(claims.ownerId);
-    const config: CapacityConfig = settings
-      ? {
-          workingDays: settings.workingDays,
-          perDayCap: settings.perDayCap,
-          weeklyCeiling: settings.weeklyCeiling,
-          defaultJobPriceCents: settings.defaultJobPriceCents,
-          timezone: settings.timezone,
-        }
-      : DEFAULT_CAPACITY;
+  // Genuinely-open slots via the SHARED Story 1.7 derive (openWeek.ts) — the same
+  // availability the public view shows, computed ONCE. Returns null (fail-closed) on a
+  // corrupt config.timezone or any read fault, so this PUBLIC surface renders the
+  // generic invalid-link, never a 500 (AD-6). Attach the client name (the only thing
+  // the per-client view adds over the public view).
+  const week = await deriveOwnerOpenWeek(claims.ownerId);
+  if (!week) return INVALID;
 
-    const today = localDateKey(new Date(), config.timezone);
-    const { monday } = weekRangeOfDate(today);
-    const jobs = await listJobsFrom(claims.ownerId, monday);
-    const week = weekCapacity(jobs, config, today);
-
-    const openSlots: OpenSlot[] = week.days
-      .filter((d) => d.open)
-      .map((d) => ({ date: d.date, isoWeekday: d.isoWeekday }));
-
-    // When this week has no open day, offer the single next open working day (FR28),
-    // so a saturated week still points the client somewhere bookable.
-    const nextOpen =
-      openSlots.length === 0 ? (nearestOpen(jobs, config, today)[0] ?? null) : null;
-
-    return {
-      ok: true,
-      view: {
-        clientName: client.name,
-        timezone: config.timezone,
-        weekStart: week.weekStart,
-        weekEnd: week.weekEnd,
-        openSlots,
-        nextOpen,
-      },
-    };
-  } catch (err) {
-    console.error('[booking] resolveBookingView slot derivation failed', err);
-    return INVALID;
-  }
+  return { ok: true, view: { clientName: client.name, ...week } };
 }
