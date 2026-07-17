@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "operator_singleton" ON "operator" USING btree ((true));

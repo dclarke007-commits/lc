@@ -1,0 +1,160 @@
+<section class="lens" id="lens-wild-10x">
+  <div class="lens-head"><span class="lens-num">10</span><div><h2>Wild / 10x</h2><p class="lens-blurb">Absurd swings taken without permission to be reasonable, where a few of them quietly stop being jokes and become the actual breakthrough.</p></div></div>
+  <div class="idea-grid">
+
+    <article class="idea">
+      <h3>Franchise-in-a-Box</h3>
+      <p class="essence">Stop selling cleans; sell the operating system to every other solo cleaner.</p>
+      <div class="meta">
+        <p><span class="k">How it works</span> The booking-plus-dashboard she runs her own business on gets packaged as a licensable product: any solo cleaner signs up, gets the same card-on-file auto-charge, route-aware scheduling, geo-referral engine, and per-job flywheel pre-configured for their zip code. She charges a flat monthly license or a small per-job fee, and onboarding is a guided setup wizard, not a sales call. Her own operation becomes the reference implementation and case study that sells the tool.</p>
+        <p><span class="k">Why it wins solo</span> This is the real 10x: her revenue stops being capped by how many houses one person can physically clean and starts compounding across hundreds of cleaners who each run with zero back-office of their own. Growth is pure product distribution with no ad spend once the first cohort refers peers.</p>
+        <p><span class="k">Watch-out</span> Becoming a software company is a different job than cleaning, with support, billing, and reliability obligations she may not want; the tool must be genuinely self-serve before it can be licensed.</p>
+        <p class="build"><span class="k">Build note</span> Do not build for multi-tenancy on day one. Harden the single-operator app first, then later refactor to tenant-scoped accounts. MVP proof: onboard one friendly second cleaner manually and see if the system survives without her touching it.</p>
+      </div>
+    </article>
+
+    <article class="idea">
+      <h3>The Cleaner Co-op</h3>
+      <p class="essence">A metro network of solo cleaners who trade overflow and cover each other's vacations.</p>
+      <div class="meta">
+        <p><span class="k">How it works</span> Independent cleaners opt into a shared pool inside the app. When one is fully booked or going on holiday, her jobs are offered to trusted nearby co-op members at an agreed split, with the originating cleaner keeping a referral cut and her client relationship intact. Ratings and job history follow each cleaner so quality stays consistent, and the geofenced job sheet hands the covering cleaner the exact preferences and gate codes.</p>
+        <p><span class="k">Why it wins solo</span> It directly kills the two worst solo failure modes: turning away revenue when overbooked, and losing clients (or income) during time off. The co-op manufactures continuity and repeat revenue without her ever hiring staff or carrying payroll.</p>
+        <p><span class="k">Watch-out</span> Quality and trust are fragile in a shared pool; one bad cover job can burn a client relationship she spent years building. Splits and dispute handling need clear rules up front.</p>
+        <p class="build"><span class="k">Build note</span> Later-stage, and it rides on the same multi-tenant plumbing as Franchise-in-a-Box. MVP the human version first: a vetted group chat of three local cleaners plus a simple job-handoff link before any automated matching.</p>
+      </div>
+    </article>
+
+    <article class="idea">
+      <h3>The Home Clean Score</h3>
+      <p class="essence">A gamified cleanliness index the client watches climb, turning a chore into a streak.</p>
+      <div class="meta">
+        <p><span class="k">How it works</span> Each visit generates a per-home score derived from before/after photos, time since last clean, and areas covered, shown to the client as a rising number with a little history graph. Skipping or stretching between cleans nudges the score down, creating a visible, emotional reason to keep the recurring cadence. The score lives on the client's profile and updates automatically at job completion.</p>
+        <p><span class="k">Why it wins solo</span> It is a retention hook that runs itself: clients rebook to protect a number they have grown attached to, which manufactures repeat revenue with no chasing. The scoring is a byproduct of the before/after photos she already captures, so it costs her no extra effort.</p>
+        <p><span class="k">Watch-out</span> A score that feels arbitrary or judgmental can backfire and shame clients; it must read as playful progress, never as a report card on their housekeeping.</p>
+        <p class="build"><span class="k">Build note</span> Start with a dead-simple rules-based score (days-since-clean plus rooms-done) surfaced in the client's rebook prompt. Reserve AI photo-grading of cleanliness for a later version once the loop is proven.</p>
+      </div>
+    </article>
+
+    <article class="idea">
+      <h3>The Signature Scent</h3>
+      <p class="essence">A single memorable smell she leaves behind that becomes the brand you can't unsmell.</p>
+      <div class="meta">
+        <p><span class="k">How it works</span> She standardizes one distinctive, pleasant finishing scent applied at the end of every clean, so walking into a freshly cleaned home instantly and subconsciously signals her brand. It is Instagrammable and talk-about-able, and the app can surface it as a named perk ("finished with our signature scent") on the booking page and in the post-job recap. The scent becomes shorthand for "the house is clean."</p>
+        <p><span class="k">Why it wins solo</span> It is free organic marketing baked into the physical product: the clean itself does the advertising, and the sensory memory drives repeat bookings and word-of-mouth referrals at zero ad spend. Differentiation in a design-less, smell-less category is cheap and durable.</p>
+        <p><span class="k">Watch-out</span> Scent is polarizing; allergies, sensitivities, and pets mean it must be opt-out (or opt-in) and stored in the client preferences profile, or it turns delight into complaints.</p>
+        <p class="build"><span class="k">Build note</span> Near-zero tech: buy one consistent product and add a scent preference toggle to the client profile. The only "build" is a preferences field and one line of copy on the booking page.</p>
+      </div>
+    </article>
+
+    <article class="idea">
+      <h3>Eco Supply Restock Box</h3>
+      <p class="essence">A plant-based supply subscription restocked at the client's home on her schedule.</p>
+      <div class="meta">
+        <p><span class="k">How it works</span> Clients subscribe to a recurring box of eco-friendly consumables (dish soap, wipes, sprays) that she replenishes during her regular visits, so the client never runs out and never shops for it. Orders and inventory are tracked in the dashboard against each recurring job, and the box is billed to the card on file alongside the clean. It piggybacks entirely on visits that are already happening.</p>
+        <p><span class="k">Why it wins solo</span> Ancillary recurring revenue with no extra trip: it raises revenue-per-client and deepens lock-in without ad spend, and the auto-charge model means zero invoicing. Prepaid supply revenue can also float her own equipment costs.</p>
+        <p><span class="k">Watch-out</span> Carrying inventory and margins on physical goods is a real operational drag; misjudged stock or delivery becomes waste and cash tied up. Keep the SKU list tiny.</p>
+        <p class="build"><span class="k">Build note</span> Later-stage add-on. MVP is a single "supply box" line item toggled on a client's recurring plan and charged with the clean; skip real logistics software until demand is proven.</p>
+      </div>
+    </article>
+
+    <article class="idea">
+      <h3>Watch-It-Live Timelapse</h3>
+      <p class="essence">Anxious clients watch their home transform in a live (or replayable) timelapse.</p>
+      <div class="meta">
+        <p><span class="k">How it works</span> With client consent, she runs a phone or clip-on camera during the clean that streams or records a sped-up timelapse the remote client can watch or replay afterward. It reassures people who are nervous about a stranger in their home while they are away, and the finished timelapse doubles as shareable before/after proof for the portfolio. The clip attaches to the job record and the payment/review recap.</p>
+        <p><span class="k">Why it wins solo</span> Trust and delight are the whole game for a solo operator with no brand behind her; watching the transformation converts skeptics and produces organic, highly visual referral content for free. It turns the intangible ("did she really clean well?") into undeniable evidence.</p>
+        <p><span class="k">Watch-out</span> Privacy is a minefield: recording inside someone's home demands explicit consent, careful storage, and a clear no-record default, or it destroys trust instead of building it.</p>
+        <p class="build"><span class="k">Build note</span> Later feature and consent-gated. MVP without any streaming infra: a phone timelapse app plus a client toggle, with the finished clip uploaded to the job's photo gallery.</p>
+      </div>
+    </article>
+
+    <article class="idea">
+      <h3>AI Clean Coach</h3>
+      <p class="essence">Tiny between-visit upkeep tips that keep her brand in the client's mind every day.</p>
+      <div class="meta">
+        <p><span class="k">How it works</span> An AI assistant sends clients short, genuinely useful micro-tips between cleans ("wipe the shower door tonight and next week's clean goes twice as fast"), personalized to their home and cadence. Each touch keeps her brand present daily without being salesy, and every message can quietly carry a rebook or referral nudge. Tips are generated from the client's job history and preferences already in the dashboard.</p>
+        <p><span class="k">Why it wins solo</span> It manufactures top-of-mind retention with zero manual effort and zero ad spend, turning the gap between visits into a relationship instead of silence. Staying useful daily is what converts a one-off client into a lifelong recurring one.</p>
+        <p><span class="k">Watch-out</span> The line between helpful and annoying is thin; over-messaging trains clients to mute her. Frequency and easy opt-out matter more than cleverness.</p>
+        <p class="build"><span class="k">Build note</span> MVP is a small rotating library of hand-written tips on a schedule, no AI required. Layer LLM personalization later once you know which tips actually drive rebooks.</p>
+      </div>
+    </article>
+
+    <article class="idea">
+      <h3>The Monthly Eco Report</h3>
+      <p class="essence">A values receipt: "only plant-based products used in your home this month."</p>
+      <div class="meta">
+        <p><span class="k">How it works</span> Each month the app auto-generates a short personalized report reinforcing the client's values, tallying plant-based products used, and framing their clean as an environmental choice. It is assembled from job data already captured and delivered by email or text with no manual authoring. The report doubles as a gentle re-engagement touch and a shareable, values-signaling artifact.</p>
+        <p><span class="k">Why it wins solo</span> Values-based retention is sticky and price-insulating: clients who clean with her for ethical reasons churn less and resist competing on price, protecting margin without ad spend. It is a Spotify-Wrapped-style recurring nudge generated entirely from existing data.</p>
+        <p><span class="k">Watch-out</span> Any eco claim must be true and specific, or it reads as greenwashing and erodes the exact trust it aims to build. Substance has to back the report.</p>
+        <p class="build"><span class="k">Build note</span> Low effort, templated. MVP is a monthly automated email populated from job counts and product tags. Ties directly to the existing per-job flywheel; build after core auto-charge and reviews.</p>
+      </div>
+    </article>
+
+    <article class="idea">
+      <h3>Neighborhood Group-Buy</h3>
+      <p class="essence">Three houses on one street book the same day; everyone saves, so does her drive.</p>
+      <div class="meta">
+        <p><span class="k">How it works</span> The app lets neighbors co-schedule: when three homes on the same street book the same day, each gets a group discount, and she batches them into a single low-drive route. A shareable "get your street a discount" link lets one client recruit their neighbors, and the booking flow auto-detects address proximity to suggest a shared slot. Density is engineered on purpose.</p>
+        <p><span class="k">Why it wins solo</span> It fuses marketing and route-efficiency into one lever: neighbors sell to neighbors at zero ad cost, and the clustered day means more jobs with less driving and higher effective hourly rate. Tight geographic density is the solo operator's biggest efficiency and referral multiplier.</p>
+        <p><span class="k">Watch-out</span> Coordinating multiple households onto one date is logistically fiddly; a single reschedule can unravel the batch, and the discount must not erode margin below the drive-time savings.</p>
+        <p class="build"><span class="k">Build note</span> Ride on route-aware scheduling already planned. MVP: a referral link that flags same-street bookings and applies a manual discount; automate the proximity matching later.</p>
+      </div>
+    </article>
+
+    <article class="idea">
+      <h3>The 12-Clean Reward</h3>
+      <p class="essence">Loyalty tiers that gift a free oven or fridge deep-clean after twelve visits.</p>
+      <div class="meta">
+        <p><span class="k">How it works</span> The dashboard tracks each client's completed-visit count and automatically unlocks a milestone reward, a free high-value add-on like an oven or fridge deep-clean, at twelve cleans. The client sees a progress meter counting toward the reward, creating a reason to maintain the streak, and the redemption is scheduled straight into a normal visit. It is a punch card that runs itself.</p>
+        <p><span class="k">Why it wins solo</span> The reward is cheap to give but hugely retentive: it costs her one extra task on a visit she is already making, while locking in a dozen recurring jobs of predictable revenue with no ad spend. Progress-toward-reward is a proven anti-churn mechanic.</p>
+        <p><span class="k">Watch-out</span> Reward economics must pencil out; if the free deep-clean eats too much time or gets over-promised, the loyalty perk becomes a loss leader that resents itself.</p>
+        <p class="build"><span class="k">Build note</span> Very low effort: a visit counter plus a milestone flag and a progress bar in the client view. Pure dashboard logic, no new tooling; build alongside the rebook prompt.</p>
+      </div>
+    </article>
+
+    <article class="idea">
+      <h3>Move-Out Concierge</h3>
+      <p class="essence">Partner with local movers so every booked move auto-attaches a move-out clean.</p>
+      <div class="meta">
+        <p><span class="k">How it works</span> She integrates with local moving companies so that when a customer books a move, a white-glove move-out (or move-in) clean is offered and auto-scheduled as an add-on, handed off directly into her calendar. The mover becomes a referral channel that delivers pre-qualified, high-intent jobs at the exact moment cleaning is top-of-mind. Booking, preferences, and payment flow through her normal system.</p>
+        <p><span class="k">Why it wins solo</span> It is a B2B referral pipeline that fills her calendar with premium one-off jobs at zero ad spend, riding on someone else's customer acquisition. Move-out cleans are high-margin and demand-inelastic (people must clean to get deposits back).</p>
+        <p><span class="k">Watch-out</span> Partner-dependent channels are fragile and can create scheduling spikes she can't staff solo; a mover's busy season may swamp her capacity cap.</p>
+        <p class="build"><span class="k">Build note</span> Later-stage, relationship-led. MVP needs no integration: a shared booking link and a referral-split agreement with one local mover. Build API hooks only after the partnership proves out.</p>
+      </div>
+    </article>
+
+    <article class="idea">
+      <h3>15-Second Voice Handoffs</h3>
+      <p class="essence">Per-client spoken notes ("watch the loose stair rail"), searchable on the day.</p>
+      <div class="meta">
+        <p><span class="k">How it works</span> After or during a visit she records a quick 15-second voice note tied to that client, capturing the human details that never make it into forms, transcribed and searchable, surfaced on the geofenced job sheet next time she's at that address. It preserves institutional memory hands-free while gloved and wet, and makes every subsequent clean smarter and safer. The notes compound into a rich per-home profile.</p>
+        <p><span class="k">Why it wins solo</span> It is the data moat in practice: accumulated per-home knowledge makes her clean better than any competitor's first visit, driving reviews, referrals, and retention. Voice capture fits the reality of her hands being busy, so the knowledge actually gets recorded.</p>
+        <p><span class="k">Watch-out</span> Voice notes rot into an unsearchable pile without good transcription and surfacing; if they don't reappear at the right moment, the effort is wasted.</p>
+        <p class="build"><span class="k">Build note</span> MVP: record voice memos attached to the client record with on-device transcription; surface the latest notes when the geofenced job sheet opens. Keyword search is a fast follow.</p>
+      </div>
+    </article>
+
+    <article class="idea">
+      <h3>Clean-Now Surge</h3>
+      <p class="essence">Same-day emergency cleans booked instantly at 2x, high margin on demand.</p>
+      <div class="meta">
+        <p><span class="k">How it works</span> A "clean now" option lets clients book an urgent same-day clean at a premium (roughly 2x), shown only when her route and capacity can actually absorb it. The app checks the day's schedule and drive time before offering the slot, and the surcharge is auto-charged to the card on file. It monetizes the panic-clean moment (surprise guests, a landlord inspection) that people will gladly pay a premium for.</p>
+        <p><span class="k">Why it wins solo</span> It converts otherwise-idle gaps into her highest-margin revenue with zero acquisition cost, and the premium price protects her from racing to the bottom. Scarcity plus urgency lets a solo operator earn more from fewer hours.</p>
+        <p><span class="k">Watch-out</span> Surge bookings can wreck an optimized route or push her past the burnout capacity cap if the availability logic is loose; it must respect the hard daily limit.</p>
+        <p class="build"><span class="k">Build note</span> Depends on route-aware scheduling and the capacity cap being in place first. MVP: a same-day request that only appears when a real gap exists, priced at a fixed multiplier and auto-charged.</p>
+      </div>
+    </article>
+
+    <article class="idea">
+      <h3>The Referral Leaderboard</h3>
+      <p class="essence">Top referrer each quarter wins a free clean; clients become her sales team.</p>
+      <div class="meta">
+        <p><span class="k">How it works</span> The app tracks how many new clients each customer refers and ranks them on a quarterly leaderboard, with the top referrer earning a free clean. Referral links are one-tap shareable, standings update live to fuel friendly competition, and rewards redeem automatically into a scheduled visit. It gamifies the two-sided referral loop already in the system.</p>
+        <p><span class="k">Why it wins solo</span> It turns her existing clients into an unpaid, motivated sales force, manufacturing referral revenue with no ad spend and a reward that costs her only one visit per quarter. Competition amplifies the viral loop far beyond a passive "refer a friend" link.</p>
+        <p><span class="k">Watch-out</span> Leaderboards can feel gimmicky or expose that a client has few friends to refer; keep it opt-in and low-pressure so it delights rather than embarrasses.</p>
+        <p class="build"><span class="k">Build note</span> Low effort on top of existing referral tracking: a referral counter, a ranked view, and a quarterly reset. Build after the two-sided referral discount is live so there is data to rank.</p>
+      </div>
+    </article>
+
+  </div>
+</section>

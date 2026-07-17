@@ -1,0 +1,2 @@
+DROP INDEX "job_owner_idempotency_uq";--> statement-breakpoint
+CREATE UNIQUE INDEX "job_owner_idempotency_uq" ON "job" USING btree ("owner_id","idempotency_key") WHERE "job"."completion" in ('booked', 'completed', 'no-show');

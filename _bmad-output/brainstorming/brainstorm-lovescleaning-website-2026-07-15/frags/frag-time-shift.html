@@ -1,0 +1,94 @@
+<section class="lens" id="lens-time-shift">
+  <div class="lens-head"><span class="lens-num">06</span><div><h2>Future — 2030 Time-Shift</h2><p class="lens-blurb">Designing the operation from where voice AI, computer vision, smart-locks, and local discovery are clearly heading — so today's build is already living in that future.</p></div></div>
+  <div class="idea-grid">
+
+    <article class="idea">
+      <h3>The Voice That Never Sleeps</h3>
+      <p class="essence">An AI phone agent in her own voice answers every call and books or reschedules — she never touches the phone.</p>
+      <div class="meta">
+        <p><span class="k">How it works</span> Inbound calls route to a voice AI (cloned from a short recording of her) that greets callers, checks live calendar availability, quotes from the client's history, and confirms or moves an appointment on the spot. Missed-call moments — the ones that lose jobs — become booked jobs automatically, with a texted confirmation and a summary logged to the client record.</p>
+        <p><span class="k">Why it wins solo</span> The single biggest leak for a one-person cleaner is being mid-clean, gloved, and unable to answer — this captures those callers with zero back-office staff and zero ad spend, since every recovered call is a job that would otherwise have gone to a competitor.</p>
+        <p><span class="k">Watch-out</span> A robotic or off-brand voice erodes trust fast; callers must be told it's an assistant, and complex edge cases need a clean human-callback fallback.</p>
+        <p class="build"><span class="k">Build note</span> Later-stage. MVP is a simple after-hours voicemail-to-text + auto-reply booking link; graduate to a Vapi/Retell/Bland-style voice agent with ElevenLabs voice clone wired to the booking calendar once call volume justifies it.</p>
+      </div>
+    </article>
+
+    <article class="idea">
+      <h3>Pan Your Home, Get a Price</h3>
+      <p class="essence">A camera pan of the home yields a firm price and duration instantly — no in-person site visit.</p>
+      <div class="meta">
+        <p><span class="k">How it works</span> The prospect records a short walkthrough video (or panorama) in the booking flow; computer vision estimates square footage, room count, surface types, and clutter level, then maps that to a firm quote and job duration. The quote is bookable in the same screen, so seeing the price and reserving the slot are one continuous motion.</p>
+        <p><span class="k">Why it wins solo</span> It deletes the unpaid drive-out-and-estimate visit that eats a solo operator's day, letting her quote dozens of homes from her phone between jobs — pure throughput with no staff and no lead cost.</p>
+        <p><span class="k">Watch-out</span> Vision estimates can misjudge grime or hidden rooms; quotes need a stated tolerance clause and a light human review before anything auto-firms on tricky jobs.</p>
+        <p class="build"><span class="k">Build note</span> Phased. MVP: customer uploads room photos, she reviews and returns a quote in minutes (human-in-loop). Later: a vision model (GPT-4V / Gemini-class) auto-drafts sqft + time estimates she one-taps to approve.</p>
+      </div>
+    </article>
+
+    <article class="idea">
+      <h3>Keyless by Design</h3>
+      <p class="essence">The client's smart-lock grants one-time access exactly at the booked window — no keys, no lockboxes, no hand-offs.</p>
+      <div class="meta">
+        <p><span class="k">How it works</span> On booking, the client links their smart-lock (August, Yale, Schlage) and the system provisions a time-boxed access code valid only for the scheduled slot. Entry and exit are timestamped into the job record, giving both parties a verifiable log of when she was actually in the home.</p>
+        <p><span class="k">Why it wins solo</span> It removes the fragile key-logistics that make recurring solo cleaning a scheduling nightmare, and the access log doubles as trust proof and dispute protection — reliability that earns the repeat and referral business without any marketing spend.</p>
+        <p><span class="k">Watch-out</span> Fragmented lock ecosystems and giving software access to someone's front door is a real security and liability surface; it must be opt-in with an obvious manual-entry fallback.</p>
+        <p class="build"><span class="k">Build note</span> Later / opt-in. MVP just stores gate/lock/entry notes on the geofenced job sheet; integrate August/Seam.co unified lock APIs for a subset of tech-forward recurring clients once the core booking loop is solid.</p>
+      </div>
+    </article>
+
+    <article class="idea">
+      <h3>It Books Itself Before You Ask</h3>
+      <p class="essence">The system predicts and pre-books recurring seasonal needs — the Hendersons' pre-Thanksgiving deep clean lands on the calendar automatically.</p>
+      <div class="meta">
+        <p><span class="k">How it works</span> It learns each client's cadence and seasonal patterns from history (last year's holiday deep clean, spring refresh, pre-party cleans) and proactively proposes or provisionally holds the slot, sending a one-tap "confirm your usual pre-Thanksgiving deep clean?" prompt. Accepted holds convert to booked jobs; ignored ones quietly expire.</p>
+        <p><span class="k">Why it wins solo</span> It manufactures repeat revenue on autopilot by re-selling before the client even thinks to look elsewhere, filling high-value premium slots with zero outreach effort and zero ad spend — the calendar becomes a self-refilling asset.</p>
+        <p><span class="k">Watch-out</span> Over-aggressive auto-booking feels presumptuous or spammy; predictions must stay proposals-with-easy-decline, not silent charges.</p>
+        <p class="build"><span class="k">Build note</span> Mid-stage, rules-first. MVP: simple date-triggered rebook prompts keyed off last year's job dates. Later: a lightweight model ranking which clients to nudge for which seasonal service.</p>
+      </div>
+    </article>
+
+    <article class="idea">
+      <h3>The Route That Optimizes Itself (and Sells the Green)</h3>
+      <p class="essence">Each day's route auto-sequences for minimum time and fuel — and the EV / green-cleaning angle becomes free marketing.</p>
+      <div class="meta">
+        <p><span class="k">How it works</span> As jobs book, the system re-orders the day by address to minimize drive time and fuel, feeding turn-by-turn order to her phone each morning. The efficiency story — fewer miles, plant-based products, an EV eventually — is surfaced to clients as a low-carbon monthly stat, turning an operational win into a values-based selling point.</p>
+        <p><span class="k">Why it wins solo</span> Tighter routes mean more billable jobs per day from one pair of hands (throughput without hiring), while the green narrative differentiates and retains at no acquisition cost — efficiency and marketing from the same lever.</p>
+        <p><span class="k">Watch-out</span> Route optimization must respect fixed client time windows and her capacity cap, or "efficient" becomes "overbooked and burned out"; green claims must be genuine to avoid greenwashing backlash.</p>
+        <p class="build"><span class="k">Build note</span> MVP-ready. Google Maps / Mapbox Optimization API or even a daily manual reorder gets 80% of the value now; the carbon-stat marketing layer is a later polish bolted onto the Spotify-Wrapped-style recap.</p>
+      </div>
+    </article>
+
+    <article class="idea">
+      <h3>Robot Does the Boring Pass</h3>
+      <p class="essence">A floor bot handles the tedious first pass under her supervision while she does the detail work — more homes per day.</p>
+      <div class="meta">
+        <p><span class="k">How it works</span> She sets a robotic vacuum/mop running the open-floor grunt work while she simultaneously tackles the high-skill detail (kitchens, baths, edges, finishes) that machines can't do. Throughput per visit rises because two "workers" run in parallel from one operator, and the bot's coverage can be logged as part of the job record.</p>
+        <p><span class="k">Why it wins solo</span> It effectively clones part of her labor without payroll, letting one person deliver near-crew output — the productivity unlock that lets a solo business scale revenue without back-office or headcount.</p>
+        <p><span class="k">Watch-out</span> Consumer bots are still slow, get stuck, and handle clutter poorly; over-promising "robotic cleaning" risks under-delivering on the premium, human-quality positioning.</p>
+        <p class="build"><span class="k">Build note</span> Far-horizon / experimental. No software build needed to start — it's an ops experiment with a good robot mop on a few jobs; only later does it warrant a checklist line item or client-facing framing.</p>
+      </div>
+    </article>
+
+    <article class="idea">
+      <h3>Your Reputation, In Your Pocket</h3>
+      <p class="essence">A portable, verifiable job history she owns outright — not locked inside Yelp or any platform.</p>
+      <div class="meta">
+        <p><span class="k">How it works</span> Every completed job, before/after photo set, on-time record, and client rating is stored as her own verifiable record that she can display anywhere — booking page, referral text, a new marketplace listing. Because it's cryptographically signed or timestamp-verifiable, prospects trust it without needing a third-party gatekeeper to vouch.</p>
+        <p><span class="k">Why it wins solo</span> She stops renting credibility from platforms that can bury or de-rank her, converting years of good work into an owned, transferable asset that closes new clients on trust alone — free conversion power, no ad spend, no platform tax.</p>
+        <p><span class="k">Watch-out</span> Verifiability is only as trusted as its proof mechanism; without a recognizable standard, "self-hosted reviews" can read as unaudited and less credible than a known brand.</p>
+        <p class="build"><span class="k">Build note</span> Mid-stage. MVP: her own reviews + before/after gallery on her domain (data she controls, exportable). Later: signed/verifiable records or an emerging portable-reputation standard once one exists.</p>
+      </div>
+    </article>
+
+    <article class="idea">
+      <h3>Found by the Neighbors, Not the Ads</h3>
+      <p class="essence">A hyper-local map marketplace surfaces her to nearby homes, ranked by proximity and trust — discovery without ad spend.</p>
+      <div class="meta">
+        <p><span class="k">How it works</span> Instead of bidding on ads, she appears on a neighborhood map where ranking is driven by how close she works and how trusted she is (jobs done nearby, on-time rate, verified reviews). A homeowner three doors down from a client she already serves finds her at the top because proximity plus proof beats spend.</p>
+        <p><span class="k">Why it wins solo</span> Distribution keyed to density and reputation compounds her existing route and referral flywheel — the more she cleans one zip code, the more discoverable she becomes there, generating leads organically with literally zero marketing budget.</p>
+        <p><span class="k">Watch-out</span> A marketplace she doesn't own reintroduces platform dependence and race-to-the-bottom pricing pressure — the very Yelp trap the portable-reputation idea tries to escape.</p>
+        <p class="build"><span class="k">Build note</span> Long-horizon / partner-dependent. She can't build a marketplace, but she can win it early: MVP is dominating her own Google Business Profile + auto-generated service-area pages now, so she's the obvious top result when local map discovery matures.</p>
+      </div>
+    </article>
+
+  </div>
+</section>

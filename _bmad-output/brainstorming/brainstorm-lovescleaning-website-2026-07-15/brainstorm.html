@@ -1,0 +1,718 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LovesCleaning · A Brainstorm Keepsake</title>
+<style>
+  :root{
+    --white:#ffffff;
+    --paper:#f6fbfd;
+    --sky:#38bdf8;
+    --sky-deep:#0ea5e9;
+    --teal:#14b8a6;
+    --teal-deep:#0d9488;
+    --mint:#6ee7b7;
+    --lemon:#fde68a;
+    --lemon-deep:#fcd34d;
+    --ink:#0f2b38;
+    --ink-soft:#3d5a67;
+    --mist:#8aa6b2;
+    --line:#dcecf1;
+    --shadow:0 18px 40px -22px rgba(13,110,120,.45);
+    --shadow-sm:0 8px 22px -14px rgba(13,110,120,.5);
+    --radius:20px;
+    --font:"Segoe UI",system-ui,-apple-system,"Helvetica Neue",Arial,sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth}
+  body{
+    font-family:var(--font);
+    color:var(--ink);
+    background:
+      radial-gradient(1200px 700px at 12% -8%, #e6f7fb 0%, transparent 55%),
+      radial-gradient(1000px 620px at 100% 8%, #eafbf3 0%, transparent 55%),
+      linear-gradient(180deg,#fbfeff 0%, #f2fafc 100%);
+    line-height:1.55;
+    overflow-x:hidden;
+    -webkit-font-smoothing:antialiased;
+  }
+
+  /* Drifting bubbles */
+  .bubbles{position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden}
+  .bubble{
+    position:absolute;bottom:-140px;border-radius:50%;
+    background:radial-gradient(circle at 32% 28%, rgba(255,255,255,.9), rgba(110,231,183,.18) 42%, rgba(56,189,248,.14) 72%, transparent 74%);
+    border:1px solid rgba(255,255,255,.55);
+    box-shadow:inset 0 0 12px rgba(255,255,255,.6);
+    animation:rise linear infinite;
+    opacity:0;
+  }
+  @keyframes rise{
+    0%{transform:translateY(0) translateX(0) scale(.7);opacity:0}
+    10%{opacity:.85}
+    50%{transform:translateY(-52vh) translateX(24px) scale(1)}
+    90%{opacity:.7}
+    100%{transform:translateY(-118vh) translateX(-14px) scale(1.05);opacity:0}
+  }
+
+  .wrap{position:relative;z-index:1;max-width:1080px;margin:0 auto;padding:0 22px 90px}
+
+  /* ---------- HEADER ---------- */
+  header.hero{
+    position:relative;text-align:center;padding:74px 26px 60px;margin:26px 0 20px;
+    border-radius:32px;overflow:hidden;
+    background:
+      radial-gradient(600px 300px at 20% 0%, rgba(255,255,255,.85), transparent 60%),
+      linear-gradient(135deg,#e9fbff 0%, #eafcf4 45%, #fefdf0 100%);
+    border:1px solid rgba(255,255,255,.9);
+    box-shadow:var(--shadow);
+  }
+  header.hero::after{
+    content:"";position:absolute;inset:0;pointer-events:none;
+    background:radial-gradient(3px 3px at 18% 30%, rgba(56,189,248,.5), transparent),
+      radial-gradient(2px 2px at 82% 22%, rgba(20,184,166,.5), transparent),
+      radial-gradient(2px 2px at 66% 68%, rgba(252,211,77,.7), transparent),
+      radial-gradient(3px 3px at 34% 78%, rgba(110,231,183,.6), transparent);
+  }
+  .mark{
+    display:inline-flex;align-items:center;gap:12px;justify-content:center;
+    font-weight:800;letter-spacing:.4px;font-size:15px;color:var(--teal-deep);
+    background:rgba(255,255,255,.7);padding:8px 18px;border-radius:999px;
+    border:1px solid var(--line);box-shadow:var(--shadow-sm);margin-bottom:22px;
+  }
+  .mark .sud{
+    width:22px;height:22px;border-radius:50%;
+    background:radial-gradient(circle at 34% 30%, #fff, var(--mint) 60%, var(--sky) 100%);
+    box-shadow:inset 0 0 6px rgba(255,255,255,.9);
+    animation:wobble 4s ease-in-out infinite;
+  }
+  @keyframes wobble{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}
+  h1.title{
+    font-size:clamp(38px,7vw,68px);line-height:1.02;letter-spacing:-1.5px;font-weight:800;
+    background:linear-gradient(120deg,var(--sky-deep),var(--teal-deep) 55%,#0f766e);
+    -webkit-background-clip:text;background-clip:text;color:transparent;
+    margin-bottom:6px;
+  }
+  h1.title .loves{font-style:italic;font-weight:800}
+  .subtitle{font-size:clamp(16px,2.4vw,20px);color:var(--ink-soft);max-width:660px;margin:14px auto 0;font-weight:500}
+  .goal-line{
+    margin:22px auto 0;max-width:720px;font-size:15px;color:var(--ink-soft);
+    background:rgba(255,255,255,.6);border:1px dashed var(--line);border-radius:16px;padding:14px 20px;
+  }
+  .goal-line b{color:var(--teal-deep)}
+  .meta{display:flex;flex-wrap:wrap;justify-content:center;gap:12px;margin-top:28px}
+  .chip{
+    display:inline-flex;align-items:center;gap:8px;font-size:13.5px;font-weight:700;color:var(--ink);
+    background:rgba(255,255,255,.82);padding:10px 16px;border-radius:999px;border:1px solid var(--line);
+    box-shadow:var(--shadow-sm);
+  }
+  .chip .n{color:var(--sky-deep);font-size:16px}
+  .chip .dot{width:8px;height:8px;border-radius:50%;background:var(--mint)}
+  .chip.count .n{color:var(--teal-deep)}
+  .chip.mode{background:linear-gradient(120deg,var(--lemon),var(--lemon-deep));color:#6b4e05;border-color:transparent}
+
+  /* ---------- SECTION SCAFFOLD ---------- */
+  .lens{
+    margin-top:56px;padding:34px 30px 36px;border-radius:var(--radius);
+    background:rgba(255,255,255,.72);border:1px solid var(--line);
+    box-shadow:var(--shadow-sm);backdrop-filter:blur(4px);
+    opacity:0;transform:translateY(28px);transition:opacity .7s ease, transform .7s ease;
+  }
+  .lens.in{opacity:1;transform:none}
+  .lens-head{display:flex;align-items:flex-start;gap:18px;margin-bottom:8px}
+  .lens-num{
+    flex:none;width:56px;height:56px;border-radius:16px;display:grid;place-items:center;
+    font-size:22px;font-weight:800;color:#fff;position:relative;box-shadow:var(--shadow-sm);
+  }
+  .lens-num small{position:absolute;top:5px;right:8px;font-size:9px;opacity:.8;font-weight:700;letter-spacing:1px}
+  .lens-title{font-size:clamp(21px,3.2vw,28px);font-weight:800;letter-spacing:-.5px;line-height:1.1}
+  .lens-kicker{font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:1.4px;margin-bottom:3px}
+  .lens-desc{color:var(--ink-soft);font-size:14.5px;margin:10px 0 24px;max-width:760px}
+  .lens .icon{font-size:26px;line-height:1}
+
+  /* default idea grid */
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px}
+  .idea{
+    position:relative;background:#fff;border:1px solid var(--line);border-radius:14px;
+    padding:16px 16px 16px 18px;font-size:14.5px;color:var(--ink);
+    box-shadow:0 4px 14px -10px rgba(13,110,120,.5);transition:transform .25s ease, box-shadow .25s ease;
+    overflow:hidden;
+  }
+  .idea::before{content:"";position:absolute;left:0;top:0;bottom:0;width:5px;border-radius:5px 0 0 5px}
+  .idea:hover{transform:translateY(-3px);box-shadow:0 14px 26px -16px rgba(13,110,120,.6)}
+  .idea .tag{display:block;font-weight:800;font-size:12.5px;letter-spacing:.3px;margin-bottom:5px}
+
+  /* per-lens accent colors via data attribute classes */
+  .c-sky .lens-num{background:linear-gradient(135deg,#7dd3fc,#0ea5e9)}
+  .c-sky .lens-kicker,.c-sky .lens-title{color:var(--sky-deep)}
+  .c-sky .idea::before{background:linear-gradient(#7dd3fc,#0ea5e9)}
+  .c-sky .idea .tag{color:var(--sky-deep)}
+
+  .c-teal .lens-num{background:linear-gradient(135deg,#5eead4,#0d9488)}
+  .c-teal .lens-kicker,.c-teal .lens-title{color:var(--teal-deep)}
+  .c-teal .idea::before{background:linear-gradient(#5eead4,#0d9488)}
+  .c-teal .idea .tag{color:var(--teal-deep)}
+
+  .c-mint .lens-num{background:linear-gradient(135deg,#86efac,#10b981)}
+  .c-mint .lens-kicker,.c-mint .lens-title{color:#0f766e}
+  .c-mint .idea::before{background:linear-gradient(#86efac,#10b981)}
+  .c-mint .idea .tag{color:#0f766e}
+
+  .c-lemon .lens-num{background:linear-gradient(135deg,#fde68a,#f59e0b);color:#6b4e05}
+  .c-lemon .lens-kicker,.c-lemon .lens-title{color:#b45309}
+  .c-lemon .idea::before{background:linear-gradient(#fde68a,#f59e0b)}
+  .c-lemon .idea .tag{color:#b45309}
+
+  .c-indigo .lens-num{background:linear-gradient(135deg,#818cf8,#4f46e5)}
+  .c-indigo .lens-kicker,.c-indigo .lens-title{color:#4338ca}
+  .c-indigo .idea::before{background:linear-gradient(#818cf8,#4f46e5)}
+  .c-indigo .idea .tag{color:#4338ca}
+
+  /* ---------- SCAMPER band ---------- */
+  .scamper-legend{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:20px}
+  .scamper-legend span{
+    font-size:11.5px;font-weight:800;letter-spacing:.5px;color:var(--teal-deep);
+    background:#eafcf6;border:1px solid #c9f2e6;padding:5px 11px;border-radius:8px;
+  }
+  .scamper-legend span b{color:#0f766e}
+
+  /* ---------- Cross-domain: brand -> adaptation ---------- */
+  .xd{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px}
+  .xd-card{
+    display:flex;align-items:stretch;gap:0;background:#fff;border:1px solid var(--line);
+    border-radius:14px;overflow:hidden;box-shadow:var(--shadow-sm);transition:transform .25s ease}
+  .xd-card:hover{transform:translateY(-3px)}
+  .xd-brand{
+    flex:none;width:118px;display:flex;flex-direction:column;justify-content:center;gap:6px;
+    padding:14px 12px;color:#fff;text-align:center;
+    background:linear-gradient(160deg,#7dd3fc,#0d9488);
+  }
+  .xd-brand .bemoji{font-size:24px}
+  .xd-brand .bname{font-size:13px;font-weight:800;line-height:1.1}
+  .xd-arrow{align-self:center;font-size:18px;color:var(--teal);padding:0 4px}
+  .xd-adapt{padding:14px 16px;font-size:14px;color:var(--ink);display:flex;align-items:center}
+
+  /* ---------- What Would X Do ---------- */
+  .prov{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px}
+  .prov-card{
+    background:linear-gradient(180deg,#fff,#fbfdff);border:1px solid var(--line);border-radius:16px;
+    padding:18px;box-shadow:var(--shadow-sm);position:relative;transition:transform .25s ease}
+  .prov-card:hover{transform:translateY(-3px)}
+  .prov-q{font-size:12px;font-weight:800;letter-spacing:.4px;color:var(--mist);text-transform:uppercase}
+  .prov-who{font-size:19px;font-weight:800;color:#4338ca;margin:2px 0 8px;display:flex;align-items:center;gap:8px}
+  .prov-body{font-size:14px;color:var(--ink)}
+
+  /* ---------- Extreme constraints ---------- */
+  .cons{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:14px}
+  .cons-card{
+    background:#fff;border:1px solid #fde68a;border-left:6px solid #f59e0b;border-radius:12px;
+    padding:15px 16px;box-shadow:var(--shadow-sm)}
+  .cons-card .clamp{font-size:12px;font-weight:800;color:#b45309;letter-spacing:.4px;text-transform:uppercase;margin-bottom:6px;display:flex;align-items:center;gap:6px}
+  .cons-card .cbody{font-size:14px;color:var(--ink)}
+
+  /* ---------- Time-shift timeline ---------- */
+  .timeline{position:relative;margin-top:10px;padding-left:6px}
+  .timeline::before{content:"";position:absolute;left:26px;top:8px;bottom:8px;width:3px;
+    background:linear-gradient(var(--sky),var(--teal));border-radius:3px}
+  .tl-item{position:relative;padding:10px 0 10px 64px;opacity:0;transform:translateX(-14px);
+    transition:opacity .6s ease, transform .6s ease}
+  .tl-item.in{opacity:1;transform:none}
+  .tl-dot{position:absolute;left:16px;top:14px;width:24px;height:24px;border-radius:50%;
+    background:radial-gradient(circle at 34% 30%,#fff,var(--sky) 70%);
+    border:3px solid #fff;box-shadow:0 0 0 3px rgba(56,189,248,.35);display:grid;place-items:center;font-size:11px}
+  .tl-item .tbody{background:#fff;border:1px solid var(--line);border-radius:12px;padding:13px 16px;
+    font-size:14px;box-shadow:var(--shadow-sm)}
+  .tl-year{display:inline-block;font-size:11px;font-weight:800;color:var(--sky-deep);
+    letter-spacing:1px;margin-bottom:8px;background:#e6f7fb;padding:3px 10px;border-radius:6px}
+
+  /* ---------- Anti-problem fail->fix ---------- */
+  .anti{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px}
+  .flip{background:#fff;border:1px solid var(--line);border-radius:14px;overflow:hidden;box-shadow:var(--shadow-sm)}
+  .flip .fail{background:linear-gradient(180deg,#fff1f2,#ffe4e6);padding:13px 16px;color:#9f1239;font-size:13.5px;
+    display:flex;align-items:center;gap:8px;border-bottom:1px dashed #fecdd3}
+  .flip .fail s{text-decoration-color:#fb7185}
+  .flip .fail .x{flex:none;width:20px;height:20px;border-radius:50%;background:#fb7185;color:#fff;display:grid;place-items:center;font-size:12px;font-weight:800}
+  .flip .fix{padding:13px 16px;color:#065f46;font-size:14px;display:flex;align-items:center;gap:8px}
+  .flip .fix .ck{flex:none;width:20px;height:20px;border-radius:50%;background:#10b981;color:#fff;display:grid;place-items:center;font-size:12px;font-weight:800}
+
+  /* ---------- Role-storming personas ---------- */
+  .roles{display:grid;grid-template-columns:repeat(auto-fill,minmax(255px,1fr));gap:14px}
+  .role{background:#fff;border:1px solid var(--line);border-radius:16px;padding:16px;box-shadow:var(--shadow-sm);transition:transform .25s ease}
+  .role:hover{transform:translateY(-3px)}
+  .role .who{display:flex;align-items:center;gap:10px;margin-bottom:9px}
+  .role .who .av{width:38px;height:38px;border-radius:50%;display:grid;place-items:center;font-size:19px;
+    background:linear-gradient(135deg,#e6f7fb,#eafcf4);border:1px solid var(--line)}
+  .role .who .nm{font-size:14.5px;font-weight:800;color:var(--teal-deep)}
+  .role .quote{font-size:14px;color:var(--ink)}
+
+  /* ---------- Flywheel ---------- */
+  .fly-wrap{display:flex;flex-wrap:wrap;gap:26px;align-items:center;justify-content:center;margin:8px 0 26px}
+  .flywheel{position:relative;width:290px;height:290px;flex:none}
+  .flywheel .spin{position:absolute;inset:0;animation:spin 26s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .flywheel .hub{
+    position:absolute;left:50%;top:50%;width:118px;height:118px;transform:translate(-50%,-50%);
+    border-radius:50%;background:radial-gradient(circle at 34% 30%,#fff,#5eead4 65%,#0d9488);
+    color:#063d38;display:grid;place-items:center;text-align:center;font-weight:800;font-size:13px;padding:14px;
+    box-shadow:0 10px 30px -12px rgba(13,148,136,.7);z-index:3;line-height:1.2}
+  .flywheel .ring{position:absolute;inset:12px;border-radius:50%;border:2px dashed rgba(13,148,136,.35)}
+  .spoke{position:absolute;left:50%;top:50%;width:120px;margin-left:-60px;margin-top:-30px;height:60px;
+    background:#fff;border:1px solid var(--line);border-radius:12px;display:grid;place-items:center;text-align:center;
+    font-size:12px;font-weight:700;color:var(--teal-deep);box-shadow:var(--shadow-sm);padding:6px}
+  .spoke span{display:block;font-size:18px;margin-bottom:2px}
+  .spoke.s1{transform:translate(0,-108px)}
+  .spoke.s2{transform:translate(108px,0)}
+  .spoke.s3{transform:translate(0,108px)}
+  .spoke.s4{transform:translate(-108px,0)}
+  .fly-caption{max-width:320px;font-size:14px;color:var(--ink-soft)}
+  .fly-caption b{color:var(--teal-deep)}
+  .loop-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(255px,1fr));gap:14px}
+  .loop{background:#fff;border:1px solid var(--line);border-radius:14px;padding:15px 16px;box-shadow:var(--shadow-sm);
+    position:relative;font-size:14px}
+  .loop .lp{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:800;color:#0f766e;
+    background:#eafcf6;border:1px solid #c9f2e6;border-radius:999px;padding:3px 9px;margin-bottom:8px;letter-spacing:.4px}
+
+  /* ---------- Wild 10x ---------- */
+  .wild{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px}
+  .wild-card{
+    position:relative;background:linear-gradient(150deg,#fff,#f7fbff);border:1px solid var(--line);
+    border-radius:16px;padding:17px;box-shadow:var(--shadow-sm);overflow:hidden;transition:transform .25s ease}
+  .wild-card:hover{transform:translateY(-4px) rotate(-.4deg)}
+  .wild-card::after{content:"✦";position:absolute;top:10px;right:14px;color:var(--lemon-deep);font-size:15px;opacity:.8}
+  .wild-card .wbody{font-size:14px;color:var(--ink)}
+  .wild-card .spark{position:absolute;bottom:-14px;left:-14px;width:60px;height:60px;border-radius:50%;
+    background:radial-gradient(circle,rgba(252,211,77,.35),transparent 70%)}
+
+  /* ---------- CLIMAX / synthesis ---------- */
+  .climax{
+    position:relative;margin-top:70px;padding:52px 34px 46px;border-radius:30px;overflow:hidden;
+    background:
+      radial-gradient(700px 340px at 15% 0%, rgba(56,189,248,.22), transparent 60%),
+      radial-gradient(700px 380px at 100% 100%, rgba(20,184,166,.22), transparent 60%),
+      linear-gradient(150deg,#062a35 0%, #0b3f47 55%, #0d4f52 100%);
+    color:#eafcff;box-shadow:0 30px 70px -30px rgba(6,42,53,.8);
+    opacity:0;transform:translateY(30px);transition:opacity .8s ease, transform .8s ease}
+  .climax.in{opacity:1;transform:none}
+  .climax::before{content:"";position:absolute;inset:0;pointer-events:none;
+    background:radial-gradient(2px 2px at 22% 30%, rgba(255,255,255,.7), transparent),
+      radial-gradient(2px 2px at 72% 22%, rgba(110,231,183,.8), transparent),
+      radial-gradient(3px 3px at 54% 74%, rgba(252,211,77,.8), transparent),
+      radial-gradient(2px 2px at 86% 60%, rgba(56,189,248,.8), transparent),
+      radial-gradient(2px 2px at 12% 78%, rgba(255,255,255,.6), transparent)}
+  .climax .eyebrow{text-align:center;font-size:13px;font-weight:800;letter-spacing:3px;text-transform:uppercase;
+    color:var(--mint);margin-bottom:8px}
+  .climax h2{text-align:center;font-size:clamp(28px,5vw,44px);font-weight:800;letter-spacing:-1px;line-height:1.05;
+    margin-bottom:8px}
+  .climax h2 .g{background:linear-gradient(120deg,#7dd3fc,#6ee7b7,#fde68a);-webkit-background-clip:text;background-clip:text;color:transparent}
+  .climax .lede{text-align:center;max-width:640px;margin:0 auto 38px;color:#bfe9ee;font-size:15.5px}
+  .breaks{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:18px;position:relative;z-index:1}
+  .brk{
+    background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.16);border-radius:18px;padding:24px 22px;
+    backdrop-filter:blur(4px);position:relative;overflow:hidden}
+  .brk .bnum{font-size:15px;font-weight:800;color:#062a35;width:40px;height:40px;border-radius:12px;display:grid;place-items:center;margin-bottom:14px;
+    background:linear-gradient(135deg,#7dd3fc,#6ee7b7)}
+  .brk h3{font-size:18px;font-weight:800;margin-bottom:8px;color:#eafcff}
+  .brk p{font-size:14px;color:#c6e9ee;line-height:1.55}
+  .brk .kw{color:var(--mint);font-weight:700}
+
+  .crosslinks{margin-top:34px;position:relative;z-index:1}
+  .crosslinks h4{text-align:center;font-size:13px;font-weight:800;letter-spacing:2px;text-transform:uppercase;color:#7dd3fc;margin-bottom:18px}
+  .xl-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:14px}
+  .xl{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);border-radius:14px;padding:16px 18px;
+    font-size:13.5px;color:#cdeff3;display:flex;gap:10px;align-items:flex-start}
+  .xl .lk{flex:none;font-size:16px}
+
+  .direction{
+    margin-top:34px;position:relative;z-index:1;text-align:center;
+    background:linear-gradient(120deg,rgba(110,231,183,.16),rgba(56,189,248,.14));
+    border:1px solid rgba(110,231,183,.35);border-radius:20px;padding:26px 26px}
+  .direction .d-label{font-size:12px;font-weight:800;letter-spacing:2px;text-transform:uppercase;color:var(--mint);margin-bottom:10px}
+  .direction p{font-size:15.5px;color:#eafcff;max-width:760px;margin:0 auto;line-height:1.6}
+  .direction b{color:#fde68a}
+
+  /* footer */
+  footer{text-align:center;margin-top:56px;color:var(--mist);font-size:13px}
+  footer .heart{color:var(--teal)}
+  footer .sud2{display:inline-block;width:12px;height:12px;border-radius:50%;vertical-align:middle;margin:0 2px;
+    background:radial-gradient(circle at 34% 30%,#fff,var(--mint) 65%,var(--sky))}
+
+  @media (max-width:560px){
+    .lens{padding:26px 18px}
+    .xd-card{flex-direction:column}
+    .xd-brand{width:100%;flex-direction:row;justify-content:center}
+    .xd-arrow{transform:rotate(90deg)}
+    .flywheel{transform:scale(.86)}
+  }
+  @media (prefers-reduced-motion:reduce){
+    .bubble,.flywheel .spin,.mark .sud{animation:none!important}
+    .lens,.climax,.tl-item{transition:none;opacity:1;transform:none}
+  }
+</style>
+</head>
+<body>
+
+<div class="bubbles" id="bubbles" aria-hidden="true"></div>
+
+<div class="wrap">
+
+  <!-- ================= HEADER ================= -->
+  <header class="hero">
+    <div class="mark"><span class="sud"></span> LovesCleaning &nbsp;·&nbsp; Brainstorm Keepsake</div>
+    <h1 class="title">A Spotless<br><span class="loves">Idea Storm</span></h1>
+    <p class="subtitle">LovesCleaning — a solo cleaning operator's public site, booking, owner dashboard &amp; marketing, reimagined from every angle.</p>
+    <div class="goal-line">
+      <b>The goal:</b> convert visitors into booked jobs, run the entire operation from one dashboard (no back-office),
+      and manufacture repeat &amp; referral revenue — without ongoing ad spend.
+    </div>
+    <div class="meta">
+      <span class="chip"><span class="dot"></span> 15 July 2026</span>
+      <span class="chip count"><span class="n">102</span> ideas</span>
+      <span class="chip"><span class="n">10</span> creative lenses</span>
+      <span class="chip mode">✨ "Ideate for me" mode</span>
+    </div>
+  </header>
+
+  <!-- ================= 1 · ASSUMPTION REVERSAL ================= -->
+  <section class="lens c-sky">
+    <div class="lens-head">
+      <div class="lens-num">1<small>LENS</small></div>
+      <div>
+        <div class="lens-kicker">🔄 First Principles</div>
+        <div class="lens-title">Assumption Reversal</div>
+      </div>
+    </div>
+    <p class="lens-desc">Flip the obvious. Does she even need a website? A dashboard? Public prices? We stripped the business to bare atoms and rebuilt from the ground truth.</p>
+    <div class="grid">
+      <div class="idea"><span class="tag">The un-website</span>Highest-converting asset may be a text-message number + link-in-bio, not a website; AI parses booking-by-text.</div>
+      <div class="idea"><span class="tag">Route-aware slots</span>Self-scheduling calendar only offers slots that fit her existing route that day — minimize drive time.</div>
+      <div class="idea"><span class="tag">No public prices</span>Instant photo-based quote — customer uploads room photos, AI estimates sqft/clutter/time to a firm quote.</div>
+      <div class="idea"><span class="tag">Own the review moment</span>Capture a video testimonial in-app right after payment, while satisfaction peaks.</div>
+      <div class="idea"><span class="tag">The clean is the ad</span>Leave-behind QR card on the counter neighbors see; every job seeds the next.</div>
+      <div class="idea"><span class="tag">No dashboard</span>Business runs from her phone's default calendar/texts, augmented; zero new tool to learn.</div>
+      <div class="idea"><span class="tag">Prepaid membership</span>Cleaning drawn down like a gym membership; predictable MRR instead of chasing invoices.</div>
+      <div class="idea"><span class="tag">Convert neighbors</span>Target neighbors of existing clients, not anonymous visitors; geo-referral to the street she just cleaned.</div>
+      <div class="idea"><span class="tag">Secretly scalable</span>Design so a 2nd/3rd cleaner adds in 5 min without re-architecting; solo tool that quietly scales to a crew.</div>
+      <div class="idea"><span class="tag">AI receptionist</span>AI does ALL admin — texts, booking, reschedule, payment chase, review. She only cleans.</div>
+    </div>
+  </section>
+
+  <!-- ================= 2 · SCAMPER ================= -->
+  <section class="lens c-teal">
+    <div class="lens-head">
+      <div class="lens-num">2<small>LENS</small></div>
+      <div>
+        <div class="lens-kicker">🧪 Substitute · Combine · Adapt · Modify · Put-to-use · Eliminate · Reverse</div>
+        <div class="lens-title">SCAMPER</div>
+      </div>
+    </div>
+    <p class="lens-desc">Seven transformation verbs applied to the funnel, the payment, the receipt, the FAQ — swapping, fusing and deleting parts until the workflow gets radically simpler.</p>
+    <div class="scamper-legend">
+      <span><b>S</b>ubstitute</span><span><b>C</b>ombine</span><span><b>A</b>dapt</span>
+      <span><b>M</b>odify/Minify</span><span><b>P</b>ut to use</span><span><b>E</b>liminate</span><span><b>R</b>everse</span>
+    </div>
+    <div class="grid">
+      <div class="idea"><span class="tag">Substitute</span>Replace the booking form with a conversational SMS/WhatsApp agent: "Want your usual biweekly Tuesday?"</div>
+      <div class="idea"><span class="tag">Substitute</span>Swap star reviews for auto-generated before/after photo galleries per job — visual proof beats text.</div>
+      <div class="idea"><span class="tag">Combine</span>Scheduling + route: booking a slot auto-sequences her day by address.</div>
+      <div class="idea"><span class="tag">Combine</span>Payment + review: the review link IS the receipt; no receipt without seeing the review prompt.</div>
+      <div class="idea"><span class="tag">Combine</span>Client notes + gate/lock codes into a geofenced job sheet that surfaces only on the day, at the address.</div>
+      <div class="idea"><span class="tag">Adapt</span>Restaurant no-show deposit: booking requires a card hold; auto-charge cancellation fee inside 24h.</div>
+      <div class="idea"><span class="tag">Adapt</span>Airline dynamic pricing: cheaper slots on slow days, premium prime Saturdays; fills the week evenly.</div>
+      <div class="idea"><span class="tag">Put to use</span>Turn the FAQ into an interactive "will you clean my place?" quiz that qualifies and books in one flow.</div>
+      <div class="idea"><span class="tag">Minify</span>Onboarding to a single link: 3 questions, card on file, booked in under 60 seconds.</div>
+      <div class="idea"><span class="tag">Modify</span>Client history becomes a portable "cleaning passport" the customer owns; preferences travel if they move.</div>
+      <div class="idea"><span class="tag">Eliminate</span>No invoicing — auto-charge card-on-file at job completion, receipt texted; never chase payment.</div>
+      <div class="idea"><span class="tag">Eliminate</span>No homepage — replace it with one smart booking link she texts/shares; the site is the funnel only.</div>
+      <div class="idea"><span class="tag">Reverse</span>Two-way rating: the cleaner rates the customer too (messy? pets loose? tip?) so she can fire bad clients.</div>
+    </div>
+  </section>
+
+  <!-- ================= 3 · CROSS-DOMAIN ANALOGY ================= -->
+  <section class="lens c-teal">
+    <div class="lens-head">
+      <div class="lens-num">3<small>LENS</small></div>
+      <div>
+        <div class="lens-kicker">🌉 Borrow &amp; Adapt</div>
+        <div class="lens-title">Cross-Domain Analogy</div>
+      </div>
+    </div>
+    <p class="lens-desc">Steal the best-loved mechanic from another industry and retune it for a one-person cleaning business. Left: the borrowed brand. Right: the adaptation.</p>
+    <div class="xd">
+      <div class="xd-card"><div class="xd-brand"><span class="bemoji">🚗</span><span class="bname">Uber</span></div><span class="xd-arrow">→</span><div class="xd-adapt">Real-time "on my way" tracking + ETA text so the customer knows exactly when she'll arrive.</div></div>
+      <div class="xd-card"><div class="xd-brand"><span class="bemoji">🎬</span><span class="bname">Netflix</span></div><span class="xd-arrow">→</span><div class="xd-adapt">Subscription tiers — Basic biweekly / Plus weekly + quarterly deep / Premium priority.</div></div>
+      <div class="xd-card"><div class="xd-brand"><span class="bemoji">🚴</span><span class="bname">Peloton</span></div><span class="xd-arrow">→</span><div class="xd-adapt">Streaks — gamify the customer: "clean home 12 weeks running" as a retention hook.</div></div>
+      <div class="xd-card"><div class="xd-brand"><span class="bemoji">📦</span><span class="bname">Dropbox</span></div><span class="xd-arrow">→</span><div class="xd-adapt">Two-sided referral: referrer and new client both get $25 off — a viral loop.</div></div>
+      <div class="xd-card"><div class="xd-brand"><span class="bemoji">🍽️</span><span class="bname">OpenTable</span></div><span class="xd-arrow">→</span><div class="xd-adapt">Instant-confirm booking + waitlist; cancellations auto-offered to the waitlist.</div></div>
+      <div class="xd-card"><div class="xd-brand"><span class="bemoji">🛒</span><span class="bname">Amazon S&amp;S</span></div><span class="xd-arrow">→</span><div class="xd-adapt">Subscribe &amp; Save discount to lock recurring; cancel is a gentle pause, not a hard stop.</div></div>
+      <div class="xd-card"><div class="xd-brand"><span class="bemoji">🎧</span><span class="bname">Spotify</span></div><span class="xd-arrow">→</span><div class="xd-adapt">"Your Year in Clean" annual recap email — hours saved, jobs done; re-engagement.</div></div>
+      <div class="xd-card"><div class="xd-brand"><span class="bemoji">🏠</span><span class="bname">Airbnb</span></div><span class="xd-arrow">→</span><div class="xd-adapt">Superhost-style public trust score/badges — jobs done, on-time %, years active — on the booking page.</div></div>
+      <div class="xd-card"><div class="xd-brand"><span class="bemoji">🕯️</span><span class="bname">Luxury Hotel</span></div><span class="xd-arrow">→</span><div class="xd-adapt">Concierge preferences profile (candle scent, pet names, no-go rooms) turns a commodity into a relationship.</div></div>
+      <div class="xd-card"><div class="xd-brand"><span class="bemoji">🩺</span><span class="bname">Doctor's Office</span></div><span class="xd-arrow">→</span><div class="xd-adapt">Automated reminders + "we miss you" reactivation when a recurring client lapses.</div></div>
+      <div class="xd-card"><div class="xd-brand"><span class="bemoji">💇</span><span class="bname">Salon</span></div><span class="xd-arrow">→</span><div class="xd-adapt">Rebook-at-checkout: never leave a house without the next appointment set.</div></div>
+      <div class="xd-card"><div class="xd-brand"><span class="bemoji">🛡️</span><span class="bname">Insurance</span></div><span class="xd-arrow">→</span><div class="xd-adapt">Satisfaction guarantee — "not happy? free re-clean within 24h" — shown as trust, tracked in the dashboard.</div></div>
+    </div>
+  </section>
+
+  <!-- ================= 4 · WHAT WOULD X DO ================= -->
+  <section class="lens c-indigo">
+    <div class="lens-head">
+      <div class="lens-num">4<small>LENS</small></div>
+      <div>
+        <div class="lens-kicker">🎭 Provocation</div>
+        <div class="lens-title">What Would X Do?</div>
+      </div>
+    </div>
+    <p class="lens-desc">Channel a famous operator and ask how they'd run a solo cleaning brand. Each answer imports a whole worldview.</p>
+    <div class="prov">
+      <div class="prov-card"><div class="prov-q">What would…</div><div class="prov-who">🍎 Apple do?</div><div class="prov-body">Obsess over the first-clean "unboxing" + a stunningly simple booking UX. Design as the differentiator in a design-less category.</div></div>
+      <div class="prov-card"><div class="prov-q">What would…</div><div class="prov-who">⭐ Michelin do?</div><div class="prov-body">Waitlist + scarcity: "accepting 3 new recurring clients this month" — raising price and perceived value.</div></div>
+      <div class="prov-card"><div class="prov-q">What would…</div><div class="prov-who">📈 a SaaS growth team do?</div><div class="prov-body">Instrument booking funnel drop-off, no-show rate, LTV per client, and churn cohorts.</div></div>
+      <div class="prov-card"><div class="prov-q">What would…</div><div class="prov-who">📍 a density strategist do?</div><div class="prov-body">Dominate one zip code fully before expanding. Density = efficiency = referrals.</div></div>
+      <div class="prov-card"><div class="prov-q">What would…</div><div class="prov-who">🐔 Chick-fil-A do?</div><div class="prov-body">Radical hospitality: a personal handwritten thank-you note left after every clean.</div></div>
+      <div class="prov-card"><div class="prov-q">What would…</div><div class="prov-who">💘 a dating app do?</div><div class="prov-body">Quiz new clients on expectations/vibe; only take on clients who fit — fewer bad jobs.</div></div>
+      <div class="prov-card"><div class="prov-q">What would…</div><div class="prov-who">🏬 Costco do?</div><div class="prov-body">A membership fee for priority booking + member rates. The fee is margin plus commitment.</div></div>
+      <div class="prov-card"><div class="prov-q">What would…</div><div class="prov-who">🎥 a YouTuber do?</div><div class="prov-body">Short before/after transformation reels as organic local marketing — cleaning is inherently visual.</div></div>
+      <div class="prov-card"><div class="prov-q">What would…</div><div class="prov-who">🏦 a bank do?</div><div class="prov-body">Project 90-day revenue from recurring contracts so she can plan, borrow, and invest with confidence.</div></div>
+    </div>
+  </section>
+
+  <!-- ================= 5 · EXTREME CONSTRAINTS ================= -->
+  <section class="lens c-lemon">
+    <div class="lens-head">
+      <div class="lens-num">5<small>LENS</small></div>
+      <div>
+        <div class="lens-kicker">⛓️ Forcing Functions</div>
+        <div class="lens-title">Extreme Constraints</div>
+      </div>
+    </div>
+    <p class="lens-desc">Impossible limits breed elegant answers. $0 budget. No training. Wet gloves. Dead-zone basements. A ten-second cap on every action.</p>
+    <div class="cons">
+      <div class="cons-card"><div class="clamp">💸 $0 tech budget</div><div class="cbody">MVP is a Google Sheet + Calendly + Stripe payment links glued together by automation.</div></div>
+      <div class="cons-card"><div class="clamp">🚫 No tutorials</div><div class="cbody">Any feature that needs a tutorial is cut. Zero training required.</div></div>
+      <div class="cons-card"><div class="clamp">🧤 Hands wet/gloved</div><div class="cbody">Voice-driven: "mark this job done and charge the card."</div></div>
+      <div class="cons-card"><div class="clamp">📵 Offline basements</div><div class="cbody">Job sheets cached locally in dead zones, sync later.</div></div>
+      <div class="cons-card"><div class="clamp">⏱️ 10-second rule</div><div class="cbody">Any client action — book, reschedule, pay, refer — must take under 10s or it's redesigned.</div></div>
+      <div class="cons-card"><div class="clamp">📱 One-screen dashboard</div><div class="cbody">The entire owner view fits one glanceable phone screen, between jobs.</div></div>
+      <div class="cons-card"><div class="clamp">🌱 No marketing spend, ever</div><div class="cbody">Every growth mechanism must be organic / referral by design.</div></div>
+      <div class="cons-card"><div class="clamp">🏖️ Survives a 2-week vacation</div><div class="cbody">Auto-pause recurring, notify clients, resume without losing anyone.</div></div>
+    </div>
+  </section>
+
+  <!-- ================= 6 · FUTURE / TIME-SHIFT 2030 ================= -->
+  <section class="lens c-sky">
+    <div class="lens-head">
+      <div class="lens-num">6<small>LENS</small></div>
+      <div>
+        <div class="lens-kicker">🔮 Time-Shift</div>
+        <div class="lens-title">Future 2030</div>
+      </div>
+    </div>
+    <p class="lens-desc">Fast-forward four years. AI answers every call in her voice, cameras quote homes on sight, smart-locks open themselves. Walk the timeline forward.</p>
+    <div class="timeline" id="timeline">
+      <div class="tl-item"><div class="tl-dot">📞</div><span class="tl-year">2030</span><div class="tbody"><span class="tl-year" style="display:none"></span>An AI voice agent answers every inbound call and books/reschedules in her voice — she never touches the phone.</div></div>
+      <div class="tl-item"><div class="tl-dot">📸</div><div class="tbody">Instant firm photo-to-quote: a camera pan of a home yields price + duration, no site visit.</div></div>
+      <div class="tl-item"><div class="tl-dot">🔐</div><div class="tbody">Smart-lock integration: the client's lock grants one-time access at the booked window — no key exchange.</div></div>
+      <div class="tl-item"><div class="tl-dot">🗓️</div><div class="tbody">Predictive scheduling: the system pre-books the Hendersons' pre-Thanksgiving deep clean automatically.</div></div>
+      <div class="tl-item"><div class="tl-dot">🌿</div><div class="tbody">Daily route auto-optimized for time and fuel; a "green cleaning" EV angle doubles as marketing.</div></div>
+      <div class="tl-item"><div class="tl-dot">🤖</div><div class="tbody">Robotic pre-clean: she supervises a floor bot on the boring pass and does detail work — higher throughput.</div></div>
+      <div class="tl-item"><div class="tl-dot">📜</div><div class="tbody">A portable, verifiable job history she owns — not locked inside Yelp.</div></div>
+      <div class="tl-item"><div class="tl-dot">🗺️</div><div class="tbody">A hyper-local map marketplace: discoverable by neighbors, ranked by proximity + trust, no ad spend.</div></div>
+    </div>
+  </section>
+
+  <!-- ================= 7 · ANTI-PROBLEM ================= -->
+  <section class="lens c-teal">
+    <div class="lens-head">
+      <div class="lens-num">7<small>LENS</small></div>
+      <div>
+        <div class="lens-kicker">🔀 Invert the Failure</div>
+        <div class="lens-title">Reverse / Anti-Problem</div>
+      </div>
+    </div>
+    <p class="lens-desc">List every way the business could fail spectacularly — then flip each disaster into a design principle. Red is the failure; green is the inversion.</p>
+    <div class="anti">
+      <div class="flip"><div class="fail"><span class="x">✕</span><s>Require a phone call to book</s></div><div class="fix"><span class="ck">✓</span>Instant self-serve booking, no call.</div></div>
+      <div class="flip"><div class="fail"><span class="x">✕</span><s>Forget preferences every time</s></div><div class="fix"><span class="ck">✓</span>Persistent profiles surfaced on the day.</div></div>
+      <div class="flip"><div class="fail"><span class="x">✕</span><s>Chase payment for weeks</s></div><div class="fix"><span class="ck">✓</span>Card-on-file auto-charge at completion.</div></div>
+      <div class="flip"><div class="fail"><span class="x">✕</span><s>Let recurring clients silently churn</s></div><div class="fix"><span class="ck">✓</span>Lapse-detection + automatic win-back.</div></div>
+      <div class="flip"><div class="fail"><span class="x">✕</span><s>Drive 40 min between jobs</s></div><div class="fix"><span class="ck">✓</span>Geographic clustering / route-aware scheduling.</div></div>
+      <div class="flip"><div class="fail"><span class="x">✕</span><s>Overbook and burn out</s></div><div class="fix"><span class="ck">✓</span>A hard daily capacity cap the calendar enforces.</div></div>
+      <div class="flip"><div class="fail"><span class="x">✕</span><s>Race to the bottom on price</s></div><div class="fix"><span class="ck">✓</span>Compete on trust/reliability/relationship — never show cheapest.</div></div>
+      <div class="flip"><div class="fail"><span class="x">✕</span><s>Depend on one big client</s></div><div class="fix"><span class="ck">✓</span>Dashboard flags concentration risk — no client over X% of revenue.</div></div>
+      <div class="flip"><div class="fail"><span class="x">✕</span><s>Be invisible online</s></div><div class="fix"><span class="ck">✓</span>Auto-generated service-area pages + always-fresh Google Business.</div></div>
+      <div class="flip"><div class="fail"><span class="x">✕</span><s>Have no proof of quality</s></div><div class="fix"><span class="ck">✓</span>Before/after photos every job — an undeniable portfolio.</div></div>
+    </div>
+  </section>
+
+  <!-- ================= 8 · ROLE-STORMING ================= -->
+  <section class="lens c-mint">
+    <div class="lens-head">
+      <div class="lens-num">8<small>LENS</small></div>
+      <div>
+        <div class="lens-kicker">🤝 Stakeholder Empathy</div>
+        <div class="lens-title">Role-Storming</div>
+      </div>
+    </div>
+    <p class="lens-desc">Stand inside each customer's shoes — the frazzled parent, the skeptical first-timer, the Airbnb host, the property manager — and design for what they actually need.</p>
+    <div class="roles">
+      <div class="role"><div class="who"><span class="av">👨‍👩‍👧</span><span class="nm">Busy parent</span></div><div class="quote">One-tap "same as last time" rebooking — no thinking required.</div></div>
+      <div class="role"><div class="who"><span class="av">🤨</span><span class="nm">First-timer skeptic</span></div><div class="quote">A video walk-through of what a deep clean includes + insured/bonded proof up front.</div></div>
+      <div class="role"><div class="who"><span class="av">👵</span><span class="nm">Elderly client</span></div><div class="quote">Phone-call fallback + large-text simple confirmations. Not everyone is app-native.</div></div>
+      <div class="role"><div class="who"><span class="av">🏠</span><span class="nm">Airbnb host</span></div><div class="quote">Turnover mode synced to their booking calendar; auto-schedule a clean after each checkout.</div></div>
+      <div class="role"><div class="who"><span class="av">🔑</span><span class="nm">Landlord</span></div><div class="quote">Move-in/out packages with a photo-documented checklist for deposit disputes.</div></div>
+      <div class="role"><div class="who"><span class="av">🏡</span><span class="nm">Realtor</span></div><div class="quote">Pre-listing "show-ready" clean invoiced to the agent — a B2B referral channel.</div></div>
+      <div class="role"><div class="who"><span class="av">🏢</span><span class="nm">Small commercial</span></div><div class="quote">After-hours recurring office cleans fill the daytime gap at higher margin.</div></div>
+      <div class="role"><div class="who"><span class="av">💑</span><span class="nm">Client's spouse</span></div><div class="quote">A shared household account so either partner can book, reschedule or pay.</div></div>
+      <div class="role"><div class="who"><span class="av">🎁</span><span class="nm">Gift-giver</span></div><div class="quote">Gift a clean for a new parent or recovering friend — a gift-card acquisition channel.</div></div>
+      <div class="role"><div class="who"><span class="av">🏘️</span><span class="nm">Property manager</span></div><div class="quote">Multi-unit dashboard access with a consolidated monthly invoice.</div></div>
+    </div>
+  </section>
+
+  <!-- ================= 9 · SYSTEMS THINKING / FLYWHEEL ================= -->
+  <section class="lens c-teal">
+    <div class="lens-head">
+      <div class="lens-num">9<small>LENS</small></div>
+      <div>
+        <div class="lens-kicker">⚙️ Systems Thinking</div>
+        <div class="lens-title">The Flywheel</div>
+      </div>
+    </div>
+    <p class="lens-desc">Stop thinking in features — think in loops. Every completed job should spin the wheel a little faster. Here is the engine at the centre of it all.</p>
+
+    <div class="fly-wrap">
+      <div class="flywheel" aria-label="One job auto-fires four growth actions">
+        <div class="ring"></div>
+        <div class="spin">
+          <div class="spoke s1"><span>📸</span>Photo → portfolio</div>
+          <div class="spoke s2"><span>⭐</span>Review request</div>
+          <div class="spoke s3"><span>🎁</span>Referral offer</div>
+          <div class="spoke s4"><span>🔁</span>Rebook prompt</div>
+        </div>
+        <div class="hub">1 completed job auto-fires 4 actions</div>
+      </div>
+      <p class="fly-caption"><b>The core loop.</b> A single finished clean automatically triggers four growth events — the portfolio grows, reviews pile up, referrals fire, and the next booking is set. No manual follow-up, ever.</p>
+    </div>
+
+    <div class="loop-grid">
+      <div class="loop"><span class="lp">🔒 Moat</span>Data compounding: preferences + history make each clean better → more reviews/referrals → lower CAC. The dashboard is the moat.</div>
+      <div class="loop"><span class="lp">📍 Geo loop</span>Referrals weighted to nearby addresses (bigger discount to a neighbor) → tighter routes → more jobs per day.</div>
+      <div class="loop"><span class="lp">🔎 SEO loop</span>Auto-published reviews feed service-area SEO pages that feed the booking link — a closed loop.</div>
+      <div class="loop"><span class="lp">📅 Fill loop</span>A cancellation instantly offers the slot to a waitlisted client — near-zero idle capacity.</div>
+      <div class="loop"><span class="lp">📊 Smoothing</span>Slow-day dynamic discounts smooth demand into predictable weekly income.</div>
+      <div class="loop"><span class="lp">💰 Float</span>Prepaid memberships fund supplies/equipment upfront; the float is working capital.</div>
+      <div class="loop"><span class="lp">🛡️ Owner health</span>Two-way rating lets her fire bad clients — owner-retention as a longevity strategy.</div>
+    </div>
+  </section>
+
+  <!-- ================= 10 · WILD / 10x ================= -->
+  <section class="lens c-lemon">
+    <div class="lens-head">
+      <div class="lens-num">10<small>LENS</small></div>
+      <div>
+        <div class="lens-kicker">🚀 Permission to be Absurd</div>
+        <div class="lens-title">Wild / 10x</div>
+      </div>
+    </div>
+    <p class="lens-desc">Throw out feasibility. Franchise the whole system, brand a signature scent, livestream the clean, run a referral leaderboard. The absurd ideas are where the real 10x hides.</p>
+    <div class="wild">
+      <div class="wild-card"><div class="spark"></div><div class="wbody">🏪 <b>Franchise-in-a-box:</b> license the whole system to other solo cleaners — the tool becomes the business. The real 10x.</div></div>
+      <div class="wild-card"><div class="spark"></div><div class="wbody">🤝 <b>Cleaner co-op:</b> solo cleaners in a metro share overflow jobs and cover each other's vacations.</div></div>
+      <div class="wild-card"><div class="spark"></div><div class="wbody">📈 <b>"Clean score" for homes:</b> a gamified cleanliness index the client watches improve — an emotional hook.</div></div>
+      <div class="wild-card"><div class="spark"></div><div class="wbody">🌸 <b>Signature scent</b> she leaves behind: brandable, memorable, Instagrammable.</div></div>
+      <div class="wild-card"><div class="spark"></div><div class="wbody">📦 <b>Eco supply subscription box</b> restocked at the home on a schedule — ancillary revenue.</div></div>
+      <div class="wild-card"><div class="spark"></div><div class="wbody">📹 <b>Live timelapse</b> of the clean the client can watch remotely — trust + delight for anxious clients.</div></div>
+      <div class="wild-card"><div class="spark"></div><div class="wbody">💡 <b>AI "clean coach"</b> micro-tips for clients between visits; keeps the brand in mind daily.</div></div>
+      <div class="wild-card"><div class="spark"></div><div class="wbody">🌿 <b>Monthly eco report:</b> "only plant-based products used" — values-based retention.</div></div>
+      <div class="wild-card"><div class="spark"></div><div class="wbody">🏘️ <b>Neighborhood group-buy:</b> 3 houses on a street book the same day, all save, she saves drive time.</div></div>
+      <div class="wild-card"><div class="spark"></div><div class="wbody">🏅 <b>Loyalty tiers:</b> after 12 cleans, a free oven/fridge deep-clean — cheap to give, hugely retentive.</div></div>
+      <div class="wild-card"><div class="spark"></div><div class="wbody">📦 <b>White-glove moving concierge:</b> partner with local movers, auto-attach a move-out clean to any move.</div></div>
+      <div class="wild-card"><div class="spark"></div><div class="wbody">🎙️ <b>15-second voice-note handoffs</b> per client ("watch the loose stair rail") — searchable.</div></div>
+      <div class="wild-card"><div class="spark"></div><div class="wbody">⚡ <b>Instant "clean now"</b> surge-priced same-day emergency cleans at 2× — high margin.</div></div>
+      <div class="wild-card"><div class="spark"></div><div class="wbody">🏆 <b>Referral leaderboard:</b> top referrer each quarter gets a free clean — clients become a sales team.</div></div>
+    </div>
+  </section>
+
+  <!-- ================= CLIMAX · SYNTHESIS ================= -->
+  <section class="climax" id="climax">
+    <div class="eyebrow">✦ The Synthesis ✦</div>
+    <h2>Three <span class="g">Breakthrough</span> Connections</h2>
+    <p class="lede">102 sparks converged on three ideas that changed the shape of the whole business. This is the payoff.</p>
+
+    <div class="breaks">
+      <div class="brk">
+        <div class="bnum">01</div>
+        <h3>Geo-weighted referrals unify two levers</h3>
+        <p>Weighting referrals toward nearby addresses collapses <span class="kw">marketing</span> and <span class="kw">route-efficiency</span> into a single lever — every new neighbor makes the route tighter and the next referral cheaper.</p>
+      </div>
+      <div class="brk">
+        <div class="bnum">02</div>
+        <h3>The dashboard is the MOAT</h3>
+        <p>The owner dashboard isn't a back-office tool — it's the <span class="kw">competitive moat</span>. Compounding client data makes every clean better than a competitor's first clean could ever be.</p>
+      </div>
+      <div class="brk">
+        <div class="bnum">03</div>
+        <h3>Productize the tool itself</h3>
+        <p>The true 10× is <span class="kw">franchise-in-a-box</span> — licensing the system to other solo cleaners so the tool, not the cleaning, becomes the business.</p>
+      </div>
+    </div>
+
+    <div class="crosslinks">
+      <h4>· And the cross-links that tie it together ·</h4>
+      <div class="xl-grid">
+        <div class="xl"><span class="lk">💳</span><div>Card-on-file + auto-charge + prepaid membership together <b>eliminate the entire payment-chasing problem</b> and create predictable MRR.</div></div>
+        <div class="xl"><span class="lk">⚙️</span><div>The per-job flywheel — photo → portfolio, review, referral, rebook — turns <b>every completed job into a growth event</b>.</div></div>
+        <div class="xl"><span class="lk">🛡️</span><div>Two-way rating + hard capacity cap + client-concentration flag together <b>protect the owner from burnout and single-client fragility</b>.</div></div>
+      </div>
+    </div>
+
+    <div class="direction">
+      <div class="d-label">✦ Recommended near-term direction ✦</div>
+      <p>Build a <b>flywheel-centric booking + dashboard core</b> — with card-on-file auto-charge, route-aware self-scheduling, and geo-referral at its heart. Treat <b>franchise &amp; co-op</b> as the long-horizon vision.</p>
+    </div>
+  </section>
+
+  <footer>
+    <p>Crafted from a live brainstorming session &nbsp;·&nbsp; 102 ideas &nbsp;·&nbsp; 10 lenses &nbsp;·&nbsp; 15 July 2026</p>
+    <p style="margin-top:6px">Made with a little <span class="heart">♥</span> and a lot of <span class="sud2"></span><span class="sud2"></span><span class="sud2"></span> for <b>LovesCleaning</b></p>
+  </footer>
+
+</div>
+
+<script>
+(function(){
+  var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  // ---- drifting bubbles ----
+  if(!reduce){
+    var box = document.getElementById('bubbles');
+    var N = 18;
+    for(var i=0;i<N;i++){
+      var b = document.createElement('div');
+      b.className='bubble';
+      var size = 14 + Math.random()*60;
+      b.style.width = size+'px';
+      b.style.height = size+'px';
+      b.style.left = (Math.random()*100)+'vw';
+      b.style.animationDuration = (14 + Math.random()*20)+'s';
+      b.style.animationDelay = (-Math.random()*20)+'s';
+      box.appendChild(b);
+    }
+  }
+
+  // ---- scroll reveal ----
+  var obs;
+  if('IntersectionObserver' in window){
+    obs = new IntersectionObserver(function(entries){
+      entries.forEach(function(e){
+        if(e.isIntersecting){ e.target.classList.add('in'); obs.unobserve(e.target); }
+      });
+    }, {threshold:0.12});
+    document.querySelectorAll('.lens, .climax, .tl-item').forEach(function(el){ obs.observe(el); });
+  } else {
+    document.querySelectorAll('.lens, .climax, .tl-item').forEach(function(el){ el.classList.add('in'); });
+  }
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,48 @@
+# Local dev/test database stack.
+# App + Drizzle connect through the pgBouncer POOLED port (:6432) in TRANSACTION
+# pooling mode — this mirrors Vercel serverless + Neon/Supabase and enforces AD-3:
+# never rely on session-scoped connection state (session pg_advisory_lock is
+# forbidden project-wide). Migrations use the DIRECT Postgres port (:5432).
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: loves
+      POSTGRES_PASSWORD: loves
+      POSTGRES_DB: lovescleaning
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U loves -d lovescleaning"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  pgbouncer:
+    image: edoburu/pgbouncer:latest
+    environment:
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_USER: loves
+      DB_PASSWORD: loves
+      DB_NAME: lovescleaning
+      POOL_MODE: transaction
+      AUTH_TYPE: scram-sha-256
+      MAX_CLIENT_CONN: "100"
+      DEFAULT_POOL_SIZE: "20"
+      LISTEN_PORT: "6432"
+    ports:
+      - "6432:6432"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -p 6432 -U loves -d lovescleaning || exit 1"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+volumes:
+  pgdata:

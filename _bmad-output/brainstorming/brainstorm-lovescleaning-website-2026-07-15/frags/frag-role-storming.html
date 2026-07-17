@@ -1,0 +1,116 @@
+<section class="lens" id="lens-role-storming">
+  <div class="lens-head"><span class="lens-num">08</span><div><h2>Role-Storming</h2><p class="lens-blurb">Designing the product through each stakeholder's eyes, so every booking flow fits the person actually using it.</p></div></div>
+  <div class="idea-grid">
+
+    <article class="idea">
+      <h3>Same As Last Time</h3>
+      <p class="essence">The busy parent rebooks their whole clean in one tap, no thinking required.</p>
+      <div class="meta">
+        <p><span class="k">How it works</span> For the <strong>busy parent</strong> persona, the booking link opens straight to a single hero button: "Same as last time - Tue, 9am." One tap re-clones the previous job's scope, address, notes, and card-on-file into the next open route slot and confirms. Any change (date, add-on) is optional and tucked behind a small "edit" link so the default path stays one thumb-press.</p>
+        <p><span class="k">Why it wins solo</span> Zero admin for the owner - the parent self-serves the rebook with no texting back and forth - and it manufactures repeat revenue by removing the friction that causes recurring clients to lapse.</p>
+        <p><span class="k">Watch-out</span> Cloning blindly can carry forward a stale price or a scope the customer has outgrown; surface the price and date on the confirmation so "one tap" never means "surprise charge."</p>
+        <p class="build"><span class="k">Build note</span> MVP: store last job as a template keyed to the customer, render one button from it. Low effort on top of any booking store. Later: predictive default date based on their cadence.</p>
+      </div>
+    </article>
+
+    <article class="idea">
+      <h3>Proof Before Trust</h3>
+      <p class="essence">The first-timer skeptic sees exactly what a deep clean includes plus insured/bonded proof before they ever commit.</p>
+      <div class="meta">
+        <p><span class="k">How it works</span> For the <strong>first-timer skeptic</strong> persona, the landing/booking page leads with a short video walk-through narrating a real deep clean room by room, so expectations are set visually. Alongside it, badges and a one-tap view of the insured and bonded certificates answer the unspoken "can I trust a stranger in my home?" question up front. Objections are handled on the page, before the booking form, not after.</p>
+        <p><span class="k">Why it wins solo</span> The video and proof do the trust-selling that a receptionist or sales call would otherwise cost time on, converting cold visitors without ad spend by turning credibility into the funnel's opening move.</p>
+        <p><span class="k">Watch-out</span> A low-quality or dated video undercuts the very trust it aims to build; it must look clean and current or it signals the opposite.</p>
+        <p class="build"><span class="k">Build note</span> MVP: one phone-shot 60-90s video embedded, plus static insured/bonded badge images linking to PDFs. Later: swap in real before/after clips harvested from jobs.</p>
+      </div>
+    </article>
+
+    <article class="idea">
+      <h3>Not Everyone Is App-Native</h3>
+      <p class="essence">The elderly client can always fall back to a phone call and gets large-text, dead-simple confirmations.</p>
+      <div class="meta">
+        <p><span class="k">How it works</span> For the <strong>elderly client</strong> persona, every booking surface offers a prominent "Prefer to call? Tap here" fallback that rings or texts the owner directly. Confirmations to this segment are sent in large, high-contrast text with plain wording ("Your cleaning is Thursday at 10am. Reply YES.") and no app download or login required. The digital flow degrades gracefully to a human channel instead of dead-ending a non-technical customer.</p>
+        <p><span class="k">Why it wins solo</span> It captures repeat revenue from a loyal, high-retention demographic that fully-automated competitors lose, while the fallback is a phone number - no back-office system needed to serve them.</p>
+        <p><span class="k">Watch-out</span> The call fallback reintroduces phone tag for the owner; cap it to this segment and let the AI receptionist field the call so it doesn't erode the no-admin goal.</p>
+        <p class="build"><span class="k">Build note</span> MVP: a tel: link plus an accessible large-text SMS template. Trivial effort. Later: route calls to the AI voice agent for true hands-off handling.</p>
+      </div>
+    </article>
+
+    <article class="idea">
+      <h3>Turnover Mode</h3>
+      <p class="essence">The Airbnb host syncs their booking calendar so a clean auto-schedules after every guest checkout.</p>
+      <div class="meta">
+        <p><span class="k">How it works</span> For the <strong>Airbnb host</strong> persona, a "turnover mode" connects to their reservation calendar (iCal feed) and automatically books a same-day clean into the gap between each checkout and the next check-in. The host sets it once; every future guest departure silently generates a job at the property, sequenced into the owner's route. It turns an unpredictable, stressful scramble into a standing recurring pipeline.</p>
+        <p><span class="k">Why it wins solo</span> One setup yields a stream of automatically-generated recurring jobs with no per-turnover coordination, creating dependable repeat revenue and zero booking admin for the owner.</p>
+        <p><span class="k">Watch-out</span> Tight same-day windows between guests are unforgiving; a late checkout or double-booked route can blow a turnover, so capacity limits and buffer rules must guard the auto-scheduler.</p>
+        <p class="build"><span class="k">Build note</span> MVP: ingest an Airbnb iCal URL, create a job N hours after each checkout event. Moderate effort (calendar parsing). Later: two-way sync and conflict detection against the route.</p>
+      </div>
+    </article>
+
+    <article class="idea">
+      <h3>Deposit-Proof Move Cleans</h3>
+      <p class="essence">The landlord gets move-in/out packages with a photo-documented checklist built for deposit disputes.</p>
+      <div class="meta">
+        <p><span class="k">How it works</span> For the <strong>landlord</strong> persona, a dedicated move-in/move-out package runs a standardized room-by-room checklist during the job, and the owner captures before/after photos tied to each line item. The output is a timestamped, shareable report the landlord can hand a tenant or hold as evidence in a deposit dispute. The clean is packaged as documentation, not just labor.</p>
+        <p><span class="k">Why it wins solo</span> It commands a premium fixed-package price and creates a repeat channel (landlords turn units regularly), all produced automatically from photos captured on the job - no separate paperwork for the owner.</p>
+        <p><span class="k">Watch-out</span> Documentation used in disputes raises the stakes on accuracy and completeness; a missed room in the checklist could expose the owner to a liability claim, so the checklist must be enforced, not optional.</p>
+        <p class="build"><span class="k">Build note</span> MVP: a fixed checklist template with a photo slot per item, exported to a shareable PDF. Reuses the per-job photo capture. Later: tenant-facing signed acknowledgement link.</p>
+      </div>
+    </article>
+
+    <article class="idea">
+      <h3>Show-Ready, Billed To The Agent</h3>
+      <p class="essence">The realtor books a pre-listing clean invoiced to the agent, opening a B2B referral channel.</p>
+      <div class="meta">
+        <p><span class="k">How it works</span> For the <strong>realtor</strong> persona, a "pre-listing show-ready" service lets an agent book a fast turnaround clean for a property going on market, with the invoice charged to the agent's card-on-file rather than the homeowner. A single realtor becomes a repeat source of listings-worth of jobs, and each cleaned home is a referral seed into that agent's client base. The product treats the agent as the recurring buyer and the homeowner as the downstream lead.</p>
+        <p><span class="k">Why it wins solo</span> One relationship yields many jobs plus organic referrals into new homeowners, compounding repeat and referral revenue with no ad spend, and agent-billing means one payer to auto-charge - no chasing multiple homeowners.</p>
+        <p><span class="k">Watch-out</span> Realtors expect reliability and short-notice turnarounds; missing a listing deadline can burn the whole referral channel, so agent jobs may need priority routing.</p>
+        <p class="build"><span class="k">Build note</span> MVP: an "agent account" flag with card-on-file billing and a pre-listing package. Low effort on existing booking + payment. Later: a realtor portal with bulk scheduling.</p>
+      </div>
+    </article>
+
+    <article class="idea">
+      <h3>Fill The Daytime Gap</h3>
+      <p class="essence">The small commercial client takes after-hours recurring office cleans that pay higher margin.</p>
+      <div class="meta">
+        <p><span class="k">How it works</span> For the <strong>small commercial</strong> persona, the product offers recurring after-hours office cleaning contracts scheduled into evenings, filling the owner's otherwise-empty post-residential hours. These are standing weekly/biweekly agreements with a fixed monthly price, billed to the business card-on-file. Commercial demand is packaged specifically to occupy the calendar slots residential demand leaves open.</p>
+        <p><span class="k">Why it wins solo</span> It converts idle evening capacity into predictable, higher-margin recurring revenue (MRR) from a single reliable payer, maximizing utilization without adding a single back-office task.</p>
+        <p><span class="k">Watch-out</span> Commercial contracts can mean bigger square footage and longer jobs that risk owner burnout against the daily capacity cap; scope and hours must be sized so evenings don't become overtime.</p>
+        <p class="build"><span class="k">Build note</span> MVP: a commercial recurring plan with fixed monthly billing and evening-only slots. Reuses subscription + card-on-file. Later: multi-visit-per-week scheduling and staff hand-off when a crew is added.</p>
+      </div>
+    </article>
+
+    <article class="idea">
+      <h3>Shared Household Account</h3>
+      <p class="essence">The client's spouse can book, reschedule, or pay from a household account either partner controls.</p>
+      <div class="meta">
+        <p><span class="k">How it works</span> For the <strong>client's spouse</strong> persona, a single household account lets either partner book, reschedule, or pay against the same job history, preferences, and card-on-file. Whoever is free that day handles the cleaning logistics without needing the other's login or a forwarded confirmation. The account models a home, not an individual, so scheduling never stalls on "let me ask my partner."</p>
+        <p><span class="k">Why it wins solo</span> Two engaged bookers means fewer missed rebookings and lapses, protecting repeat revenue, and shared payment authority means the auto-charge never fails because the "wrong" partner held the card.</p>
+        <p><span class="k">Watch-out</span> Shared access raises privacy and consent questions - either partner can see notes and charge the card - so invites and permissions must be explicit to avoid an awkward or unauthorized action.</p>
+        <p class="build"><span class="k">Build note</span> MVP: a household entity with multiple contact phones/emails resolving to one account and card. Moderate data-model effort. Later: role permissions (view vs. pay).</p>
+      </div>
+    </article>
+
+    <article class="idea">
+      <h3>Gift A Clean</h3>
+      <p class="essence">The gift-giver buys a clean for a new parent or recovering friend, opening a gift-card acquisition channel.</p>
+      <div class="meta">
+        <p><span class="k">How it works</span> For the <strong>gift-giver</strong> persona, a giftable clean lets someone purchase a one-off (or bundle of) cleanings for a recipient - a new parent, a recovering friend - and send a redeemable link. The recipient redeems by picking a slot and lands as a fully onboarded new customer with the gift pre-paid. Each gift is a warm, pre-funded introduction to a household that never went looking for a cleaner.</p>
+        <p><span class="k">Why it wins solo</span> It acquires new clients at zero ad spend - the gift-giver pays and does the referring - and prepaid gift value is working capital collected before any labor is delivered.</p>
+        <p><span class="k">Watch-out</span> Gift recipients outside the service area or route can't be fulfilled, and unredeemed gifts create a liability; both need clear coverage checks and expiry/refund terms at purchase.</p>
+        <p class="build"><span class="k">Build note</span> MVP: a Stripe gift purchase that generates a redeemable code plus an email/text link. Low effort. Later: scheduled delivery and branded gift cards.</p>
+      </div>
+    </article>
+
+    <article class="idea">
+      <h3>Multi-Unit, One Invoice</h3>
+      <p class="essence">The property manager gets dashboard access across units and a single consolidated monthly invoice.</p>
+      <div class="meta">
+        <p><span class="k">How it works</span> For the <strong>property manager</strong> persona, a manager-level view lists every unit they oversee, lets them book and track cleans per unit, and rolls all jobs into one consolidated monthly invoice charged to the management account. Instead of one transaction per unit per visit, the manager sees a portfolio and pays once. The product scales its account model from a single home to a book of properties.</p>
+        <p><span class="k">Why it wins solo</span> One manager relationship supplies a high volume of recurring jobs with a single monthly auto-charge - dense, predictable revenue and one payer to bill, not dozens - all without new admin overhead.</p>
+        <p><span class="k">Watch-out</span> Consolidated monthly billing delays cash relative to per-job auto-charge and concentrates revenue in one client, tripping the client-concentration risk the owner otherwise guards against.</p>
+        <p class="build"><span class="k">Build note</span> MVP: a parent account grouping multiple property sub-accounts with a monthly invoice sum. Moderate effort (billing rollup). Later: per-unit reporting and manager self-serve scheduling.</p>
+      </div>
+    </article>
+
+  </div>
+</section>

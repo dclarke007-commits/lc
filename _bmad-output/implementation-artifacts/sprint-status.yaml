@@ -1,0 +1,125 @@
+# generated: 2026-07-15
+# last_updated: 2026-07-16
+# project: LovesCleaning
+# project_key: NOKEY
+# tracking_system: file-system
+# story_location: _bmad-output/implementation-artifacts
+
+# STATUS DEFINITIONS:
+# ==================
+# Epic Status:
+#   - backlog: Epic not yet started
+#   - in-progress: Epic actively being worked on
+#   - done: All stories in epic completed
+#
+# Epic Status Transitions:
+#   - backlog → in-progress: Automatically when first story is created (via create-story)
+#   - in-progress → done: Manually when all stories reach 'done' status
+#
+# Story Status:
+#   - backlog: Story only exists in epic file
+#   - ready-for-dev: Story file created in stories folder
+#   - in-progress: Developer actively working on implementation
+#   - review: Ready for code review (via Dev's code-review workflow)
+#   - done: Story completed
+#
+# Retrospective Status:
+#   - optional: Can be completed but not required
+#   - done: Retrospective has been completed
+#
+# Action Item Status:
+#   - open: Committed during a retrospective, not yet addressed
+#   - in-progress: Actively being worked on
+#   - done: Completed
+#
+# WORKFLOW NOTES:
+# ===============
+# - Epic transitions to 'in-progress' automatically when first story is created
+# - Stories can be worked in parallel if team capacity allows
+# - Developer typically creates next story after previous one is 'done' to incorporate learnings
+# - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
+# - Retrospective appends its action items to action_items; sprint-status surfaces open ones
+
+generated: 2026-07-15
+last_updated: 2026-07-17
+project: LovesCleaning
+# note: Epic 2 COMPLETE (dev + code-review, all 4 stories done) 2026-07-16 | 1-7 done (dev + code-review complete) 2026-07-16 — Epic 1 dev COMPLETE
+project_key: NOKEY
+tracking_system: file-system
+story_location: _bmad-output/implementation-artifacts
+
+development_status:
+  # --- Epic 1: Operator's Book — Foundation + Manual Scheduling ---
+  epic-1: done
+  1-1-authenticated-shell-operator-seed: done
+  1-2-create-edit-client-records: done
+  1-3-configure-availability-caps: done
+  1-4-direct-booking-cap-enforcement-one-winner-concurrency: done
+  1-5-mark-job-outcome-completed-no-show: done
+  1-6-cancel-reschedule-capacity-release: done
+  1-7-forecasting-lite-room-left-day-maxed-nearest-open: done
+  epic-1-retrospective: optional
+
+  # --- Epic 2: Messaging Engine — Draft + Tap-to-Send ---
+  epic-2: done
+  2-1-operator-editable-message-templates: done
+  2-2-compose-messagedraft-deep-link-delivery: done
+  2-3-dispatch-logging-drafted-vs-dispatched-idempotent: done
+  2-4-booking-confirmation-message: done
+  epic-2-retrospective: optional
+
+  # --- Epic 3: Rebooking & Win-Back — Plug the Revenue Leak ---
+  epic-3: done
+  3-1-client-booking-surface-per-client-link: done
+  3-2-known-client-direct-confirm-booking: done
+  3-3-one-tap-rebooking-proposal-message: done
+  3-4-post-job-nudge-rebooking-tracking: done
+  3-5-lapse-detection-expected-next-date-gone-cold: done
+  3-6-win-back-action: done
+  epic-3-retrospective: done
+
+  # --- Epic 4: Client Self-Booking — Plug the Inquiry Leak ---
+  epic-4: backlog
+  4-1-public-self-serve-link-qr: backlog
+  4-2-new-client-public-booking-provisional-record-pending-request: backlog
+  4-3-operator-approval-queue: backlog
+  4-4-log-inquiry-with-source: backlog
+  epic-4-retrospective: optional
+
+  # --- Epic 5: Cash Ledger — Plug the Payment Leak ---
+  epic-5: backlog
+  5-1-per-job-payment-status: backlog
+  5-2-outstanding-aggregation-who-owes: backlog
+  5-3-payment-reminder-draft: backlog
+  5-4-mark-paid: backlog
+  epic-5-retrospective: optional
+
+  # --- Epic 6: Leak-Detector Dashboard + Data Export ---
+  epic-6: backlog
+  6-1-single-screen-dashboard-core: backlog
+  6-2-leak-indicators: backlog
+  6-3-gone-cold-list-with-win-back-access: backlog
+  6-4-csv-export: backlog
+  epic-6-retrospective: optional
+
+action_items:
+  - epic: 3
+    action: "Introduce a named hasFutureBooking (booked-only) predicate for lapse, distinct from capacity.consumesSlot; document the intentional divergence at both sites"
+    owner: "Developer"
+    status: open
+  - epic: 3
+    action: "Add a nonce-keying convention to compose.ts docs: nonces key on the event instance (anchor/spell), never a bare entity id"
+    owner: "Developer"
+    status: open
+  - epic: 3
+    action: "Before Epic 6 dashboard (FR23) surfaces lapse at scale, address deferred perf: bounded/per-client listJobs projection, drop unused clientName join, de-dupe winback double-load"
+    owner: "Developer"
+    status: open
+  - epic: 3
+    action: "Establish a fail-pattern-uniformity check for RSC read surfaces (every read path fail-closed/open consistently, AD-8)"
+    owner: "Developer"
+    status: open
+  - epic: 3
+    action: "Carry 3-1 token replay/revocation rigor + adversarial and security review into Epic 4 public self-serve (4-1/4-2)"
+    owner: "Developer"
+    status: open

@@ -1,0 +1,149 @@
+<section class="lens" id="lens-scamper">
+  <div class="lens-head"><span class="lens-num">02</span><div><h2>SCAMPER</h2><p class="lens-blurb">Takes each moving part of the booking-to-payment machine and Substitutes, Combines, Adapts, Minifies, or Eliminates it until the whole operation runs itself.</p></div></div>
+  <div class="idea-grid">
+
+    <article class="idea">
+      <h3>The Booking Form That Texts Back</h3>
+      <p class="essence">Kill the form; a conversational SMS/WhatsApp agent books the job in a thread.</p>
+      <div class="meta">
+        <p><span class="k">How it works</span> Instead of a multi-field web form, the customer texts a number (or taps a link that opens a chat) and an AI agent asks one thing at a time: address, rooms, day. For known customers it opens with the smart default — "Want your usual biweekly Tuesday at 9?" — and a single "yes" confirms the whole job. The agent parses free-text replies into a structured booking on the calendar.</p>
+        <p><span class="k">Why it wins solo</span> Texting has near-zero friction and a much higher completion rate than forms, so more visitors turn into booked jobs with no ad spend. The agent handles the back-and-forth 24/7, so there is no receptionist and no missed inquiry while she is elbow-deep in someone's kitchen.</p>
+        <p><span class="k">Watch-out</span> A misparsed date or address becomes a real missed appointment; the agent must confirm the final slot in plain language before it is committed.</p>
+        <p class="build"><span class="k">Build note</span> MVP: Twilio/WhatsApp Business number wired to a single LLM prompt over the customer + calendar state. Later: multi-turn memory and rich confirmation cards.</p>
+      </div>
+    </article>
+
+    <article class="idea">
+      <h3>Proof You Can See</h3>
+      <p class="essence">Replace star ratings with an auto-built before/after gallery for every job.</p>
+      <div class="meta">
+        <p><span class="k">How it works</span> Two quick phone photos per room — before and after — are captured in-app during the clean and auto-assembled into a side-by-side gallery tagged to that job. New visitors browse real transformations from real local homes instead of reading five-star text that every competitor also claims. The best pairs feed the portfolio and social reels automatically.</p>
+        <p><span class="k">Why it wins solo</span> Visual proof converts skeptics far better than words, lifting the visitor-to-booking rate with zero paid promotion. The gallery is a byproduct of work she already does, so it accrues marketing asset value on every single job with no extra content effort.</p>
+        <p><span class="k">Watch-out</span> Client privacy — some homes/possessions must never be shown; capture needs an explicit per-job consent toggle and easy blur/exclude.</p>
+        <p class="build"><span class="k">Build note</span> MVP: in-app camera step that stores paired photos on the job record. Later: auto-crop/align before/after framing and one-tap publish.</p>
+      </div>
+    </article>
+
+    <article class="idea">
+      <h3>Book a Slot, Sequence the Day</h3>
+      <p class="essence">Combine scheduling with routing so each new booking auto-orders the day by address.</p>
+      <div class="meta">
+        <p><span class="k">How it works</span> When a customer picks a slot, the system doesn't just drop it on the calendar — it re-sequences that day's jobs geographically so drive time is minimized. The booker is only ever offered slots that actually fit an efficient route, and the day's running order updates itself as bookings land. She sees a clean, driving-optimized itinerary, not a raw time list.</p>
+        <p><span class="k">Why it wins solo</span> Less windshield time means more billable jobs per day from one pair of hands, directly raising revenue without hiring. Because the route optimizes as bookings arrive, there is no manual day-planning step — the dashboard replaces the back-office dispatcher.</p>
+        <p><span class="k">Watch-out</span> Over-optimizing can offer customers awkward slots; keep a human override and honest ETA windows so route math never overrides real preferences.</p>
+        <p class="build"><span class="k">Build note</span> MVP: geocode addresses + a simple nearest-neighbor sort per day. Later: a real routing API (Google/Mapbox) with traffic-aware time windows.</p>
+      </div>
+    </article>
+
+    <article class="idea">
+      <h3>The Receipt Is the Review Link</h3>
+      <p class="essence">Fuse payment and review — there is no receipt without passing the review prompt.</p>
+      <div class="meta">
+        <p><span class="k">How it works</span> At job completion the payment confirmation and the review request become one screen: the customer's proof-of-payment/receipt is delivered through the same link that asks "How did we do?" Satisfaction is highest right after the clean, so the review is captured at peak goodwill. The receipt they want and the review she wants arrive in a single, unavoidable-but-friendly moment.</p>
+        <p><span class="k">Why it wins solo</span> Piggybacking the review on the receipt they already want drives review volume way up without nagging follow-ups, and reviews are the free engine of referral/repeat demand. No separate review-chasing workflow means one less admin loop for a one-person shop.</p>
+        <p><span class="k">Watch-out</span> Gating a needed receipt behind a review can feel coercive and violate platform review policies; make the review genuinely optional and never withhold the actual receipt.</p>
+        <p class="build"><span class="k">Build note</span> MVP: post-payment redirect page combining receipt + review CTA. Later: route happy raters to Google, unhappy ones to a private re-clean flow.</p>
+      </div>
+    </article>
+
+    <article class="idea">
+      <h3>The Job Sheet That Knows Where You Are</h3>
+      <p class="essence">Merge client notes and gate/lock codes into a geofenced sheet that unlocks only on-site, on-day.</p>
+      <div class="meta">
+        <p><span class="k">How it works</span> Every client's special instructions, gate codes, alarm codes and lockbox combos live in one job sheet that stays hidden until she is at that address on the booked day. Arriving triggers the geofence and the day's context surfaces the right codes and notes automatically — no scrolling through a contacts app for last month's client. Sensitive access details are only exposed exactly when and where needed.</p>
+        <p><span class="k">Why it wins solo</span> Zero pre-job prep and no fumbling for codes means smoother, faster jobs and fewer lockouts — throughput and reliability that a solo operator can't afford to lose. Reliability itself is the marketing: on-time, prepared cleans generate the referrals that replace ad spend.</p>
+        <p><span class="k">Watch-out</span> Storing lock/alarm codes is a security liability; encrypt at rest, gate behind device auth, and geofences must degrade gracefully in GPS-dead basements.</p>
+        <p class="build"><span class="k">Build note</span> MVP: per-job notes+codes record shown by date. Later: device geofence trigger + encrypted secrets vault with auto-reveal.</p>
+      </div>
+    </article>
+
+    <article class="idea">
+      <h3>Card Hold, No No-Shows</h3>
+      <p class="essence">Adapt the restaurant deposit: booking takes a card hold and auto-charges a fee for late cancels.</p>
+      <div class="meta">
+        <p><span class="k">How it works</span> Confirming a booking requires a card on file with an authorization hold, exactly like reserving a table. If a client cancels inside the 24-hour window, the system auto-charges the pre-agreed cancellation fee without her having to ask for it. The policy is stated up front so the charge is expected, not a surprise.</p>
+        <p><span class="k">Why it wins solo</span> A no-show is a wasted trip and lost income she can't recover as a one-woman operation; the hold protects the day's route and revenue. Auto-charging removes the awkward "you owe me" conversation entirely — the machine enforces the policy, not her.</p>
+        <p><span class="k">Watch-out</span> Overly aggressive fees breed resentment and chargebacks; keep the window and amount fair, and allow a grace exception for genuine emergencies.</p>
+        <p class="build"><span class="k">Build note</span> MVP: Stripe SetupIntent to store the card + manual fee charge. Later: automated 24h-window rule that fires the charge on cancellation.</p>
+      </div>
+    </article>
+
+    <article class="idea">
+      <h3>Fill the Week With Smart Pricing</h3>
+      <p class="essence">Adapt airline dynamic pricing — cheaper on slow days, premium on prime Saturdays.</p>
+      <div class="meta">
+        <p><span class="k">How it works</span> The booking calendar prices slots by demand: quiet midweek days show a discount to lure price-sensitive customers, while coveted Saturday-morning slots carry a premium. Customers self-select into the gaps, smoothing the week instead of everyone piling onto Saturday. Prices are shown as the slot's rate at booking time, so choice feels transparent.</p>
+        <p><span class="k">Why it wins solo</span> A full, evenly-loaded week is maximum revenue from a fixed personal capacity — no idle Tuesdays, no overbooked Saturdays she must turn away. Premium prime slots quietly raise average price without any competition on "cheapest," protecting margin without ad spend.</p>
+        <p><span class="k">Watch-out</span> Cleaning customers can perceive variable pricing as unfair "surge"; keep the spread modest and frame discounts as the story, not surcharges.</p>
+        <p class="build"><span class="k">Build note</span> MVP: static day-of-week price tiers on the booking page. Later: rules that flex discounts based on how full the week currently is.</p>
+      </div>
+    </article>
+
+    <article class="idea">
+      <h3>The FAQ That Books You</h3>
+      <p class="essence">Turn the FAQ into a "Will you clean my place?" quiz that qualifies and books in one flow.</p>
+      <div class="meta">
+        <p><span class="k">How it works</span> Instead of a static list of answers, an interactive quiz asks the visitor a few qualifying questions — home size, pets, service area, what they want done — and answers their real questions inline as it goes. At the end it either presents a firm bookable slot for a good fit or gracefully declines an out-of-area/out-of-scope job. The FAQ becomes an active funnel rather than a dead-end reference page.</p>
+        <p><span class="k">Why it wins solo</span> Qualifying up front means she only spends time on jobs that fit, and the quiz converts curious visitors into bookings in a single session — no phone tag. It filters bad-fit leads automatically, sparing a one-person operation from draining discovery calls.</p>
+        <p><span class="k">Watch-out</span> Too many questions kills completion; keep it to a handful and never let the quiz reject a good customer over a rigid rule.</p>
+        <p class="build"><span class="k">Build note</span> MVP: a branching Typeform-style quiz ending in the booking link. Later: native quiz that writes answers straight into the booking + client profile.</p>
+      </div>
+    </article>
+
+    <article class="idea">
+      <h3>Booked in 60 Seconds</h3>
+      <p class="essence">Minify onboarding to one link: three questions, card on file, done.</p>
+      <div class="meta">
+        <p><span class="k">How it works</span> A new client's entire first experience is a single link that asks only three essentials, captures a card on file, and confirms a booked slot — all in under a minute. Everything non-essential (detailed preferences, notes) is deferred and collected later once they're already a customer. The path from "interested" to "on the calendar with a card" has no detours.</p>
+        <p><span class="k">Why it wins solo</span> Every removed field is a recovered conversion, so ruthless minification directly grows booked jobs from the same traffic. A card captured at signup enables auto-charge later, eliminating the whole invoicing-and-chasing burden a solo owner has no time for.</p>
+        <p><span class="k">Watch-out</span> Three questions can under-scope a job (missing size/access), causing surprises on-site; capture just enough to price and route correctly.</p>
+        <p class="build"><span class="k">Build note</span> MVP: one-page flow = 3 fields + Stripe card element + slot pick. Later: prefill from the SMS agent and progressive profiling post-booking.</p>
+      </div>
+    </article>
+
+    <article class="idea">
+      <h3>The Cleaning Passport</h3>
+      <p class="essence">Client history becomes a portable profile the customer owns and carries when they move.</p>
+      <div class="meta">
+        <p><span class="k">How it works</span> Each client accrues a "cleaning passport" — their preferences, no-go rooms, product sensitivities, and service history — that belongs to them, not locked inside a directory. If they move within her service area, the passport travels so the very first clean at the new address is already personalized. It reframes accumulated history as a portable customer asset.</p>
+        <p><span class="k">Why it wins solo</span> Portable history makes re-engagement after a move frictionless, retaining revenue that would otherwise churn at exactly the life moment cleaning demand spikes. The richer the passport, the better and faster each clean — compounding preference data that a competitor's first visit can never match, all without marketing spend.</p>
+        <p><span class="k">Watch-out</span> "Customer owns it" implies export/portability and privacy rights; scope carefully so it's a retention feature, not an obligation to hand data to rivals.</p>
+        <p class="build"><span class="k">Build note</span> MVP: a durable client profile that survives address changes. Later: customer-facing view + export, and a move-detection prompt to rebook.</p>
+      </div>
+    </article>
+
+    <article class="idea">
+      <h3>Never Send an Invoice Again</h3>
+      <p class="essence">Eliminate invoicing entirely — auto-charge the card on file the moment the job is marked done.</p>
+      <div class="meta">
+        <p><span class="k">How it works</span> There is no invoice, no "please pay within 30 days," no follow-up. When she marks a job complete, the stored card is charged automatically and a receipt is texted instantly. Payment collection collapses from a multi-day chase into a single tap at the end of the clean.</p>
+        <p><span class="k">Why it wins solo</span> Chasing payment is the single biggest time-and-cash drain for a solo cleaner; auto-charge on completion removes it completely and guarantees cash flow. Instant, reliable payment plus stored cards is also the foundation for prepaid memberships and predictable recurring revenue.</p>
+        <p><span class="k">Watch-out</span> Auto-charging a disputed or unsatisfactory clean triggers chargebacks and anger; pair it with a clear satisfaction/re-clean guarantee and a brief hold-to-dispute window.</p>
+        <p class="build"><span class="k">Build note</span> MVP: "Mark done" button → Stripe charge on saved card → SMS receipt. Later: tie into two-way rating and auto-pause for disputes.</p>
+      </div>
+    </article>
+
+    <article class="idea">
+      <h3>Kill the Homepage</h3>
+      <p class="essence">Eliminate the traditional site — one smart booking link she texts and shares is the whole funnel.</p>
+      <div class="meta">
+        <p><span class="k">How it works</span> There is no sprawling homepage with menus and marketing pages; the product is a single smart booking link she drops into texts, her link-in-bio, and QR leave-behinds. The "site" exists only to convert — quote, qualify, book — not to be browsed. Every share of that one link is a direct path to a booked job.</p>
+        <p><span class="k">Why it wins solo</span> A one-purpose link is dramatically easier to build, maintain, and share than a real website, and it wastes zero visitor attention on non-converting pages. It rides organic channels (texts, referrals, QR cards) instead of paid traffic, matching the no-ad-spend goal exactly.</p>
+        <p><span class="k">Watch-out</span> No homepage means weaker organic search presence and less room for trust-building; compensate with the review/proof galleries and service-area SEO pages living behind the link.</p>
+        <p class="build"><span class="k">Build note</span> MVP: a single hosted booking page at a memorable short URL + QR. Later: lightweight service-area landing pages that all funnel into the same link.</p>
+      </div>
+    </article>
+
+    <article class="idea">
+      <h3>She Rates You Too</h3>
+      <p class="essence">Two-way rating — the cleaner scores the customer so she can fire bad clients.</p>
+      <div class="meta">
+        <p><span class="k">How it works</span> After each job she quickly rates the client — messy beyond scope, pets loose, unsafe, tipped well, respectful — stored privately on that customer's record. Over time patterns emerge, flagging draining or risky clients versus ideal ones. When a client's score is consistently bad, she can decline future bookings with confidence and data behind the decision.</p>
+        <p><span class="k">Why it wins solo</span> A solo operator's scarcest asset is her own energy and safety; curating out the worst clients protects long-term retention — of the owner. Freeing capacity from bad jobs lets it flow to good, referral-generating clients, improving revenue quality without any spend.</p>
+        <p><span class="k">Watch-out</span> Customer ratings must stay private and bias-free; a leaked or unfair rating is a reputational and legal risk, so keep it internal and factual.</p>
+        <p class="build"><span class="k">Build note</span> MVP: a private post-job rating field on the client record. Later: auto-flags for concentration/risk and a "don't offer slots" toggle for fired clients.</p>
+      </div>
+    </article>
+
+  </div>
+</section>
