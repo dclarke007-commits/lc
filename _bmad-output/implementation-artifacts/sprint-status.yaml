@@ -76,7 +76,7 @@ development_status:
   3-4-post-job-nudge-rebooking-tracking: done
   3-5-lapse-detection-expected-next-date-gone-cold: done
   3-6-win-back-action: done
-  epic-3-retrospective: optional
+  epic-3-retrospective: done
 
   # --- Epic 4: Client Self-Booking — Plug the Inquiry Leak ---
   epic-4: backlog
@@ -101,3 +101,25 @@ development_status:
   6-3-gone-cold-list-with-win-back-access: backlog
   6-4-csv-export: backlog
   epic-6-retrospective: optional
+
+action_items:
+  - epic: 3
+    action: "Introduce a named hasFutureBooking (booked-only) predicate for lapse, distinct from capacity.consumesSlot; document the intentional divergence at both sites"
+    owner: "Developer"
+    status: open
+  - epic: 3
+    action: "Add a nonce-keying convention to compose.ts docs: nonces key on the event instance (anchor/spell), never a bare entity id"
+    owner: "Developer"
+    status: open
+  - epic: 3
+    action: "Before Epic 6 dashboard (FR23) surfaces lapse at scale, address deferred perf: bounded/per-client listJobs projection, drop unused clientName join, de-dupe winback double-load"
+    owner: "Developer"
+    status: open
+  - epic: 3
+    action: "Establish a fail-pattern-uniformity check for RSC read surfaces (every read path fail-closed/open consistently, AD-8)"
+    owner: "Developer"
+    status: open
+  - epic: 3
+    action: "Carry 3-1 token replay/revocation rigor + adversarial and security review into Epic 4 public self-serve (4-1/4-2)"
+    owner: "Developer"
+    status: open
