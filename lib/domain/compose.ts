@@ -147,3 +147,16 @@ export function confirmationDraftNonce(jobId: string): string {
 export function rebookingDispatchNonce(jobId: string): string {
   return `rebook:${jobId}`;
 }
+
+/**
+ * The deterministic per-draft idempotency nonce for a client's WIN-BACK check-in
+ * (Story 3.6). Keyed on the CLIENT id (a win-back has no anchor job — contrast
+ * rebookingDispatchNonce's `rebook:<jobId>`): the send tap resubmits this same nonce →
+ * the SAME MessageLog row → dispatched_at is stamped ONCE (Story 2.3 idempotency), so a
+ * re-tap re-opens WhatsApp/SMS but never double-logs a win-back. One live win-back draft
+ * per client at a time is the intended shape — a fresh cold spell reuses the same key,
+ * which is correct (the row's dispatched_at already records the prior send honestly).
+ */
+export function winBackDispatchNonce(clientId: string): string {
+  return `winback:${clientId}`;
+}

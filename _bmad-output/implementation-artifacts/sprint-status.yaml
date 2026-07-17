@@ -74,8 +74,8 @@ development_status:
   3-2-known-client-direct-confirm-booking: done
   3-3-one-tap-rebooking-proposal-message: done
   3-4-post-job-nudge-rebooking-tracking: done
-  3-5-lapse-detection-expected-next-date-gone-cold: ready-for-dev
-  3-6-win-back-action: ready-for-dev
+  3-5-lapse-detection-expected-next-date-gone-cold: review
+  3-6-win-back-action: review
   epic-3-retrospective: optional
 
   # --- Epic 4: Client Self-Booking — Plug the Inquiry Leak ---

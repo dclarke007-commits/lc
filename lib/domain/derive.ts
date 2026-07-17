@@ -426,3 +426,81 @@ export function rebookingConversion(
   }
   return { sent, booked, ratio: sent === 0 ? 0 : booked / sent };
 }
+
+// --- Story 3.5: lapse detection — expectedNextDate + goneCold (derived on read) ---
+//
+// The READ-side lapse twin of proposeRebookSlot: given a client's cadence and their
+// canonical Job rows, compute when they were DUE back (expectedNextDate) and whether
+// they have slipped past it with nothing on the books (goneCold). PURE (AD-7): a
+// function of the passed rows only — NO stored `gone-cold` column (the clientStatus
+// enum is physically `active|provisional`, so the DB cannot persist it), NO cron, NO
+// background job. Mutate the input array (book/cancel a slot) and the very next call
+// reflects it. Two single-sources are REUSED, never re-derived:
+//   • the cadence interval — CADENCE_INTERVAL_DAYS (the same table 3.3 rebooking uses,
+//     so lapse and rebooking agree on one arithmetic; AD-9 operator-local day math).
+//   • which future jobs are a real "booking on file" — capacity.consumesSlot (AD-2):
+//     a future `booked` suppresses cold, a future `cancelled` does not.
+// `expectedNextDate` derives from the last **completed** Job only (AD-10 / FR41): a
+// `no-show`/`cancelled` never advances the basis. A client with no completed job (incl.
+// a brand-new or `provisional` self-booking client, which by definition has no completed
+// basis yet) has no expectedNextDate and is never gone-cold — lapse applies only to
+// established regulars. A `one-time` client has no interval, so no expected date and no
+// lapse (they are a rebooking/win-back concern via soonest-open, not a cadence lapse).
+
+/**
+ * The client's expected next booking date (FR16/AC1): the date of their LAST
+ * `completed` Job plus the cadence interval, operator-local (AD-9). Returns null when
+ * there is no basis — a `one-time` client (no interval), an unknown cadence (defensive,
+ * mirrors proposeRebookSlot's P5 guard), or a client with no completed Job yet. `jobs`
+ * is the client's own DeriveJob rows; only `completed` completions set the basis
+ * (AD-10) — a `no-show`/`cancelled` is ignored even if it is the most recent row.
+ */
+export function expectedNextDate(
+  cadence: Cadence,
+  jobs: DeriveJob[],
+): string | null {
+  // one-time has no interval; an unknown enum member would index to undefined.
+  const interval =
+    CADENCE_INTERVAL_DAYS[cadence as 'weekly' | 'biweekly' | 'monthly'];
+  if (interval == null) return null;
+
+  // Last COMPLETED job date (AD-10). Date-keys are 'YYYY-MM-DD', so the lexical max is
+  // the calendar max. Only `completed` qualifies — no-show/cancelled do not advance lapse.
+  let lastCompleted: string | null = null;
+  for (const j of jobs) {
+    if (j.completion !== 'completed') continue;
+    if (lastCompleted === null || j.date > lastCompleted) lastCompleted = j.date;
+  }
+  if (lastCompleted === null) return null; // no basis → no expected date
+
+  return addDaysToDate(lastCompleted, interval);
+}
+
+/**
+ * Is the client gone-cold (FR17/AC2)? True only when `today` has PASSED the
+ * expectedNextDate (strictly after — on the expected date itself they are merely due,
+ * not yet cold) AND there is no future booking on file. "No future booking on file" =
+ * no Job dated on/after `today` in a live/consuming state (capacity.consumesSlot, AD-2)
+ * — a future `booked` suppresses cold, a future `cancelled` does not, and a PAST live
+ * job (not yet completed) does not count as future. The threshold IS the expectedNextDate
+ * (last-completed + cadence interval): the interval is the latency, so detection "scales
+ * per cadence" with NO extra grace buffer (FR17). A client with no expectedNextDate
+ * (one-time / no completed basis) is never gone-cold. Derive-on-read (AD-7): book a
+ * future slot and the very next call returns false, with no stored flag to invalidate.
+ */
+export function goneCold(
+  cadence: Cadence,
+  jobs: DeriveJob[],
+  today: string,
+): boolean {
+  const expected = expectedNextDate(cadence, jobs);
+  if (expected === null) return false; // no basis / one-time → never lapses
+  if (today <= expected) return false; // due, but not yet PAST the expected date
+
+  // A live (consuming, AD-2) booking dated today or later means they are on the books —
+  // not cold, regardless of how far past the expected date we are.
+  for (const j of jobs) {
+    if (j.date >= today && consumesSlot(j)) return false;
+  }
+  return true;
+}

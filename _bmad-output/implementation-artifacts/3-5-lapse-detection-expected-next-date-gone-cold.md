@@ -1,6 +1,10 @@
+---
+baseline_commit: 86b5c39afd6f4d50df84e7180969d0fc75c46f0e
+---
+
 # Story 3.5: Lapse detection — expected-next-date + gone-cold
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -18,19 +22,19 @@ so that I catch them within a week instead of losing them.
 
 ## Tasks / Subtasks
 
-- [ ] **Task 1 — `derive.expectedNextDate` (AC: 1)** [Source: ARCHITECTURE-SPINE.md#AD-7, #AD-10, #AD-9]
-  - [ ] In `lib/domain/derive.ts`: `expectedNextDate(client) = last completed Job's date + cadence interval`. "Last completed" reads a `completed` Job only (Story 1.5's `lifecycle` set that basis; `no-show`/`cancelled` are NOT completed and do not advance lapse). Cadence interval per `Client.cadence: weekly|biweekly|monthly|one-time`.
-  - [ ] Cadence→interval mapping is a dev decision — see Open gaps. A `one-time` client has no cadence interval, so no `expectedNextDate` and no lapse (one-time clients are a rebooking/win-back concern via soonest-open, not a cadence-lapse concern). Compute in operator-local tz (AD-9).
-  - [ ] Computed on read from canonical rows — never stored, never persisted on a Job or Client.
-- [ ] **Task 2 — `derive.goneCold` (AC: 2)** [Source: ARCHITECTURE-SPINE.md#AD-7; epics.md FR17]
-  - [ ] In `lib/domain/derive.ts`: `goneCold(client) = current_date > expectedNextDate(client) AND no future booking on file`. "No future booking on file" = the client has no Job dated on/after today in a still-live state (i.e. `booked`; a future `cancelled` does not count — reuse the same live/consuming notion, do NOT re-define it). A client with a future booking is NOT gone-cold regardless of the expected date.
-  - [ ] **Latency scales per cadence, NO extra grace period** (FR17): the threshold is the `expectedNextDate` itself (last-completed + cadence interval) — a weekly client goes cold ~a week after their expected slot passes, a monthly client ~a month; there is NO additional fixed grace window added on top. Do not bolt a constant buffer onto any cadence.
-  - [ ] A `one-time` client (no `expectedNextDate`) is never gone-cold via this path.
-- [ ] **Task 3 — Surface the gone-cold flag on read (AC: 1, 2, 3)** [Source: ARCHITECTURE-SPINE.md#AD-1, #AD-7, #AD-13]
-  - [ ] Expose `expectedNextDate` / `goneCold` as pure `derive` reads (surfaces → derive → db). `Client.status: active|provisional|gone-cold` where **gone-cold is derived, never a stored enum write** — the schema convention lists `gone-cold` as a derived status (AD-7), so there is no migration and no column to flip here.
-  - [ ] This derivation is CONSUMED by Story 3.6 (win-back action operates on gone-cold clients) and the Epic 6 dashboard gone-cold list (FR23). Build the derivation here; do NOT build the win-back action (3.6) or the dashboard list rendering (Epic 6). Keep surfaces dynamic — never `use cache` (AD-13) — so lapse status is live when the operator opens the dashboard.
-- [ ] **Task 4 — Tests (AC: 1, 2, 3)**
-  - [ ] `expectedNextDate` = last **completed** job date + cadence interval per cadence; a `no-show`/`cancelled` last job does not set the basis. Weekly vs monthly produce proportionally different expected dates. `goneCold` true when `current_date > expectedNextDate` AND no future booking; false when a future `booked` Job exists even past the expected date; false for `one-time`. No extra grace buffer beyond the cadence interval. Every value recomputes on read — assert no persisted `gone-cold` flag and no cron/scheduled job exists.
+- [x] **Task 1 — `derive.expectedNextDate` (AC: 1)** [Source: ARCHITECTURE-SPINE.md#AD-7, #AD-10, #AD-9]
+  - [x] In `lib/domain/derive.ts`: `expectedNextDate(client) = last completed Job's date + cadence interval`. "Last completed" reads a `completed` Job only (Story 1.5's `lifecycle` set that basis; `no-show`/`cancelled` are NOT completed and do not advance lapse). Cadence interval per `Client.cadence: weekly|biweekly|monthly|one-time`.
+  - [x] Cadence→interval mapping is a dev decision — see Open gaps. A `one-time` client has no cadence interval, so no `expectedNextDate` and no lapse (one-time clients are a rebooking/win-back concern via soonest-open, not a cadence-lapse concern). Compute in operator-local tz (AD-9).
+  - [x] Computed on read from canonical rows — never stored, never persisted on a Job or Client.
+- [x] **Task 2 — `derive.goneCold` (AC: 2)** [Source: ARCHITECTURE-SPINE.md#AD-7; epics.md FR17]
+  - [x] In `lib/domain/derive.ts`: `goneCold(client) = current_date > expectedNextDate(client) AND no future booking on file`. "No future booking on file" = the client has no Job dated on/after today in a still-live state (i.e. `booked`; a future `cancelled` does not count — reuse the same live/consuming notion, do NOT re-define it). A client with a future booking is NOT gone-cold regardless of the expected date.
+  - [x] **Latency scales per cadence, NO extra grace period** (FR17): the threshold is the `expectedNextDate` itself (last-completed + cadence interval) — a weekly client goes cold ~a week after their expected slot passes, a monthly client ~a month; there is NO additional fixed grace window added on top. Do not bolt a constant buffer onto any cadence.
+  - [x] A `one-time` client (no `expectedNextDate`) is never gone-cold via this path.
+- [x] **Task 3 — Surface the gone-cold flag on read (AC: 1, 2, 3)** [Source: ARCHITECTURE-SPINE.md#AD-1, #AD-7, #AD-13]
+  - [x] Expose `expectedNextDate` / `goneCold` as pure `derive` reads (surfaces → derive → db). `Client.status: active|provisional|gone-cold` where **gone-cold is derived, never a stored enum write** — the schema convention lists `gone-cold` as a derived status (AD-7), so there is no migration and no column to flip here.
+  - [x] This derivation is CONSUMED by Story 3.6 (win-back action operates on gone-cold clients) and the Epic 6 dashboard gone-cold list (FR23). Build the derivation here; do NOT build the win-back action (3.6) or the dashboard list rendering (Epic 6). Keep surfaces dynamic — never `use cache` (AD-13) — so lapse status is live when the operator opens the dashboard.
+- [x] **Task 4 — Tests (AC: 1, 2, 3)**
+  - [x] `expectedNextDate` = last **completed** job date + cadence interval per cadence; a `no-show`/`cancelled` last job does not set the basis. Weekly vs monthly produce proportionally different expected dates. `goneCold` true when `current_date > expectedNextDate` AND no future booking; false when a future `booked` Job exists even past the expected date; false for `one-time`. No extra grace buffer beyond the cadence interval. Every value recomputes on read — assert no persisted `gone-cold` flag and no cron/scheduled job exists.
 
 ## Dev Notes
 
@@ -74,8 +78,38 @@ Only the two lapse derivations: `expectedNextDate` and `goneCold`. Do NOT build 
 
 ### Agent Model Used
 
+claude-opus-4-8 (1M context) — bmad-dev-story workflow, 2026-07-17.
+
 ### Debug Log References
+
+- `npx vitest run tests/lapse.test.ts` → 16/16 pass (RED confirmed first: exports missing → TS2305, then GREEN).
+- `npx tsc --noEmit` → clean.
+- `npx vitest run` (full regression) → 24 files, 234/234 pass (218 prior + 16 new lapse tests).
 
 ### Completion Notes List
 
+Implemented the two READ-side lapse derivations in `lib/domain/derive.ts`, extending the Story 1.7 derive module (no fork):
+
+- **`expectedNextDate(cadence, jobs)`** — last `completed` Job date + cadence interval, operator-local (AD-9). Returns `null` for no basis: `one-time` (no interval), unknown cadence (defensive, mirrors 3.3 P5), or no completed Job. Only `completed` sets the basis (AD-10/FR41) — a later `no-show`/`cancelled` never advances it.
+- **`goneCold(cadence, jobs, today)`** — `true` only when `today` strictly PAST `expectedNextDate` AND no future live booking on file. "Future booking on file" reuses `capacity.consumesSlot` (AD-2), so a future `booked` suppresses cold and a future `cancelled` does not; a past-but-live job is not "future". The interval IS the latency → scales per cadence, NO extra grace buffer (FR17).
+
+**Reused single-sources (no re-derivation):** `CADENCE_INTERVAL_DAYS` (weekly 7 / biweekly 14 / monthly 28 — the same table 3.3 rebooking uses, so lapse + rebooking agree on one arithmetic), `consumesSlot` (AD-2 live-state predicate), `addDaysToDate` (AD-9 calendar math), `Cadence` + `DeriveJob` types.
+
+**Derive-on-read proven (AC3/AD-7):** pure functions of the passed rows — no stored `gone-cold` column (the `clientStatus` pgEnum is physically `active|provisional`, so the DB cannot persist it), no cron, no background job. A test mutates the jobs array (book → cancel a future slot) and asserts the very next call flips.
+
+**Open-gap decisions (followed story recommendations):**
+1. Cadence interval = existing `CADENCE_INTERVAL_DAYS` (28-day "monthly", not calendar month) — keeps lapse/rebooking on one arithmetic; the interval is the sole latency, no fixed buffer.
+2. "No future booking" = `consumesSlot(j) && j.date >= today` (reused predicate, not a new one).
+3. No completed jobs → `null` → never cold (no crash on empty/booked-only history).
+4. `provisional` clients: excluded naturally — a provisional (Epic 4 pending self-booking) client has no completed basis yet, so the no-basis guard already returns `null`/`false`. Kept the derivations PURE (cadence + jobs only, no status param); any surface wanting a hard status filter does so before calling (surfaces → derive → db layering).
+
+**Scope honored:** built ONLY the two derivations. No win-back action/template (3.6), no Epic 6 dashboard list (FR23), no stored flag/column/materialized view/cron, no migration. Task 3 "surface on read" is satisfied by the pure exports the downstream stories consume.
+
 ### File List
+
+- `lib/domain/derive.ts` — added `expectedNextDate` + `goneCold` (Story 3.5 section appended; no existing export changed).
+- `tests/lapse.test.ts` — new: 16 pure unit tests for both derivations (AC1/AC2/AC3).
+
+## Change Log
+
+- 2026-07-17 — Story 3.5 implemented: `derive.expectedNextDate` + `derive.goneCold` (lapse detection, FR16/FR17), pure derive-on-read twin of Story 1.7; 16 new tests, full suite 234/234 green, tsc clean. Status → review.

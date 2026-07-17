@@ -1,6 +1,10 @@
+---
+baseline_commit: 86b5c39afd6f4d50df84e7180969d0fc75c46f0e
+---
+
 # Story 3.6: Win-back action
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -17,19 +21,19 @@ so that reviving them is effortless.
 
 ## Tasks / Subtasks
 
-- [ ] **Task 1 — Win-back entry point on a gone-cold client (AC: 1)** [Source: ARCHITECTURE-SPINE.md#AD-7, #AD-1]
-  - [ ] Surface a one-tap win-back control on a client the operator sees flagged gone-cold. The gone-cold input is Story 3.5's **view-time** derivation (`derive.goneCold` / `expectedNextDate`) — read it, never re-derive lapse logic or store a flag here (AD-7). This story adds NO capacity, booking, or lapse-detection logic.
-  - [ ] The surface is a phone-first RSC control under `app/(operator)/`, minimal client JS, dynamic (no `use cache`, AD-7/AD-13); it never imports `lib/db` (AD-1). **DEV DECISION — win-back entry-point surface** (see Open gaps): the dashboard gone-cold list vs. the client-detail view; either is acceptable so long as it acts on a 3.5-derived gone-cold client.
-- [ ] **Task 2 — Compose the win-back `MessageDraft` via Story 2.2 `compose` (AC: 1)** [Source: ARCHITECTURE-SPINE.md#AD-5]
-  - [ ] Verb-first Server Action (e.g. `draftWinBack`) in `app/(operator)/**/actions.ts` (sole write path, AD-1). It calls Story 2.2's pure `compose(client, slot, amount, template)` with the **win-back template** (Story 2.1's `win_back` type) to produce a channel-agnostic `MessageDraft{ recipient, body, type: 'win-back' }`. A win-back is a check-in — there is no slot/amount to sell; pass empty/safe values so unfilled `{slot}`/`{amount}` placeholders blank out (Story 2.1 AC3), never a literal `{token}` leak.
-  - [ ] The draft is **compose-only, no autonomous send** (compose ≠ deliver): producing the draft dispatches nothing. Transport (`wa.me`/`sms:`) exists only in Story 2.2's `lib/delivery/deeplink.ts` adapter, never in this action or the template.
-  - [ ] Reuse the existing seam end-to-end: this story writes NO new `compose` logic, NO new template, and NO new delivery adapter — it is a caller of 2.1/2.2.
-- [ ] **Task 3 — Tap send → dispatch + log once via Story 2.3 (AC: 2)** [Source: ARCHITECTURE-SPINE.md#AD-5, #AD-1]
-  - [ ] On the operator's explicit send tap, route through Story 2.2's tap-to-send surface (opens the pre-filled WhatsApp/SMS deep-link) and Story 2.3's dispatch logging: `drafted_at` is set at compose time; `dispatched_at` is recorded **once per draft** on the send tap; a re-tap does NOT double-log (idempotent per draft, AD-5). The dispatched win-back feeds the nudge-fatigue counter (`MessageLog.dispatched_at` only, AD-7).
-  - [ ] This story adds **NO new logging** — it reuses Story 2.3's `MessageLog` + idempotent `markDispatched`. Do not introduce a second dispatch path or a win-back-specific log table.
-- [ ] **Task 4 — Tests (AC: 1, 2)**
-  - [ ] Tapping win-back on a 3.5-derived gone-cold client composes a `MessageDraft` with `type: 'win-back'`, the win-back template body, and no transport key (assert no `url`/`wa.me`/`sms:` substring). Unfilled `{slot}`/`{amount}` blank out — no literal `{token}` reaches output.
-  - [ ] Composing does not dispatch (no `dispatched_at`, no autonomous send). Send tap sets `dispatched_at` once; a re-tap does not produce a second dispatch (reuses 2.3's idempotency). Assert the win-back reuses the existing `compose`/adapter/`MessageLog` seam (no new module).
+- [x] **Task 1 — Win-back entry point on a gone-cold client (AC: 1)** [Source: ARCHITECTURE-SPINE.md#AD-7, #AD-1]
+  - [x] Surface a one-tap win-back control on a client the operator sees flagged gone-cold. The gone-cold input is Story 3.5's **view-time** derivation (`derive.goneCold` / `expectedNextDate`) — read it, never re-derive lapse logic or store a flag here (AD-7). This story adds NO capacity, booking, or lapse-detection logic.
+  - [x] The surface is a phone-first RSC control under `app/(operator)/`, minimal client JS, dynamic (no `use cache`, AD-7/AD-13); it never imports `lib/db` (AD-1). **DEV DECISION — win-back entry-point surface** (see Open gaps): the dashboard gone-cold list vs. the client-detail view; either is acceptable so long as it acts on a 3.5-derived gone-cold client. → **Chose the clients list** (`app/(operator)/clients/page.tsx`): gone-cold clients (derived via `listOwnerClientsWithLapse`) show a "Win back" link to `?winback=<id>`. No Epic 6 dashboard exists yet; the clients list is the natural client-detail-adjacent home.
+- [x] **Task 2 — Compose the win-back `MessageDraft` via Story 2.2 `compose` (AC: 1)** [Source: ARCHITECTURE-SPINE.md#AD-5]
+  - [x] Verb-first Server Action (e.g. `draftWinBack`) in `app/(operator)/**/actions.ts` (sole write path, AD-1). It calls Story 2.2's pure `compose(client, slot, amount, template)` with the **win-back template** (Story 2.1's `win_back` type) to produce a channel-agnostic `MessageDraft{ recipient, body, type: 'win-back' }`. A win-back is a check-in — there is no slot/amount to sell; pass empty/safe values so unfilled `{slot}`/`{amount}` placeholders blank out (Story 2.1 AC3), never a literal `{token}` leak. → Implemented as `getWinBackDraft(clientId)` composing with `slot=''`, `amount=null`; `draft.type === 'win_back'`.
+  - [x] The draft is **compose-only, no autonomous send** (compose ≠ deliver): producing the draft dispatches nothing. Transport (`wa.me`/`sms:`) exists only in Story 2.2's `lib/delivery/deeplink.ts` adapter, never in this action or the template.
+  - [x] Reuse the existing seam end-to-end: this story writes NO new `compose` logic, NO new template, and NO new delivery adapter — it is a caller of 2.1/2.2.
+- [x] **Task 3 — Tap send → dispatch + log once via Story 2.3 (AC: 2)** [Source: ARCHITECTURE-SPINE.md#AD-5, #AD-1]
+  - [x] On the operator's explicit send tap, route through Story 2.2's tap-to-send surface (opens the pre-filled WhatsApp/SMS deep-link) and Story 2.3's dispatch logging: `drafted_at` is set at compose time; `dispatched_at` is recorded **once per draft** on the send tap; a re-tap does NOT double-log (idempotent per draft, AD-5). The dispatched win-back feeds the nudge-fatigue counter (`MessageLog.dispatched_at` only, AD-7). → `sendWinBack` calls the shared `recordDispatch(clientId, 'win_back', winBackDispatchNonce(clientId))`.
+  - [x] This story adds **NO new logging** — it reuses Story 2.3's `MessageLog` + idempotent `markDispatched`. Do not introduce a second dispatch path or a win-back-specific log table.
+- [x] **Task 4 — Tests (AC: 1, 2)**
+  - [x] Tapping win-back on a 3.5-derived gone-cold client composes a `MessageDraft` with `type: 'win-back'`, the win-back template body, and no transport key (assert no `url`/`wa.me`/`sms:` substring). Unfilled `{slot}`/`{amount}` blank out — no literal `{token}` reaches output.
+  - [x] Composing does not dispatch (no `dispatched_at`, no autonomous send). Send tap sets `dispatched_at` once; a re-tap does not produce a second dispatch (reuses 2.3's idempotency). Assert the win-back reuses the existing `compose`/adapter/`MessageLog` seam (no new module). → `tests/win-back.test.ts`, 9 tests.
 
 ## Dev Notes
 
@@ -83,8 +87,41 @@ NO new capacity/booking logic (win-back is a check-in message, not a booking —
 
 ### Agent Model Used
 
+claude-opus-4-8 (1M context) — bmad-dev-story workflow, 2026-07-17.
+
 ### Debug Log References
+
+- `npx vitest run tests/win-back.test.ts` → 9/9 pass.
+- `npx tsc --noEmit` → clean.
+- `npx vitest run` (full regression) → 25 files, 243/243 pass (234 prior + 9 win-back).
 
 ### Completion Notes List
 
+Closing story of Epic 3 — a thin CONSUMER wiring Story 3.5 → Stories 2.1/2.2/2.3. Added NO new spine (no compose/template/adapter/log). Files:
+
+- **`lib/domain/compose.ts`** — added `winBackDispatchNonce(clientId)` = `winback:<clientId>` (keyed on client, not a job — a win-back has no anchor). Mirrors `rebookingDispatchNonce`.
+- **`app/(operator)/clients/actions.ts`** — added `ClientRow` (Client + derived `goneCold`), `listOwnerClientsWithLapse()` (annotates each client with `derive.goneCold` computed in the action layer over canonical rows, AD-7), `getWinBackDraft(clientId)` (AC1: gone-cold gate + `compose('win_back', slot='', amount=null)`), `sendWinBack(formData)` (AC2: re-derive gate → `deepLink` → shared `recordDispatch` → redirect).
+- **`app/(operator)/clients/page.tsx`** — gone-cold clients show a highlighted "Win back" link → `?winback=<id>` renders `WinBackPanel` (composed draft + WhatsApp/SMS zero-JS send forms, mirrors the jobs `RebookPanel`). The stored `active/provisional` label is overridden by the derived `gone-cold` badge.
+- **`lib/domain/clientErrors.ts`** — added win-back reason messages (`not-gone-cold`, `no-phone`, `win-back-failed`, dispatch reasons).
+- **`tests/win-back.test.ts`** — 9 DB-backed tests (mirror `rebook.test.ts`).
+
+**Dev decisions:**
+1. **Entry point (Open gap 1):** the clients list (`clients/page.tsx`). No Epic 6 dashboard exists; the clients list is the natural home and acts strictly on a 3.5-derived gone-cold client.
+2. **`{slot}`/`{amount}` (Open gap 2):** a check-in sells nothing → `compose` gets `slot=''`, `amount=null`; `resolveTemplate` blanks the tokens (2.1 AC3). A test with a custom `{slot}`/`{amount}` template asserts no residual braces. NO booking link appended (contrast 3.3's FR11 rebooking).
+3. **`resulting_job_ref` attribution (Open gap 3):** out of scope — deferred to the conversion-metric work.
+
+**Security / correctness:** `sendWinBack` re-derives gone-cold server-side via `getWinBackDraft` (the UI button is cosmetic) — a hand-typed `?winback=<activeClientId>` fails `not-gone-cold`, never dispatches. Deep link is built BEFORE `recordDispatch` (Story 2.3 P1 — no phantom dispatch): a phoneless tap returns `no-phone` and stamps nothing. Re-tap is idempotent (one `win_back` MessageLog row, `dispatched_at` stamped once) via the `winback:<clientId>` nonce.
+
+**Scope honored:** built ONLY the entry point + `getWinBackDraft`/`sendWinBack` callers. No new capacity/booking/lapse logic, no new compose/template/adapter/MessageLog, no autonomous send (FR19), no nudge-fatigue UI (Epic 6).
+
 ### File List
+
+- `lib/domain/compose.ts` — added `winBackDispatchNonce` (additive).
+- `app/(operator)/clients/actions.ts` — added `ClientRow`, `listOwnerClientsWithLapse`, `getWinBackDraft`, `sendWinBack` + widened query/import list (additive).
+- `app/(operator)/clients/page.tsx` — gone-cold flag + "Win back" control + `WinBackPanel`.
+- `lib/domain/clientErrors.ts` — added win-back reason messages (additive).
+- `tests/win-back.test.ts` — new: 9 win-back tests.
+
+## Change Log
+
+- 2026-07-17 — Story 3.6 implemented: win-back action (FR18) — `getWinBackDraft` + `sendWinBack` on the clients surface, wiring Story 3.5 gone-cold → 2.1/2.2 compose → 2.3 idempotent dispatch; gone-cold flag + Win-back control on the clients list. 9 new tests, full suite 243/243 green, tsc clean. Closes Epic 3. Status → review.
