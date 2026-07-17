@@ -4,7 +4,7 @@ baseline_commit: 86b5c39afd6f4d50df84e7180969d0fc75c46f0e
 
 # Story 3.6: Win-back action
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -125,3 +125,12 @@ Closing story of Epic 3 — a thin CONSUMER wiring Story 3.5 → Stories 2.1/2.2
 ## Change Log
 
 - 2026-07-17 — Story 3.6 implemented: win-back action (FR18) — `getWinBackDraft` + `sendWinBack` on the clients surface, wiring Story 3.5 gone-cold → 2.1/2.2 compose → 2.3 idempotent dispatch; gone-cold flag + Win-back control on the clients list. 9 new tests, full suite 243/243 green, tsc clean. Closes Epic 3. Status → review.
+
+### Review Findings
+
+_Code review of commit 9dee466 (2026-07-17), 3 adversarial layers (blind + edge + auditor). Full triage: 2 decision-needed, 1 patch, 2 defer, 4 dismissed. Second decision-needed (goneCold no-show suppressor) is on the 3-5 story file._
+
+- [x] [Review][Decision] **RESOLVED 2026-07-17 → patched (per-cold-spell key).** `winBackDispatchNonce(clientId, spellKey)` now keys `winback:<clientId>:<expectedNextDate>`; a private `deriveWinBack` helper feeds gate+draft+nonce from one derivation; `sendWinBack` uses it. Each fresh cold spell logs a new dispatch; re-tap within a spell stays idempotent. New second-cold-spell test in `win-back.test.ts`. Original: nonce keyed per-client (`winback:<clientId>`) collapses every future win-back into one lifetime log row [`lib/domain/compose.ts:159` → `sendWinBack`/`recordDispatch` in `app/(operator)/clients/actions.ts`, `app/(operator)/draft/actions.ts:126-134`] — first win-back stamps `dispatched_at`; a client who revives then relapses (the normal cleaning-client cycle) reuses the same nonce → `markMessageDispatched` matches 0 rows → `getMessageLogByNonce` returns the OLD timestamp → `ok` → the send still opens WhatsApp but is never logged as a new dispatch. Only the first-ever win-back per client is ever recorded; nudge-fatigue (AR6/AD-5) under-counts, diverging from `rebookingDispatchNonce`'s per-`jobId` keying. Dev flagged as "intended" but all 3 layers dispute it vs 3.6 AC2 "logs [each send]"; no test covers a second cold spell. Sources: blind (HIGH/MED), auditor (MED), edge. Decision: (a) key per cold-spell `winback:<clientId>:<expectedNextDate>` so each relapse logs, or (b) confirm one-win-back-per-client-lifetime is the intended product shape and adjust the AC/doc + add a test.
+- [x] [Review][Patch] **APPLIED 2026-07-17.** `listOwnerClientsWithLapse` now wraps the lapse-derivation reads in try/catch, fail-OPEN to an unannotated list (`goneCold:false`) on throw — a corrupt `settings.timezone` / DB fault no longer 500s the `/clients` page. Original: `listOwnerClientsWithLapse` is not fail-closed [`app/(operator)/clients/actions.ts`] — `getWinBackDraft` deliberately wraps `localDateKey`/reads in try/catch (AD-8/AR15), but the list function rendered on every `/clients` load has no guard; the same corrupt row it degrades gracefully in the draft path takes down the entire list surface. Fix: wrap in the same fail-closed pattern (fallback tz or render clients without the lapse annotation on throw). Sources: blind + edge (MED).
+- [x] [Review][Defer] Unbounded full-history `listJobs` scan per render + unused `clientName` join + double-load on the winback page [`app/(operator)/clients/actions.ts` listOwnerClientsWithLapse & getWinBackDraft; `lib/db/queries.ts:146`] — deferred, perf-at-scale only (fine at solo-operator volume). Every `/clients` render loads the owner's entire job history; `getWinBackDraft` re-loads all jobs just to `.get(clientId)`; `listJobs` innerJoins client and selects unused `clientName`. Sources: blind (MED-perf).
+- [x] [Review][Defer] `getWinBackDraft` catch-all collapses distinct failures into one generic `win-back-failed` reason [`app/(operator)/clients/actions.ts` getWinBackDraft catch] — deferred, pre-existing convention (mirrors `getRebookProposal`); transient DB fault vs corrupt timezone vs compose bug all surface identically, real error only in `console.error`. Sources: blind (LOW).

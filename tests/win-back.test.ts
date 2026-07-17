@@ -102,12 +102,24 @@ async function seedWinBackTemplate(body: string): Promise<void> {
     });
 }
 
-/** MessageLog rows for a given draft nonce (owner-scoped). */
-async function logRows(nonce: string) {
+/**
+ * Dispatched `win_back` MessageLog rows for a client (owner-scoped). Matched by
+ * client + message type rather than an exact nonce string: the dispatch nonce is
+ * per-cold-spell (`winback:<clientId>:<expectedNextDate>`, code review 2026-07-17), so a
+ * hardcoded nonce would miss it — this asserts the observable effect (a logged win_back
+ * for this client) independent of the internal key shape.
+ */
+async function logRows(clientId: string) {
   return db
     .select()
     .from(messageLog)
-    .where(and(eq(messageLog.ownerId, ownerId), eq(messageLog.draftNonce, nonce)));
+    .where(
+      and(
+        eq(messageLog.ownerId, ownerId),
+        eq(messageLog.clientId, clientId),
+        eq(messageLog.messageType, 'win_back'),
+      ),
+    );
 }
 
 /** Invoke a redirecting server action and return the NEXT_REDIRECT digest string. */
@@ -191,7 +203,7 @@ describe('Win-back action (Story 3.6)', () => {
     await insertCompletedJob(id, '2026-07-01');
 
     await getWinBackDraft(id);
-    const rows = await logRows(`winback:${id}`);
+    const rows = await logRows(id);
     expect(rows).toHaveLength(0);
   });
 
@@ -225,7 +237,7 @@ describe('Win-back action (Story 3.6)', () => {
     const digest = await callSend(id, 'whatsapp');
     expect(digest).toContain('wa.me'); // redirected to the WhatsApp deep link
 
-    const rows = await logRows(`winback:${id}`);
+    const rows = await logRows(id);
     expect(rows).toHaveLength(1);
     expect(rows[0].messageType).toBe('win_back');
     expect(rows[0].dispatchedAt).toBeTruthy();
@@ -236,12 +248,12 @@ describe('Win-back action (Story 3.6)', () => {
     await insertCompletedJob(id, '2026-07-01');
 
     await callSend(id);
-    const first = await logRows(`winback:${id}`);
+    const first = await logRows(id);
     expect(first).toHaveLength(1);
     const firstStamp = first[0].dispatchedAt;
 
     await callSend(id); // re-tap (browser back → resubmit)
-    const second = await logRows(`winback:${id}`);
+    const second = await logRows(id);
     expect(second).toHaveLength(1); // still exactly one row
     expect(second[0].dispatchedAt).toBe(firstStamp); // stamped once
   });
@@ -253,7 +265,7 @@ describe('Win-back action (Story 3.6)', () => {
 
     const digest = await callSend(id);
     expect(digest).toContain('not-gone-cold');
-    const rows = await logRows(`winback:${id}`);
+    const rows = await logRows(id);
     expect(rows).toHaveLength(0); // never dispatched
   });
 
@@ -264,7 +276,28 @@ describe('Win-back action (Story 3.6)', () => {
 
     const digest = await callSend(id);
     expect(digest).toContain('no-phone');
-    const rows = await logRows(`winback:${id}`);
+    const rows = await logRows(id);
     expect(rows).toHaveLength(0); // link built BEFORE logging (Story 2.3 P1)
+  });
+
+  it('a fresh cold spell after a prior win-back logs a NEW dispatch (per-cold-spell nonce)', async () => {
+    // Spell 1: weekly, last completed 07-01 → expected 07-08; today 07-20 → gone-cold.
+    const id = await insertClient('Relapse Rae', '+15551230009', 'weekly');
+    await insertCompletedJob(id, '2026-07-01');
+    await callSend(id); // nonce winback:<id>:2026-07-08 → row 1
+    expect(await logRows(id)).toHaveLength(1);
+
+    // Revival: a NEW completed job advances the basis (expected → 07-28), so at 07-20 she
+    // is no longer cold. Then relapse by moving "today" past the new expected date.
+    await insertCompletedJob(id, '2026-07-21');
+    vi.setSystemTime(new Date('2026-08-05T12:00:00.000Z')); // today → 2026-08-05, past 07-28
+
+    await callSend(id); // spell 2: nonce winback:<id>:2026-07-28 (a NEW key) → row 2
+    const rows = await logRows(id);
+    expect(rows).toHaveLength(2); // each cold spell logged once — not collapsed into one
+    const nonces = new Set(rows.map((r) => r.draftNonce));
+    expect(nonces.size).toBe(2); // two distinct per-cold-spell nonces
+
+    vi.setSystemTime(FIXED_MONDAY); // restore the pinned clock for any later test
   });
 });

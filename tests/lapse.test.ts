@@ -111,6 +111,20 @@ describe('derive.goneCold (AC2, FR17)', () => {
     expect(goneCold('weekly', jobs, '2026-07-15')).toBe(true);
   });
 
+  it('a today/future NO-SHOW does not suppress cold — only `booked` is on-file (code review 2026-07-17)', () => {
+    // The suppressor is `booked`-only, INTENTIONALLY narrower than capacity.consumesSlot
+    // (which also includes no-show/completed). A no-show is the very lapse signal, so it
+    // must NOT hide the lapse it represents.
+    const todayNoShow = [completed(LAST_DONE), noShow('2026-07-15')]; // dated today
+    expect(goneCold('weekly', todayNoShow, '2026-07-15')).toBe(true);
+    const futureNoShow = [completed(LAST_DONE), noShow('2026-07-20')]; // dated later
+    expect(goneCold('weekly', futureNoShow, '2026-07-15')).toBe(true);
+    // control: a future BOOKED on the same date DOES suppress.
+    expect(
+      goneCold('weekly', [completed(LAST_DONE), booked('2026-07-20')], '2026-07-15'),
+    ).toBe(false);
+  });
+
   it('a PAST live booking (not yet completed) does not suppress cold — cold is about upcoming work', () => {
     const jobs = [completed(LAST_DONE), booked('2026-07-05')]; // 07-05 < today 07-15
     expect(goneCold('weekly', jobs, '2026-07-15')).toBe(true);

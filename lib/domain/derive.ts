@@ -480,9 +480,12 @@ export function expectedNextDate(
  * Is the client gone-cold (FR17/AC2)? True only when `today` has PASSED the
  * expectedNextDate (strictly after — on the expected date itself they are merely due,
  * not yet cold) AND there is no future booking on file. "No future booking on file" =
- * no Job dated on/after `today` in a live/consuming state (capacity.consumesSlot, AD-2)
- * — a future `booked` suppresses cold, a future `cancelled` does not, and a PAST live
- * job (not yet completed) does not count as future. The threshold IS the expectedNextDate
+ * no Job dated on/after `today` with completion `booked` (Story 3.5 Task 2) — a future
+ * `booked` suppresses cold, a future `cancelled` does not, and a PAST live job (not yet
+ * completed) does not count as future. Note this is INTENTIONALLY narrower than
+ * capacity.consumesSlot (which also includes `no-show`/`completed`): a today/future
+ * `no-show` is the very lapse signal, so it must NOT suppress cold (code review
+ * 2026-07-17). The threshold IS the expectedNextDate
  * (last-completed + cadence interval): the interval is the latency, so detection "scales
  * per cadence" with NO extra grace buffer (FR17). A client with no expectedNextDate
  * (one-time / no completed basis) is never gone-cold. Derive-on-read (AD-7): book a
@@ -497,10 +500,13 @@ export function goneCold(
   if (expected === null) return false; // no basis / one-time → never lapses
   if (today <= expected) return false; // due, but not yet PAST the expected date
 
-  // A live (consuming, AD-2) booking dated today or later means they are on the books —
-  // not cold, regardless of how far past the expected date we are.
+  // A future BOOKED appointment (dated today or later) means they are on the books — not
+  // cold, regardless of how far past the expected date we are. Only `booked` counts:
+  // reusing capacity.consumesSlot here would also let a today/future `no-show` (the very
+  // lapse signal) or a data-anomalous future `completed` suppress cold (code review
+  // 2026-07-17). expectedNextDate already ignores no-show; the suppressor now matches.
   for (const j of jobs) {
-    if (j.date >= today && consumesSlot(j)) return false;
+    if (j.date >= today && j.completion === 'booked') return false;
   }
   return true;
 }

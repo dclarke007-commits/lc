@@ -4,7 +4,7 @@ baseline_commit: 86b5c39afd6f4d50df84e7180969d0fc75c46f0e
 
 # Story 3.5: Lapse detection — expected-next-date + gone-cold
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -113,3 +113,9 @@ Implemented the two READ-side lapse derivations in `lib/domain/derive.ts`, exten
 ## Change Log
 
 - 2026-07-17 — Story 3.5 implemented: `derive.expectedNextDate` + `derive.goneCold` (lapse detection, FR16/FR17), pure derive-on-read twin of Story 1.7; 16 new tests, full suite 234/234 green, tsc clean. Status → review.
+
+### Review Findings
+
+_Code review of commit 9dee466 (2026-07-17), 3 adversarial layers (blind + edge + auditor). Full triage: 2 decision-needed, 1 patch, 2 defer, 4 dismissed — patch/perf items on the 3-6 story file._
+
+- [x] [Review][Decision] **RESOLVED 2026-07-17 → patched** (booked-only suppressor). `goneCold` future-suppressor now tests `j.completion === 'booked'` instead of `consumesSlot(j)`, so a today/future `no-show`/`completed` no longer suppresses cold (matches Task 2 "booked only"); new no-show edge test in `lapse.test.ts` (17 tests). Original: `goneCold` future-suppressor reuses `consumesSlot`, which includes `no-show` — a today/future `no-show` suppresses cold [`lib/domain/derive.ts` goneCold loop] — `CONSUMING_COMPLETIONS = ['booked','completed','no-show']` (`lib/domain/capacity.ts:34`). Spec Task 2 defines the live/on-the-books state as **`booked` only**, but the code's suppressor is the broader capacity predicate: a future/today `no-show` (the archetypal lapse signal) — and a future-dated `completed` — both mark the client not-cold. Contradiction is spec-internal (Task 2 says "booked"; the same spec's open-gap #2 said "reuse the consuming predicate"). Low reachability (future/today no-show + already-past-expected). Sources: blind (MED), auditor (LOW), edge. Decision: restrict future suppressor to `booked` (+ `completed`) per Task 2, or keep `consumesSlot` reuse and update the doc/Task-2 wording to match.

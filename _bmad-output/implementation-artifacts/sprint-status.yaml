@@ -69,13 +69,13 @@ development_status:
   epic-2-retrospective: optional
 
   # --- Epic 3: Rebooking & Win-Back — Plug the Revenue Leak ---
-  epic-3: in-progress
+  epic-3: done
   3-1-client-booking-surface-per-client-link: done
   3-2-known-client-direct-confirm-booking: done
   3-3-one-tap-rebooking-proposal-message: done
   3-4-post-job-nudge-rebooking-tracking: done
-  3-5-lapse-detection-expected-next-date-gone-cold: review
-  3-6-win-back-action: review
+  3-5-lapse-detection-expected-next-date-gone-cold: done
+  3-6-win-back-action: done
   epic-3-retrospective: optional
 
   # --- Epic 4: Client Self-Booking — Plug the Inquiry Leak ---

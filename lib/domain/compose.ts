@@ -150,13 +150,17 @@ export function rebookingDispatchNonce(jobId: string): string {
 
 /**
  * The deterministic per-draft idempotency nonce for a client's WIN-BACK check-in
- * (Story 3.6). Keyed on the CLIENT id (a win-back has no anchor job — contrast
- * rebookingDispatchNonce's `rebook:<jobId>`): the send tap resubmits this same nonce →
- * the SAME MessageLog row → dispatched_at is stamped ONCE (Story 2.3 idempotency), so a
- * re-tap re-opens WhatsApp/SMS but never double-logs a win-back. One live win-back draft
- * per client at a time is the intended shape — a fresh cold spell reuses the same key,
- * which is correct (the row's dispatched_at already records the prior send honestly).
+ * (Story 3.6). Keyed on the client id AND the current cold-spell discriminator
+ * `spellKey` (the client's live `expectedNextDate`) — code review 2026-07-17. A win-back
+ * has no anchor job, so a bare `winback:<clientId>` would collapse EVERY future win-back
+ * into one lifetime MessageLog row: a client who revives then relapses months later would
+ * reuse the same nonce, the dispatch guard would match zero rows, and the genuine second
+ * send would never be logged (under-counting nudge-fatigue). Keying on `expectedNextDate`
+ * — which advances once the client completes a new job — means each fresh cold spell gets
+ * a NEW nonce → a NEW dispatch row, while a re-tap WITHIN the same spell still resubmits
+ * the SAME nonce → dispatched_at stamped ONCE (Story 2.3 idempotency: re-opens the chat,
+ * never double-logs). Mirrors rebookingDispatchNonce's per-`jobId` keying.
  */
-export function winBackDispatchNonce(clientId: string): string {
-  return `winback:${clientId}`;
+export function winBackDispatchNonce(clientId: string, spellKey: string): string {
+  return `winback:${clientId}:${spellKey}`;
 }
