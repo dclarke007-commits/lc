@@ -25,6 +25,11 @@ const LIFECYCLE_ERROR_MESSAGES: Record<string, string> = {
   'link-not-ready': 'Tap Rebook to prepare the booking link, then try again.',
   'base-url-unset':
     'Booking links are not configured — set APP_BASE_URL to your live site.',
+  // Send-time divergence, Story 3.4 (code-review): the open slot changed between
+  // rendering the panel and tapping send (a day rollover or someone else booked it).
+  // We re-show the updated proposal rather than send a slot the operator never saw.
+  'slot-changed':
+    'The open slot changed since you opened this — review the updated proposal, then send.',
 };
 
 /** Human-readable text for a jobs-surface action reason. Unknown → safe fallback. */

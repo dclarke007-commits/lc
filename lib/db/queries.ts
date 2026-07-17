@@ -370,7 +370,17 @@ export async function attributeRebookingNudge(
     .update(messageLog)
     .set({ resultingJobRef: jobId })
     .where(
-      and(eq(messageLog.ownerId, ownerId), inArray(messageLog.id, target)),
+      // Re-assert `resulting_job_ref IS NULL` in the UPDATE itself (code-review 3.4):
+      // the sub-select saw it null, but a concurrent booking may have attributed this
+      // same newest nudge in the gap before this UPDATE lands. Guarding here makes the
+      // write lose that race cleanly (0 rows, returns undefined) instead of clobbering
+      // the first booking's attribution. Best-effort metric; this just prevents an
+      // already-credited nudge from being silently re-pointed at a second job.
+      and(
+        eq(messageLog.ownerId, ownerId),
+        inArray(messageLog.id, target),
+        isNull(messageLog.resultingJobRef),
+      ),
     )
     .returning();
   return row;

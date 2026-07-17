@@ -4,7 +4,7 @@ baseline_commit: 77fbf7b
 
 # Story 1.5: Mark job outcome (completed / no-show)
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 

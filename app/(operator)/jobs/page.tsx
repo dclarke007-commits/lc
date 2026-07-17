@@ -178,6 +178,10 @@ async function RebookPanel({ jobId }: { jobId: string }) {
             <form key={channel} action={sendRebook} style={{ margin: 0 }}>
               <input type="hidden" name="jobId" value={jobId} />
               <input type="hidden" name="channel" value={channel} />
+              {/* Pin the reviewed slot (code-review 3.4): sendRebook re-derives and, if the
+                  open slot has since changed, bounces back with ?error=slot-changed instead
+                  of silently sending a date the operator never saw. */}
+              <input type="hidden" name="slot" value={slot} />
               <button type="submit" style={send}>
                 {channel === 'whatsapp' ? 'Open in WhatsApp' : 'Open in SMS'}
               </button>

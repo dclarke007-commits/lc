@@ -41,7 +41,7 @@
 # - Retrospective appends its action items to action_items; sprint-status surfaces open ones
 
 generated: 2026-07-15
-last_updated: 2026-07-16
+last_updated: 2026-07-17
 project: LovesCleaning
 # note: Epic 2 COMPLETE (dev + code-review, all 4 stories done) 2026-07-16 | 1-7 done (dev + code-review complete) 2026-07-16 — Epic 1 dev COMPLETE
 project_key: NOKEY
@@ -50,12 +50,12 @@ story_location: _bmad-output/implementation-artifacts
 
 development_status:
   # --- Epic 1: Operator's Book — Foundation + Manual Scheduling ---
-  epic-1: in-progress
+  epic-1: done
   1-1-authenticated-shell-operator-seed: done
   1-2-create-edit-client-records: done
   1-3-configure-availability-caps: done
   1-4-direct-booking-cap-enforcement-one-winner-concurrency: done
-  1-5-mark-job-outcome-completed-no-show: review
+  1-5-mark-job-outcome-completed-no-show: done
   1-6-cancel-reschedule-capacity-release: done
   1-7-forecasting-lite-room-left-day-maxed-nearest-open: done
   epic-1-retrospective: optional
@@ -73,7 +73,7 @@ development_status:
   3-1-client-booking-surface-per-client-link: done
   3-2-known-client-direct-confirm-booking: done
   3-3-one-tap-rebooking-proposal-message: done
-  3-4-post-job-nudge-rebooking-tracking: review
+  3-4-post-job-nudge-rebooking-tracking: done
   3-5-lapse-detection-expected-next-date-gone-cold: ready-for-dev
   3-6-win-back-action: ready-for-dev
   epic-3-retrospective: optional

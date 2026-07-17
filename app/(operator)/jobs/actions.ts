@@ -382,6 +382,10 @@ export async function sendRebook(formData: FormData): Promise<void> {
   const jobId = String(formData.get('jobId') ?? '').trim();
   const channel: DeliveryChannel =
     String(formData.get('channel') ?? '') === 'sms' ? 'sms' : 'whatsapp';
+  // The slot the operator actually reviewed in the panel (hidden field). Used only to
+  // GATE the send against send-time divergence (below) — never to COMPOSE the outgoing
+  // body, which is always re-derived server-side, so a tampered value can't inject text.
+  const reviewedSlot = String(formData.get('slot') ?? '').trim();
 
   const back = (extra: string): string =>
     `/jobs?rebook=${encodeURIComponent(jobId)}${extra}`;
@@ -403,8 +407,15 @@ export async function sendRebook(formData: FormData): Promise<void> {
   // graceful reasons the panel shows, never a silent no-op.
   const proposal = await getRebookProposal(jobId);
   if (!proposal.ok) redirect(back(`&error=${encodeURIComponent(proposal.reason)}`));
-  const { draft } = proposal.data;
+  const { slot, draft } = proposal.data;
   if (!draft) redirect(back('&error=rebook-failed'));
+
+  // PIN the reviewed slot (code-review 3.4): the re-derive above can return a DIFFERENT
+  // open slot than the operator saw — a day rollover moved "today", or the ideal slot was
+  // booked in the gap between render and tap. Rather than silently send a date they never
+  // reviewed, bounce back so the panel re-renders the updated proposal and they confirm the
+  // new slot. Legacy/absent reviewedSlot (no hidden field) skips the gate — never blocks.
+  if (reviewedSlot && slot !== reviewedSlot) redirect(back('&error=slot-changed'));
 
   // Build the deliverable link BEFORE logging (Story 2.3 P1 — no phantom dispatch): only
   // stamp dispatched_at once a real link exists, so a phoneless tap never inflates fatigue.

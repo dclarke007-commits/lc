@@ -1,6 +1,6 @@
 # Story 3.4: Post-job nudge + rebooking tracking
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -121,3 +121,24 @@ Task 1 predicate: new pure `needsRebookNudge(job, messageLogs)` in `derive.ts` �
 - `app/(operator)/jobs/page.tsx` — completed-job highlighted "Send rebooking nudge" variant; rebook panel now posts to `sendRebook` (dispatch-logging send forms) instead of plain anchors.
 - `app/book/[token]/confirm.ts` — best-effort post-commit attribution step (30-day window) via `attributeRebookingNudge`.
 - `tests/nudge-tracking.test.ts` — NEW (7 tests, DB-backed, fixed-Monday fake Date).
+
+### Review Findings
+
+Code review 2026-07-16 (commit `32dd4bf`, 3-layer adversarial: Blind Hunter + Edge Case Hunter + Acceptance Auditor). Auditor: all ACs met, no spec/scope violations.
+
+**Decision-needed**
+
+- [x] [Review][Decision→Patch] `sendRebook` re-derives the proposal at send-time — can diverge from the reviewed slot — **RESOLVED (operator chose pin + detect).** The panel now sends the reviewed slot as a hidden `slot` field; `sendRebook` re-derives and, if the current open slot differs, redirects back with `?error=slot-changed` so the operator re-reviews the updated proposal instead of silently sending a date they never saw. The outgoing body is still composed server-side (client `slot` only gates, never composes — no injection). [`app/(operator)/jobs/actions.ts` `sendRebook`, `app/(operator)/jobs/page.tsx`, `lib/domain/lifecycleErrors.ts`]. *Coverage note: the divergence gate has no dedicated test (`sendRebook` is redirect-based); suite green at 218/218.*
+
+**Patch**
+
+- [x] [Review][Patch] Attribution UPDATE is not atomic under concurrency — **APPLIED**: added `isNull(resultingJobRef)` to the UPDATE where-clause so a nudge already attributed by a concurrent booking loses the race cleanly (0 rows) instead of being overwritten [`lib/db/queries.ts`]
+
+**Deferred**
+
+- [x] [Review][Defer] Attributed booking later marked cancelled/no-show still counts as a conversion (`resulting_job_ref` set-null only on delete) [`lib/domain/derive.ts`:425] — deferred, best-effort metric, surfaced only in Epic 6
+- [x] [Review][Defer] `sendRebook` logs a `rebooking_nudge` for a still-`booked` (non-completed) job [`app/(operator)/jobs/actions.ts`] — deferred, REBOOKABLE={booked,completed} is 3.3 by-design; pollutes best-effort metric only, CTA only prompts on `completed`
+- [x] [Review][Defer] `getOwnerJobs` loads all owner dispatched messages every render — O(jobs×messages) [`app/(operator)/jobs/actions.ts`] — deferred, scale concern only, single-operator app
+- [x] [Review][Defer] Jobs surface now `redirect()`s to `sms:` scheme instead of a plain `<a href>` anchor [`app/(operator)/jobs/page.tsx`] — deferred, mirrors pre-existing `sendDraft` pattern; verify `sms:` behavior on real devices
+
+**Dismissed (4, not persisted):** over-attribution of any booking within 30d (spec Open gap #1/#3 — LOCKED best-effort heuristic); NaN date-parse in `needsRebookNudge`/`rebookingConversion` (verified false positive — postgres `timestamptz` `+00` text form parses correctly and matches the `Z` instant); `rebookingConversion` unwired (Epic-6 render surface is an explicit scope boundary); "Send rebooking nudge" button label (cosmetic copy).
