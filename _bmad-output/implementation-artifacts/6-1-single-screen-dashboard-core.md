@@ -100,11 +100,30 @@ This story is where that debt comes due (Task 3). The dashboard scans every job 
 ## Dev Agent Record
 
 ### Agent Model Used
+claude-opus-4-8[1m]
 
 ### Debug Log References
+- Self-match bug caught in TDD: a completed job whose `createdAt == completedAt` counted itself as its own follow-on. Fixed → follow-on must be created STRICTLY AFTER completion (`> completedMs`). A job's `completedAt` is always `>= createdAt` (lifecycle.ts:105 stamps `now()`), so strict-after excludes self.
 
 ### Completion Notes List
+- All 5 tasks done. 3 pure derives (`monthlyRevenue`, `repeatBookingRate`, `repeatVsLapsedCounts`) + `listJobsForMetrics` query + `getDashboardMetrics` action + 4-tile dashboard surface.
+- **Epic-5 retro perf debt cleared**: dropped the unused `clientName` join on the goneCold/win-back path (new lean `listJobsForMetrics`); de-duped the win-back double-load via React `cache()` (one read per `/clients` render).
+- **Verification**: tsc clean, 326/326 tests (46 derive, +12 for 6.1 incl. 2 hardening), `next build` green.
+- **Reviews**: adversarial + security subagents — ZERO confirmed defects. Owner-scoping (AR9) intact; refactor behavior-preserving; addendum-F boundary math matches spec.
+- **Dev decisions** (documented in derive.ts): null (not 0) repeat rate on empty denominator; follow-on window `(strict-after, +30d]` inclusive; revenue buckets operator-local month (AD-9).
+
+### Deferred (→ Epic 6 retro action items)
+- Owner-isolation db-integration tests for `listJobsForMetrics` / `getDashboardMetrics` (scoping confirmed by security review reading; tests would lock it).
+- `getDashboardMetrics.consuming` == `getDashboardCapacity.consuming` contract test (two reads, should agree).
+- Surface nuance: `Repeat / Lapsed` counts are independent, not a partition (a repeat client can also be lapsed) — consider a label tweak in 6.2/6.3.
 
 ### File List
+- `lib/domain/derive.ts` (monthlyRevenue, repeatBookingRate, repeatVsLapsedCounts + types)
+- `lib/db/queries.ts` (listJobsForMetrics + JobMetricsRow)
+- `app/(operator)/actions.ts` (getDashboardMetrics + DashboardMetrics)
+- `app/(operator)/clients/actions.ts` (listJobsForMetrics + cache() de-dup refactor)
+- `app/(operator)/page.tsx` (metric tiles)
+- `tests/derive.test.ts` (12 new tests)
 
 ### Change Log
+- 2026-07-18: Story 6.1 implemented, reviewed (adversarial + security, clean), all gates green. Status → done.

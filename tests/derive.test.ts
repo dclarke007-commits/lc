@@ -443,6 +443,29 @@ describe('derive.repeatBookingRate — addendum-F rolling 30-day (Story 6.1, AR1
     ];
     expect(repeatBookingRate(jobs, now)).toBe(0);
   });
+
+  it('a lone completion whose createdAt STRICTLY precedes its completedAt does not self-count', () => {
+    // The realistic ordering the write path guarantees (lifecycle.ts stamps completedAt =
+    // now() >= createdAt): booked 07-05, completed 07-15. Strict-after excludes the job
+    // as its own follow-on → 0/1, not 1/1. Locks the invariant the self-exclusion relies on.
+    const jobs: RepeatRateJob[] = [
+      { clientId: 'c1', completion: 'completed', completedAt: '2026-07-15T12:00:00Z', createdAt: '2026-07-05T09:00:00Z' },
+    ];
+    expect(repeatBookingRate(jobs, now)).toBe(0);
+  });
+
+  it('two completed jobs in-window where the newer IS the older\'s follow-on → 0.5', () => {
+    // Adversarial gap: the self-exclusion (strict >) and the mutual-follow-on logic
+    // interact. Job1 completed 07-10; Job2 created 07-15 (5d after Job1's completion,
+    // within +30d) → Job1 has a follow-on. Job2 completed 07-25 has no later booking →
+    // denominator only. Neither counts itself (each createdAt <= its own completedAt).
+    const jobs: RepeatRateJob[] = [
+      { clientId: 'c1', completion: 'completed', completedAt: '2026-07-10T12:00:00Z', createdAt: '2026-07-05T12:00:00Z' },
+      { clientId: 'c1', completion: 'completed', completedAt: '2026-07-25T12:00:00Z', createdAt: '2026-07-15T12:00:00Z' },
+    ];
+    // denom = 2 (both completed in window), numer = 1 (Job1 → Job2) → 0.5
+    expect(repeatBookingRate(jobs, now)).toBe(0.5);
+  });
 });
 
 describe('derive.repeatVsLapsedCounts (Story 6.1, FR22)', () => {
