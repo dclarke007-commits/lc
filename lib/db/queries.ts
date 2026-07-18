@@ -832,3 +832,59 @@ export async function setPendingRequestStatus(
     .returning();
   return row;
 }
+
+// --- Manual inquiry log (Story 4.4, FR37/AR12, AD-8 owner-scoped) --------------
+// The operator's MANUAL inquiry log — phone/walk-in/referral/other. Distinct from the
+// 4.2 auto-`link` path (insertPublicBookingRequest): a manual log carries NO visit
+// session (session_nonce = null) and an OPTIONAL clientId (an anonymous verbal inquiry
+// references no client record; a known-contact log references an existing one). Owner-
+// scoped on write and read (AD-8). The `link` source is NEVER written through here — it
+// is server-only provenance (AR12), minted solely inside the 4.2 submission transaction;
+// the action layer whitelists the four manual sources before calling this.
+
+export interface InsertInquiryInput {
+  ownerId: string;
+  source: Inquiry['source'];
+  // Optional: a bare manual log has no client (null); a known-contact log references one.
+  clientId?: string | null;
+}
+
+/**
+ * Insert one manual inquiry (Story 4.4). `session_nonce` is ALWAYS null (a manual log
+ * carries no token-visit session — that is the 4.2 `link` path's dedup key). `clientId`
+ * defaults to null when absent. Owner-scoped (AD-8). Returns the inserted row.
+ */
+export async function insertInquiry(input: InsertInquiryInput): Promise<Inquiry> {
+  const { ownerId, source, clientId = null } = input;
+  const [row] = await db
+    .insert(inquiry)
+    .values({ ownerId, source, clientId, sessionNonce: null })
+    .returning();
+  return row;
+}
+
+/** The minimal Inquiry projection the distinct-inquiry derive (AR12/FR24) + tests read. */
+export interface InquiryListItem {
+  id: string;
+  source: string;
+  clientId: string | null;
+  createdAt: string;
+}
+
+/**
+ * List the owner's inquiries (both auto-`link` and manual), newest first. Owner-scoped
+ * on the VALUE (AD-8), so no other tenant's inquiry is reachable. Only the four fields
+ * the distinct-inquiry denominator needs are projected — no client join.
+ */
+export async function listInquiries(ownerId: string): Promise<InquiryListItem[]> {
+  return db
+    .select({
+      id: inquiry.id,
+      source: inquiry.source,
+      clientId: inquiry.clientId,
+      createdAt: inquiry.createdAt,
+    })
+    .from(inquiry)
+    .where(eq(inquiry.ownerId, ownerId))
+    .orderBy(desc(inquiry.createdAt), asc(inquiry.id));
+}
