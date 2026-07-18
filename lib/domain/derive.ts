@@ -20,6 +20,7 @@ import {
   isoWeekdayOfDate,
   weekRangeOfDate,
   localWeekBounds,
+  localDateKey,
 } from '@/lib/domain/clock';
 
 /** The only Job fields derive reads. A projection keeps callers cheap (AD-8). */
@@ -620,4 +621,160 @@ export function distinctInquiryCount(rows: DistinctInquiryRow[]): number {
     else distinctClients.add(r.clientId);
   }
   return distinctClients.size + anonymous;
+}
+
+// --- Story 6.1: dashboard core metrics (derived on read, AR8/AD-7, FR22) ---------
+//
+// Three pure derives the single-screen dashboard composes with the existing
+// `weekCapacity` (utilization) and `outstanding` (balance). PURE: functions of the
+// passed rows plus an injected `now`/`tz` — no db, no framework, no `Date.now()`, no
+// stored aggregate. Mark a job paid or complete one and the very next render reflects
+// it, nothing to invalidate.
+
+const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
+
+/** A completed-job row the revenue metric reads: the frozen amount + when it landed.
+ *  `completedAt` is a UTC instant (ISO string); bucketed into the operator-LOCAL
+ *  month (AD-9/AR10) so a job finished 11:59pm local on the 31st counts this month,
+ *  not next month in UTC. `completion` gates eligibility via isLedgerEligible. */
+export interface RevenueJob {
+  completion: string;
+  completedAt: string | null;
+  priceCents: number;
+}
+
+export interface MonthlyRevenue {
+  thisMonthCents: number;
+  lastMonthCents: number;
+  deltaCents: number; // thisMonth - lastMonth (signed)
+}
+
+/** Return the 'YYYY-MM' one calendar month before the given 'YYYY-MM' key. */
+function previousMonthKey(monthKey: string): string {
+  const [y, m] = monthKey.split('-').map(Number);
+  const prevM = m === 1 ? 12 : m - 1;
+  const prevY = m === 1 ? y - 1 : y;
+  return `${prevY}-${String(prevM).padStart(2, '0')}`;
+}
+
+/**
+ * Month-over-month revenue (FR22). Only LEDGER-ELIGIBLE jobs earn (isLedgerEligible —
+ * completed, AR11): a no-show earns nothing, a cancelled job never happened. Each
+ * earns its frozen `priceCents` (integer cents, summed in cents — no float). Buckets
+ * are the operator-LOCAL calendar month of `completedAt` (localDateKey, AD-9); a job
+ * with a null `completedAt` (shouldn't occur for a completed job, but be defensive) is
+ * skipped rather than mis-bucketed. `deltaCents` is the trajectory the operator reads.
+ */
+export function monthlyRevenue(
+  jobs: RevenueJob[],
+  now: Date,
+  tz: string,
+): MonthlyRevenue {
+  const thisKey = localDateKey(now, tz).slice(0, 7);
+  const lastKey = previousMonthKey(thisKey);
+  let thisMonthCents = 0;
+  let lastMonthCents = 0;
+  for (const j of jobs) {
+    if (!isLedgerEligible(j) || j.completedAt === null) continue;
+    const key = localDateKey(new Date(j.completedAt), tz).slice(0, 7);
+    if (key === thisKey) thisMonthCents += j.priceCents;
+    else if (key === lastKey) lastMonthCents += j.priceCents;
+  }
+  return {
+    thisMonthCents,
+    lastMonthCents,
+    deltaCents: thisMonthCents - lastMonthCents,
+  };
+}
+
+/** A job row the repeat-rate reads. `completedAt`/`createdAt` are UTC instants (ISO)
+ *  — addendum-F reads THESE, never the scheduled `date` (ARCHITECTURE-SPINE AD-7,
+ *  review G1). `clientId` matches a follow-on to the same client. */
+export interface RepeatRateJob {
+  clientId: string;
+  completion: string;
+  completedAt: string | null;
+  createdAt: string;
+}
+
+/**
+ * North-star repeat-booking rate — addendum-F, rolling 30-day (AR19). Of jobs
+ * COMPLETED in the window `(now-30d, now]`, the share for which the SAME client has a
+ * booking whose `createdAt` falls within 30 days AFTER that completion
+ * (`[completedAt, completedAt+30d]`). Denominator = completed jobs in the window;
+ * numerator = those with a qualifying same-client follow-on.
+ *
+ * DEV DECISION — boundaries: the follow-on window is INCLUSIVE at the 30-day edge
+ * (day 30 counts, day 31 does not) and the follow-on must be created STRICTLY AFTER
+ * the completion instant. Strict-after is what makes a "re-book" a re-book: a job's
+ * own `createdAt` is always <= its `completedAt`, so `>` excludes the job counting
+ * itself, and a booking predating the completion is not a re-book of it. All
+ * comparisons are millisecond math on the UTC instants, so the metric is
+ * timezone-invariant (a 30-day delta is the same length in every zone).
+ *
+ * DEV DECISION — empty denominator: returns `null`, NOT 0. "No completed jobs in the
+ * last 30 days" is not "0% repeat"; the surface renders "—". Reporting 0% would be the
+ * exact vanity-lie this dashboard exists to refuse (FR25).
+ */
+export function repeatBookingRate(
+  jobs: RepeatRateJob[],
+  now: Date,
+): number | null {
+  const nowMs = now.getTime();
+  const windowStart = nowMs - THIRTY_DAYS_MS;
+
+  // Completions inside the rolling window are the denominator.
+  const completedInWindow = jobs.filter((j) => {
+    if (j.completion !== 'completed' || j.completedAt === null) return false;
+    const c = new Date(j.completedAt).getTime();
+    return c > windowStart && c <= nowMs;
+  });
+  if (completedInWindow.length === 0) return null;
+
+  let followedOn = 0;
+  for (const job of completedInWindow) {
+    const completedMs = new Date(job.completedAt as string).getTime();
+    const hasFollowOn = jobs.some((k) => {
+      if (k.clientId !== job.clientId) return false;
+      const created = new Date(k.createdAt).getTime();
+      return created > completedMs && created <= completedMs + THIRTY_DAYS_MS;
+    });
+    if (hasFollowOn) followedOn++;
+  }
+  return followedOn / completedInWindow.length;
+}
+
+/** One client's lifecycle inputs for the repeat/lapsed split: their cadence (drives
+ *  gone-cold) and their job rows (drive both the completed-count and the lapse check). */
+export interface ClientLifecycle {
+  cadence: Cadence;
+  jobs: DeriveJob[];
+}
+
+export interface RepeatVsLapsed {
+  repeat: number; // clients with >= 2 lifetime completed jobs
+  lapsed: number; // clients currently gone-cold (view-time, AR19)
+}
+
+/**
+ * Repeat vs. lapsed COUNTS (FR22) — headline integers, distinct from the Story 6.2
+ * conversion RATES (do not conflate). `repeat` = clients whose lifetime completed-job
+ * count is >= 2 (they came back at least once). `lapsed` = clients gone-cold right now
+ * (reuses goneCold — the ONE lapse definition, Story 3.5; a one-time client or one with
+ * a future booking is never cold). Both are derived on read from the passed rows.
+ */
+export function repeatVsLapsedCounts(
+  clients: ClientLifecycle[],
+  today: string,
+): RepeatVsLapsed {
+  let repeat = 0;
+  let lapsed = 0;
+  for (const c of clients) {
+    const completedCount = c.jobs.filter(
+      (j) => j.completion === 'completed',
+    ).length;
+    if (completedCount >= 2) repeat++;
+    if (goneCold(c.cadence, c.jobs, today)) lapsed++;
+  }
+  return { repeat, lapsed };
 }

@@ -12,8 +12,14 @@ import {
   distinctInquiryCount,
   isLedgerEligible,
   outstanding,
+  monthlyRevenue,
+  repeatBookingRate,
+  repeatVsLapsedCounts,
   type DeriveJob,
   type LedgerJob,
+  type RevenueJob,
+  type RepeatRateJob,
+  type ClientLifecycle,
 } from '../lib/domain/derive';
 import { DEFAULT_CAPACITY, type CapacityConfig } from '../lib/domain/capacityConfig';
 
@@ -338,5 +344,130 @@ describe('derive.distinctInquiryCount (AC2, AR12)', () => {
         { clientId: null },
       ]),
     ).toBe(4); // distinct clients {c1,c2}=2 + 2 anonymous
+  });
+});
+
+// --- Story 6.1: dashboard core metrics -------------------------------------------
+// Chicago is UTC-5 during July DST, which lets a UTC instant just after midnight fall
+// into the PREVIOUS local calendar day/month — the case AD-9 (operator-local) exists for.
+const TZ = 'America/Chicago';
+
+describe('derive.monthlyRevenue (Story 6.1, FR22/AR8)', () => {
+  const now = new Date('2026-07-15T12:00:00Z'); // local July → this=2026-07, last=2026-06
+
+  it('sums ledger-eligible amounts into this vs last operator-local month', () => {
+    const jobs: RevenueJob[] = [
+      { completion: 'completed', completedAt: '2026-07-10T12:00:00Z', priceCents: 20000 }, // this
+      { completion: 'completed', completedAt: '2026-06-20T12:00:00Z', priceCents: 15000 }, // last
+    ];
+    expect(monthlyRevenue(jobs, now, TZ)).toEqual({
+      thisMonthCents: 20000,
+      lastMonthCents: 15000,
+      deltaCents: 5000,
+    });
+  });
+
+  it('buckets by operator-local month, not UTC (AD-9)', () => {
+    // 2026-08-01T04:30Z is 2026-07-31 23:30 in Chicago → counts as THIS month (July).
+    const jobs: RevenueJob[] = [
+      { completion: 'completed', completedAt: '2026-08-01T04:30:00Z', priceCents: 5000 },
+    ];
+    expect(monthlyRevenue(jobs, now, TZ).thisMonthCents).toBe(5000);
+  });
+
+  it('excludes no-show / cancelled / booked (not ledger-eligible) and out-of-window months', () => {
+    const jobs: RevenueJob[] = [
+      { completion: 'no-show', completedAt: '2026-07-05T12:00:00Z', priceCents: 99999 },
+      { completion: 'cancelled', completedAt: '2026-07-05T12:00:00Z', priceCents: 99999 },
+      { completion: 'booked', completedAt: null, priceCents: 99999 },
+      { completion: 'completed', completedAt: '2026-05-01T12:00:00Z', priceCents: 99999 }, // May
+    ];
+    expect(monthlyRevenue(jobs, now, TZ)).toEqual({
+      thisMonthCents: 0,
+      lastMonthCents: 0,
+      deltaCents: 0,
+    });
+  });
+
+  it('handles the January → previous-December year rollover', () => {
+    const jan = new Date('2027-01-10T12:00:00Z');
+    const jobs: RevenueJob[] = [
+      { completion: 'completed', completedAt: '2026-12-20T12:00:00Z', priceCents: 8000 },
+    ];
+    expect(monthlyRevenue(jobs, jan, TZ).lastMonthCents).toBe(8000);
+  });
+});
+
+describe('derive.repeatBookingRate — addendum-F rolling 30-day (Story 6.1, AR19)', () => {
+  const now = new Date('2026-07-31T12:00:00Z'); // window: (2026-07-01T12:00Z, 2026-07-31T12:00Z]
+
+  it('null (not 0) when no completed jobs in the window', () => {
+    const jobs: RepeatRateJob[] = [
+      { clientId: 'c1', completion: 'booked', completedAt: null, createdAt: '2026-07-10T12:00:00Z' },
+      // completed but BEFORE the window
+      { clientId: 'c2', completion: 'completed', completedAt: '2026-05-01T12:00:00Z', createdAt: '2026-05-01T12:00:00Z' },
+    ];
+    expect(repeatBookingRate(jobs, now)).toBeNull();
+  });
+
+  it('same-client follow-on within 30 days counts; a lone completion does not', () => {
+    const jobs: RepeatRateJob[] = [
+      // c1 completed in window + a follow-on booking created 10 days later → numerator
+      { clientId: 'c1', completion: 'completed', completedAt: '2026-07-10T12:00:00Z', createdAt: '2026-07-10T12:00:00Z' },
+      { clientId: 'c1', completion: 'booked', completedAt: null, createdAt: '2026-07-20T12:00:00Z' },
+      // c2 completed in window, no follow-on → denominator only
+      { clientId: 'c2', completion: 'completed', completedAt: '2026-07-15T12:00:00Z', createdAt: '2026-07-15T12:00:00Z' },
+    ];
+    expect(repeatBookingRate(jobs, now)).toBe(0.5);
+  });
+
+  it('follow-on at exactly +30d counts (inclusive); +30d+1ms does not', () => {
+    const inclusive: RepeatRateJob[] = [
+      { clientId: 'c1', completion: 'completed', completedAt: '2026-07-10T00:00:00Z', createdAt: '2026-07-10T00:00:00Z' },
+      { clientId: 'c1', completion: 'booked', completedAt: null, createdAt: '2026-08-09T00:00:00Z' }, // +30d exactly
+    ];
+    expect(repeatBookingRate(inclusive, now)).toBe(1);
+
+    const justOver: RepeatRateJob[] = [
+      { clientId: 'c1', completion: 'completed', completedAt: '2026-07-10T00:00:00Z', createdAt: '2026-07-10T00:00:00Z' },
+      { clientId: 'c1', completion: 'booked', completedAt: null, createdAt: '2026-08-09T00:00:00.001Z' }, // +30d +1ms
+    ];
+    expect(repeatBookingRate(justOver, now)).toBe(0);
+  });
+
+  it('a booking predating the completion is not a re-book of it', () => {
+    const jobs: RepeatRateJob[] = [
+      { clientId: 'c1', completion: 'completed', completedAt: '2026-07-20T12:00:00Z', createdAt: '2026-07-20T12:00:00Z' },
+      // created BEFORE the completion instant → does not count
+      { clientId: 'c1', completion: 'booked', completedAt: null, createdAt: '2026-07-01T13:00:00Z' },
+    ];
+    expect(repeatBookingRate(jobs, now)).toBe(0);
+  });
+});
+
+describe('derive.repeatVsLapsedCounts (Story 6.1, FR22)', () => {
+  const today = '2026-07-15';
+
+  it('counts repeat (>=2 completed) and lapsed (gone-cold) independently', () => {
+    const clients: ClientLifecycle[] = [
+      // repeat (2 completed) AND not lapsed (has a future booking) → repeat only
+      {
+        cadence: 'weekly',
+        jobs: [
+          { date: '2026-05-01', completion: 'completed' },
+          { date: '2026-05-08', completion: 'completed' },
+          { date: '2026-07-20', completion: 'booked' },
+        ],
+      },
+      // 1 completed, no future → gone-cold → lapsed only
+      { cadence: 'weekly', jobs: [{ date: '2026-06-01', completion: 'completed' }] },
+      // one-time, 1 completed → neither (never cold, not repeat)
+      { cadence: 'one-time', jobs: [{ date: '2026-06-01', completion: 'completed' }] },
+    ];
+    expect(repeatVsLapsedCounts(clients, today)).toEqual({ repeat: 1, lapsed: 1 });
+  });
+
+  it('empty client list → zeros', () => {
+    expect(repeatVsLapsedCounts([], today)).toEqual({ repeat: 0, lapsed: 0 });
   });
 });
