@@ -13,10 +13,13 @@ import {
   getMessageTemplates,
   listLedgerJobs,
 } from '@/lib/db/queries';
+import { revalidatePath } from 'next/cache';
 import { ok, fail, type ActionResult } from '@/lib/domain/result';
 import { paymentReminderDraft, type MessageDraft } from '@/lib/domain/compose';
 import { outstanding } from '@/lib/domain/derive';
+import { markPaid } from '@/lib/domain/ledger';
 import { DEFAULT_TEMPLATE_BODIES } from '@/lib/domain/messageTemplateConfig';
+import type { Job } from '@/lib/db/schema';
 
 /**
  * Compose a payment-reminder draft for `clientId` from that client's outstanding
@@ -58,4 +61,26 @@ export async function draftPaymentReminder(
   );
   if (!draft) return fail('nothing-owed');
   return ok(draft);
+}
+
+/**
+ * Mark an owed job paid (Story 5.4, FR32). Thin passthrough to the sole payment
+ * writer `ledger.markPaid` (AR11: sets `payment` only, never `completion`). Resolves
+ * the owner, delegates the transactional owner-scoped flip, and on success
+ * revalidates the jobs surface (its projection shows `payment`); the outstanding
+ * total is derived on read (AD-7) so it clears with no counter to update. AR15
+ * typed result; no throw crosses the boundary.
+ */
+export async function markJobPaid(jobId: string): Promise<ActionResult<Job>> {
+  let ownerId: string;
+  try {
+    ownerId = await getOwnerId();
+  } catch (err) {
+    console.error('[ledger] getOwnerId failed (markPaid)', err);
+    return fail('owner-unresolved');
+  }
+
+  const res = await markPaid(ownerId, jobId);
+  if (res.ok) revalidatePath('/jobs');
+  return res;
 }
