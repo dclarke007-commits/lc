@@ -730,3 +730,161 @@ export async function insertPublicBookingRequest(
     throw err;
   }
 }
+
+// --- Approval queue (Story 4.3, FR36/AD-2/AD-8) -------------------------------
+// The operator's pending-request queue: list the owner's `pending` rows (joined to
+// the provisional client for the row display), re-read one under the mutation, and
+// the guarded status transition that is the concurrency/idempotency backstop for the
+// STATUS field (the capacity backstop is commitBooking's advisory lock). Capacity is
+// NEVER touched here — approve routes through commitBooking (AD-2); this module only
+// reads the queue and moves the status flag.
+
+/** A pending-request row plus its provisional client's contact fields — the shape the queue surface renders (no second lookup). */
+export interface PendingRequestListItem {
+  id: string;
+  clientId: string;
+  date: string;
+  createdAt: string;
+  clientName: string;
+  clientPhone: string;
+  clientAddress: string | null;
+}
+
+/**
+ * List the owner's PENDING new-client requests (Story 4.3, AC1), joined to the
+ * provisional client for name/phone/address. The owner_id filter is on the VALUE
+ * (AD-8) on BOTH the request AND the join (mirrors listJobs), so no other tenant's
+ * row is reachable through this path. Oldest-first (FIFO queue): the operator works
+ * the longest-waiting stranger first. Excludes approved/declined/withdrawn.
+ */
+export async function listPendingRequests(
+  ownerId: string,
+): Promise<PendingRequestListItem[]> {
+  return db
+    .select({
+      id: pendingRequest.id,
+      clientId: pendingRequest.clientId,
+      date: pendingRequest.date,
+      createdAt: pendingRequest.createdAt,
+      clientName: client.name,
+      clientPhone: client.phone,
+      clientAddress: client.address,
+    })
+    .from(pendingRequest)
+    .innerJoin(
+      client,
+      and(eq(pendingRequest.clientId, client.id), eq(client.ownerId, ownerId)),
+    )
+    .where(
+      and(
+        eq(pendingRequest.ownerId, ownerId),
+        eq(pendingRequest.status, 'pending'),
+      ),
+    )
+    .orderBy(asc(pendingRequest.createdAt), asc(pendingRequest.id));
+}
+
+/**
+ * Read one pending-request row by id, owner-scoped (UUID-guarded like getClient).
+ * The approve action re-reads it under the mutation to recover clientId/date and to
+ * re-check it is still pending. Both predicates are required: an id that belongs to a
+ * different owner returns undefined, never another tenant's row.
+ */
+export async function getPendingRequest(
+  ownerId: string,
+  id: string,
+): Promise<PendingRequest | undefined> {
+  // A non-UUID id can never match a real row — treat as "not found" rather than
+  // letting Postgres throw an invalid-uuid error into the action.
+  if (!UUID_RE.test(id)) return undefined;
+  const [row] = await db
+    .select()
+    .from(pendingRequest)
+    .where(and(eq(pendingRequest.ownerId, ownerId), eq(pendingRequest.id, id)))
+    .limit(1);
+  return row;
+}
+
+/**
+ * Guarded status transition (Story 4.3) — the concurrency/idempotency backstop for
+ * the STATUS field. UPDATE status=`to` WHERE owner=ownerId AND id=id AND status=`from`,
+ * `.returning()` the row or undefined. A request already moved off `from` (already
+ * approved/declined) matches ZERO rows → undefined, which the action treats as a stale
+ * no-op — never a double transition. Owner-scoped (AD-8); a non-UUID id never matches.
+ */
+export async function setPendingRequestStatus(
+  ownerId: string,
+  id: string,
+  from: PendingRequest['status'],
+  to: PendingRequest['status'],
+): Promise<PendingRequest | undefined> {
+  if (!UUID_RE.test(id)) return undefined;
+  const [row] = await db
+    .update(pendingRequest)
+    .set({ status: to })
+    .where(
+      and(
+        eq(pendingRequest.ownerId, ownerId),
+        eq(pendingRequest.id, id),
+        eq(pendingRequest.status, from),
+      ),
+    )
+    .returning();
+  return row;
+}
+
+// --- Manual inquiry log (Story 4.4, FR37/AR12, AD-8 owner-scoped) --------------
+// The operator's MANUAL inquiry log — phone/walk-in/referral/other. Distinct from the
+// 4.2 auto-`link` path (insertPublicBookingRequest): a manual log carries NO visit
+// session (session_nonce = null) and an OPTIONAL clientId (an anonymous verbal inquiry
+// references no client record; a known-contact log references an existing one). Owner-
+// scoped on write and read (AD-8). The `link` source is NEVER written through here — it
+// is server-only provenance (AR12), minted solely inside the 4.2 submission transaction;
+// the action layer whitelists the four manual sources before calling this.
+
+export interface InsertInquiryInput {
+  ownerId: string;
+  source: Inquiry['source'];
+  // Optional: a bare manual log has no client (null); a known-contact log references one.
+  clientId?: string | null;
+}
+
+/**
+ * Insert one manual inquiry (Story 4.4). `session_nonce` is ALWAYS null (a manual log
+ * carries no token-visit session — that is the 4.2 `link` path's dedup key). `clientId`
+ * defaults to null when absent. Owner-scoped (AD-8). Returns the inserted row.
+ */
+export async function insertInquiry(input: InsertInquiryInput): Promise<Inquiry> {
+  const { ownerId, source, clientId = null } = input;
+  const [row] = await db
+    .insert(inquiry)
+    .values({ ownerId, source, clientId, sessionNonce: null })
+    .returning();
+  return row;
+}
+
+/** The minimal Inquiry projection the distinct-inquiry derive (AR12/FR24) + tests read. */
+export interface InquiryListItem {
+  id: string;
+  source: string;
+  clientId: string | null;
+  createdAt: string;
+}
+
+/**
+ * List the owner's inquiries (both auto-`link` and manual), newest first. Owner-scoped
+ * on the VALUE (AD-8), so no other tenant's inquiry is reachable. Only the four fields
+ * the distinct-inquiry denominator needs are projected — no client join.
+ */
+export async function listInquiries(ownerId: string): Promise<InquiryListItem[]> {
+  return db
+    .select({
+      id: inquiry.id,
+      source: inquiry.source,
+      clientId: inquiry.clientId,
+      createdAt: inquiry.createdAt,
+    })
+    .from(inquiry)
+    .where(eq(inquiry.ownerId, ownerId))
+    .orderBy(desc(inquiry.createdAt), asc(inquiry.id));
+}

@@ -9,6 +9,7 @@ import {
   dayMaxed,
   nearestOpen,
   weekCapacity,
+  distinctInquiryCount,
   type DeriveJob,
 } from '../lib/domain/derive';
 import { DEFAULT_CAPACITY, type CapacityConfig } from '../lib/domain/capacityConfig';
@@ -204,5 +205,47 @@ describe('derived on read — no stored flag (AD-7)', () => {
     jobs[0].completion = 'cancelled';
     expect(roomLeft(jobs, cfg, MON)).toBe(12);
     expect(dayMaxed(jobs, cfg, MON)).toBe(false);
+  });
+});
+
+// Story 4.4 (AC2, AR12) — the pure distinct-inquiry denominator. distinct =
+// (distinct non-null clientIds) + (rows with a null clientId). A `link` auto-log and a
+// manual log for the SAME client collapse to one; anonymous null-client rows each count.
+describe('derive.distinctInquiryCount (AC2, AR12)', () => {
+  it('empty → 0', () => {
+    expect(distinctInquiryCount([])).toBe(0);
+  });
+
+  it('a link inquiry + a manual inquiry for the SAME client → 1', () => {
+    // The core AR12 dedup: the 4.2 auto-`link` row and the 4.4 manual row both carry
+    // the same clientId, so that one contact is not double-counted.
+    expect(
+      distinctInquiryCount([{ clientId: 'c1' }, { clientId: 'c1' }]),
+    ).toBe(1);
+  });
+
+  it('two different clients → 2', () => {
+    expect(
+      distinctInquiryCount([{ clientId: 'c1' }, { clientId: 'c2' }]),
+    ).toBe(2);
+  });
+
+  it('two null-client (anonymous) rows → 2', () => {
+    // Anonymous verbal inquiries can't be matched to anyone, so each counts once.
+    expect(
+      distinctInquiryCount([{ clientId: null }, { clientId: null }]),
+    ).toBe(2);
+  });
+
+  it('mixed: 2 rows for c1 + 1 for c2 + 2 anonymous → 4', () => {
+    expect(
+      distinctInquiryCount([
+        { clientId: 'c1' },
+        { clientId: 'c1' },
+        { clientId: 'c2' },
+        { clientId: null },
+        { clientId: null },
+      ]),
+    ).toBe(4); // distinct clients {c1,c2}=2 + 2 anonymous
   });
 });

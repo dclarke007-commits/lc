@@ -510,3 +510,36 @@ export function goneCold(
   }
   return true;
 }
+
+// --- Story 4.4: distinct-inquiry denominator (derived on read, AR12/FR37) --------
+//
+// The pure dedup derive the inquiry→booking conversion (AR19: bookings ÷ all logged
+// inquiries) will consume — the DENOMINATOR only; the FR24 dashboard is Epic 6, NOT
+// here. PURE (AD-7): a function of the passed inquiry rows, no db, no framework, no
+// stored counter. Mutate the input and the very next call reflects it.
+
+/** The only Inquiry field the distinct count reads — a projection (AD-8). */
+export interface DistinctInquiryRow {
+  clientId: string | null;
+}
+
+/**
+ * The distinct-inquiry denominator (AR12). DEV DECISION (dedup rule):
+ *   distinct = (number of DISTINCT non-null clientIds) + (number of rows with a NULL clientId).
+ *
+ * Rationale: a `link` auto-log (which always carries the provisional clientId, Story 4.2)
+ * and a manual log the operator attaches to that SAME client collapse to ONE distinct
+ * inquiry — that contact is not double-counted (AR12 "same contact"). An anonymous verbal
+ * inquiry (no client record) cannot be matched to anyone, so each null-client row counts
+ * once. This is the seam Epic 6's FR24 conversion dashboard divides bookings by — never a
+ * stored count.
+ */
+export function distinctInquiryCount(rows: DistinctInquiryRow[]): number {
+  const distinctClients = new Set<string>();
+  let anonymous = 0;
+  for (const r of rows) {
+    if (r.clientId == null) anonymous++;
+    else distinctClients.add(r.clientId);
+  }
+  return distinctClients.size + anonymous;
+}

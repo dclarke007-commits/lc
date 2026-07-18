@@ -79,11 +79,11 @@ development_status:
   epic-3-retrospective: done
 
   # --- Epic 4: Client Self-Booking — Plug the Inquiry Leak ---
-  epic-4: in-progress
+  epic-4: done
   4-1-public-self-serve-link-qr: done
   4-2-new-client-public-booking-provisional-record-pending-request: done
-  4-3-operator-approval-queue: backlog
-  4-4-log-inquiry-with-source: backlog
+  4-3-operator-approval-queue: done
+  4-4-log-inquiry-with-source: done
   epic-4-retrospective: optional
 
   # --- Epic 5: Cash Ledger — Plug the Payment Leak ---
@@ -121,5 +121,13 @@ action_items:
     status: open
   - epic: 3
     action: "Carry 3-1 token replay/revocation rigor + adversarial and security review into Epic 4 public self-serve (4-1/4-2)"
+    owner: "Developer"
+    status: done
+  - epic: 4
+    action: "Manual logInquiry (4.4) has no double-submit dedup — a double-tapped anonymous manual log inflates the inquiry→booking denominator. Accepted for single-operator v1; Epic 6 FR24 dashboard should dedupe manual double-logs (or add a per-render submit nonce + partial index if it matters)."
+    owner: "Developer"
+    status: open
+  - epic: 4
+    action: "Public write surfaces (4.2 submit, 4.4 log) have no rate limiting — accepted gap (LOCKED). Add per-IP throttle + provisional-row cap before/when the app becomes multi-tenant or lower-trust."
     owner: "Developer"
     status: open
