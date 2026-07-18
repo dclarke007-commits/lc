@@ -99,7 +99,7 @@ development_status:
   6-1-single-screen-dashboard-core: done
   6-2-leak-indicators: done
   6-3-gone-cold-list-with-win-back-access: done
-  6-4-csv-export: backlog
+  6-4-csv-export: done
   epic-6-retrospective: optional
 
 action_items:

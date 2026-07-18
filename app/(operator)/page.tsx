@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { SESSION_COOKIE, verifySession } from '@/lib/auth/session';
+import { ExportButtons } from './export/ExportButtons';
 import {
   getDashboardCapacity,
   getDashboardMetrics,
@@ -348,6 +349,27 @@ export default async function DashboardPage() {
             ))}
           </tbody>
         </table>
+      </section>
+
+      {/* Story 6.4 — data ownership. Export the owner's clients + jobs as CSV so the
+          data is owned, not rented (FR35, NFR5). Server Action does the owner-scoped
+          read + serialize; this is only the download trigger. */}
+      <section
+        aria-labelledby="export-heading"
+        style={{
+          marginTop: '1rem',
+          border: '1px solid #e2e2e2',
+          borderRadius: 8,
+          padding: '1rem',
+        }}
+      >
+        <h2 id="export-heading" style={{ fontSize: '1rem', margin: '0 0 0.5rem' }}>
+          Own your data
+        </h2>
+        <p style={{ margin: '0 0 0.75rem', fontSize: '0.85rem', color: '#666' }}>
+          Download your clients and jobs as CSV — your data, not rented.
+        </p>
+        <ExportButtons />
       </section>
 
       <nav style={{ marginTop: '1rem', display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
