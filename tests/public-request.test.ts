@@ -186,6 +186,49 @@ describe('Story 4.2 AC2 — at most one `link` inquiry per token-visit session',
     expect(inquiries[0].sessionNonce).toBe(visit);
   });
 
+  it('same session, DIFFERENT day → records the new request but still ONE `link` inquiry (F1)', async () => {
+    const tokenValue = await ensurePublicToken(ownerId);
+    const view = await resolvePublicBookingView(tokenValue);
+    if (!view.ok || view.view.openSlots.length < 2) {
+      throw new Error('test setup: expected >=2 open slots');
+    }
+    const [dayA, dayB] = view.view.openSlots.map((s) => s.date);
+    const visit = generateTokenNonce(); // same visit session (e.g. back-button)
+
+    const first = await submitPublicRequestResult(tokenValue, buildForm({ date: dayA, visit }));
+    const second = await submitPublicRequestResult(tokenValue, buildForm({ date: dayB, visit }));
+
+    expect(first.ok).toBe(true);
+    expect(second.ok).toBe(true);
+    if (first.ok) expect(first.data.created).toBe(true);
+    // The different-day resubmit is NOT a silent no-op — it records a real request.
+    if (second.ok) expect(second.data.created).toBe(true);
+
+    // Two distinct requests recorded; AR12 still holds — exactly one `link` inquiry.
+    const counts = await countRows();
+    expect(counts.requests).toBe(2);
+    expect(counts.inquiries).toBe(1);
+
+    const dates = (
+      await db.select().from(pendingRequest).where(eq(pendingRequest.ownerId, ownerId))
+    )
+      .map((r) => r.date)
+      .sort();
+    expect(dates).toEqual([dayA, dayB].sort());
+  });
+
+  it('same session, SAME day double-tap → idempotent no-op (one request, one inquiry)', async () => {
+    const tokenValue = await ensurePublicToken(ownerId);
+    const date = await anOpenDate();
+    const visit = generateTokenNonce();
+
+    const first = await submitPublicRequestResult(tokenValue, buildForm({ date, visit }));
+    const second = await submitPublicRequestResult(tokenValue, buildForm({ date, visit }));
+    if (first.ok) expect(first.data.created).toBe(true);
+    if (second.ok) expect(second.data.created).toBe(false);
+    expect(await countRows()).toMatchObject({ clients: 1, requests: 1, inquiries: 1 });
+  });
+
   it('a DIFFERENT visit session logs a second inquiry (distinct sessions)', async () => {
     const tokenValue = await ensurePublicToken(ownerId);
     const date = await anOpenDate();

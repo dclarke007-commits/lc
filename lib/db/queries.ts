@@ -649,21 +649,36 @@ export interface PublicBookingRequestInput {
 }
 
 export type PublicBookingRequestResult =
-  | { created: true; client: Client; request: PendingRequest; inquiry: Inquiry }
-  // A repeat submit of the SAME token-visit session (same nonce) — idempotent no-op:
-  // nothing new was written, the first submission already stands.
+  | {
+      created: true;
+      client: Client;
+      request: PendingRequest;
+      // The `link` inquiry, or undefined when this session already logged one (a
+      // different-day resubmit in the same visit still records a new request but no
+      // second inquiry — AR12 one-per-session holds).
+      inquiry: Inquiry | undefined;
+    }
+  // A repeat submit of the SAME (session, day) — idempotent no-op: nothing new was
+  // written, the identical request already stands.
   | { created: false };
 
-// Internal sentinel: thrown to roll the transaction back when the session nonce is a
-// duplicate (the `link` inquiry insert found an existing row). Never escapes this fn.
+// Internal sentinel: thrown to roll the transaction back when this exact (owner,
+// session, day) request already exists (a same-form same-day double-tap). Never
+// escapes this fn.
 class DuplicatePublicSession extends Error {}
 
 /**
- * Atomically record a new-client public booking request (Story 4.2). See the section
- * note above for the idempotency contract. The provisional Client is `status:
- * 'provisional'` with `cadence: 'one-time'` (a stranger form collects no cadence, and
- * the column is NOT NULL with no DB default — AD-7 reserves `provisional` for exactly
- * this). NEVER inserts a Job and NEVER touches capacity (AR5).
+ * Atomically record a new-client public booking request (Story 4.2). Idempotency is
+ * split across two keys so no legitimate request is ever lost while AR12 still holds:
+ *   • Client + PendingRequest key on (owner, session_nonce, DATE): a true double-tap of
+ *     the same rendered form + same day collapses to one; a back-button resubmit of a
+ *     DIFFERENT day in the same session is recorded as a distinct request.
+ *   • The `link` Inquiry keys on (owner, session_nonce) only (partial unique, source=
+ *     'link'): at most one per token-visit session (AR12) — a different-day resubmit
+ *     adds a request but NOT a second inquiry (it just conflicts and is skipped).
+ * The provisional Client is `status:'provisional'`, `cadence:'one-time'` (the stranger
+ * form collects no cadence; the column is NOT NULL with no DB default — AD-7 reserves
+ * `provisional` for exactly this). NEVER inserts a Job and NEVER touches capacity (AR5).
  */
 export async function insertPublicBookingRequest(
   input: PublicBookingRequestInput,
@@ -683,23 +698,30 @@ export async function insertPublicBookingRequest(
         })
         .returning();
 
+      // The request is the idempotency CLAIM now (keyed on owner+nonce+date). A same-
+      // session same-day conflict yields no row → roll the whole submission back (undo
+      // the provisional client we just inserted) so a double-tap can never duplicate.
       const [req] = await tx
         .insert(pendingRequest)
-        .values({ ownerId, clientId: c.id, date: requestedDate })
+        .values({ ownerId, clientId: c.id, date: requestedDate, sessionNonce })
+        .onConflictDoNothing({
+          target: [pendingRequest.ownerId, pendingRequest.sessionNonce, pendingRequest.date],
+        })
         .returning();
 
+      if (!req) throw new DuplicatePublicSession();
+
+      // AR12: one `link` inquiry per session (partial unique, source='link'). On a
+      // different-day resubmit within the same session this conflicts → no row → we do
+      // NOT roll back (the new request must stand); the first inquiry already counts.
       const [inq] = await tx
         .insert(inquiry)
         .values({ ownerId, clientId: c.id, source: 'link', sessionNonce })
-        // AR12 dedup on the PARTIAL unique index (source='link'). A duplicate session
-        // nonce conflicts → no row returned → roll the whole submission back.
         .onConflictDoNothing({
           target: [inquiry.ownerId, inquiry.sessionNonce],
           where: eq(inquiry.source, 'link'),
         })
         .returning();
-
-      if (!inq) throw new DuplicatePublicSession();
 
       return { created: true, client: c, request: req, inquiry: inq };
     });

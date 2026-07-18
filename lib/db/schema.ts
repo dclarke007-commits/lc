@@ -434,16 +434,29 @@ export const pendingRequest = pgTable(
     // the stranger requested; the approval (4.3) re-checks the cap against it.
     date: date('date', { mode: 'string' }).notNull(),
     status: pendingRequestStatus('status').notNull().default('pending'),
+    // The per-render token-visit session nonce (AR12). Scopes request idempotency to
+    // (owner, nonce, date): a true double-tap of the SAME rendered form + SAME day
+    // collapses to one request, while a back-button resubmit of a DIFFERENT day in the
+    // same session is correctly recorded as a distinct request (never a silent lost
+    // booking) — even though the `link` Inquiry is still deduped to one per session.
+    sessionNonce: text('session_nonce').notNull(),
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
       .defaultNow()
       .notNull(),
   },
   (t) => [
     // The approval queue (4.3) reads the owner's `pending` rows; the composite
-    // serves that owner-scoped-by-status read. Deliberately NO unique on
-    // (owner, date): multiple pending requests MAY target one slot (FR36/AR5).
+    // serves that owner-scoped-by-status read.
     index('pending_request_owner_status_idx').on(t.ownerId, t.status),
     index('pending_request_client_id_idx').on(t.clientId),
+    // Idempotency: at most one request per (owner, session_nonce, date). Deliberately
+    // NOT unique on (owner, date) alone — DIFFERENT visitors (distinct nonces) MAY
+    // target the same slot (FR36/AR5); only a same-visit same-day resubmit collapses.
+    uniqueIndex('pending_request_owner_session_date_uq').on(
+      t.ownerId,
+      t.sessionNonce,
+      t.date,
+    ),
   ],
 );
 

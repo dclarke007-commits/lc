@@ -43,6 +43,14 @@ function readPublicFields(formData: FormData):
   if (!phone) return { ok: false, reason: 'phone-required' };
   if (!date) return { ok: false, reason: 'date-required' };
 
+  // Bound the free-text fields on this UNAUTHENTICATED public write (security review
+  // F2): the columns are unbounded `text`, so without a cap a scripted POST could store
+  // multi-MB values per submit. 200 chars is generous for a real name/phone/address.
+  const MAX_FIELD = 200;
+  if (name.length > MAX_FIELD) return { ok: false, reason: 'name-too-long' };
+  if (phone.length > MAX_FIELD) return { ok: false, reason: 'phone-too-long' };
+  if (addressRaw.length > MAX_FIELD) return { ok: false, reason: 'address-too-long' };
+
   return {
     ok: true,
     name,
@@ -107,11 +115,15 @@ export async function submitPublicRequestResult(
       requestedDate: fields.date,
       sessionNonce: fields.sessionNonce,
     });
-    // A duplicate session (created:false) is still a SUCCESS to the stranger — their
-    // request already stands; we just didn't write a second copy.
+    // A duplicate (same session + same day) is still a SUCCESS to the stranger — their
+    // identical request already stands; we just didn't write a second copy. A different
+    // day in the same session DID record a new request (created:true), no lost booking.
     return ok({ created: result.created });
   } catch (err) {
-    console.error('[book] submitPublicRequest: write failed (fail-closed)', err);
+    // Log only the message (security review F4): avoid echoing a raw driver error that
+    // could contain submitted field values into the platform logs.
+    const detail = err instanceof Error ? err.message : 'unknown';
+    console.error('[book] submitPublicRequest: write failed (fail-closed):', detail);
     return fail('invalid');
   }
 }

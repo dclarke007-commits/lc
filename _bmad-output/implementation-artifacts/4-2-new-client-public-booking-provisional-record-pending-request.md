@@ -63,7 +63,7 @@ so that **the operator can review and confirm me without me calling**.
   - [x] AC1: valid stranger submit ⇒ provisional client (`status='provisional'`, `cadence='one-time'`, correct `ownerId`) + one `pendingRequest`; assert NO `job` row created and NO capacity change.
   - [x] AC2: two submits within same session nonce ⇒ exactly one `link` inquiry; different session ⇒ second inquiry allowed.
   - [x] Adversarial token cases (reuse 4.1 matrix): tampered / forged / unknown / empty / revoked / cross-capability token ⇒ `invalid`, nothing written. **Weak/missing `PUBLIC_TOKEN_SECRET` ⇒ fail closed** (mandated — 4.1 F4 existed because this was missed).
-  - [x] Submitted date not in offered open set ⇒ `no-availability`, nothing written. Currently-full working day ⇒ still allowed (AR5) — assert a pending request IS created and NO job.
+  - [x] Submitted date not in offered open set ⇒ `no-availability`, nothing written. NOTE (shipped behavior, reconciled 2026-07-18): a currently-full working day is NOT in the offered open set (design decision #1 — client picks only from the offered set), so it also maps to `no-availability` and writes nothing. Capacity is still never consumed either way (AR5 holds); there is no "accept a full day" path in 4.2.
   - [x] Corrupt `capacity_settings.timezone` ⇒ generic invalid, no 500.
   - [x] `beforeEach` clears `job` + `capacitySettings` (+ new `pendingRequest`, `inquiry`) for the shared owner — test-isolation defect from 4.1.
   - [x] Build check: `npm run build` confirms `app/book/[token]` still emits **ƒ (Dynamic)**.
@@ -184,3 +184,4 @@ claude-opus-4-8[1m] (dev-story)
 ## Change Log
 
 - 2026-07-18 — Story 4.2 implemented (dev-story). New-client public booking → provisional client + `PendingRequest` (no capacity, AR5) + at-most-one `link` `Inquiry` per token-visit session (AR12), whole-submission idempotent on the visit nonce. tsc clean, 264/264 tests, build green (route stays Dynamic). Status → review.
+- 2026-07-18 — Applied Epic-4 adversarial + security review findings (4 lenses, no HIGH survived). **F1 (MED):** split request idempotency to `(owner, nonce, date)` so a same-session back-button resubmit of a DIFFERENT day records a real request instead of a silent lost booking, while the `link` Inquiry stays one-per-session (AR12) — added `pending_request.session_nonce` + `pending_request_owner_session_date_uq` (migration `0012_long_monster_badoon.sql`) + 2 regression tests. **F2 (MED):** 200-char cap on name/phone/address in `readPublicFields` (unbounded-text storage-DoS on the public write). **F3 (doc):** reconciled the contradictory full-day test note to shipped behavior. **F4 (LOW):** write-failure log emits `err.message` only, not the raw error object. tsc clean, 266/266 tests, build green.
