@@ -84,7 +84,7 @@ development_status:
   4-2-new-client-public-booking-provisional-record-pending-request: done
   4-3-operator-approval-queue: done
   4-4-log-inquiry-with-source: done
-  epic-4-retrospective: optional
+  epic-4-retrospective: done
 
   # --- Epic 5: Cash Ledger — Plug the Payment Leak ---
   epic-5: backlog
