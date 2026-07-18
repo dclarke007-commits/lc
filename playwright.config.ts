@@ -40,17 +40,19 @@ export default defineConfig({
     // Authenticated operator surfaces — reuse the saved session.
     {
       name: 'operator',
-      testMatch: /(operator-dashboard|rebooking|ledger-export)\.spec\.ts/,
+      testMatch:
+        /(operator-dashboard|rebooking|ledger-export|mark-paid|capacity-full)\.spec\.ts/,
       dependencies: ['setup'],
       use: {
         ...devices['Desktop Chrome'],
         storageState: `${STATE_DIR}/operator.json`,
       },
     },
-    // Public booking — the one un-authenticated surface. Fresh context, no session.
+    // Public / un-authenticated surfaces. Fresh context, no session: the happy-path
+    // booking view and the fail-closed invalid-token dead-end.
     {
       name: 'public',
-      testMatch: /public-booking\.spec\.ts/,
+      testMatch: /(public-booking|invalid-token)\.spec\.ts/,
       dependencies: ['setup'],
       use: { ...devices['Desktop Chrome'], storageState: undefined },
     },

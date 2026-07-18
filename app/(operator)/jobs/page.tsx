@@ -16,6 +16,10 @@ import {
   cancelJob,
   rescheduleJob,
 } from './actions';
+// markJobPaid is filed under the ledger domain (sole Job.payment writer, AR11) but its
+// only reachable surface is THIS jobs table — the row where the operator sees the job.
+// It revalidates '/jobs' on success, so the control belongs here (Story 5.4 wiring).
+import { markJobPaid } from '../ledger/actions';
 import { lifecycleErrorMessage } from '@/lib/domain/lifecycleErrors';
 import { deepLink } from '@/lib/delivery/deeplink';
 
@@ -52,6 +56,19 @@ async function submitReschedule(formData: FormData): Promise<void> {
   redirect('/jobs?done=1');
 }
 
+// Story 5.4 wiring — mark an owed, completed job PAID. markJobPaid takes a jobId
+// string (not FormData), so this wrapper pulls it off the form and adapts to the same
+// redirect(?error/?done) contract as the lifecycle wrappers above. A reject reason
+// (not-ledger-eligible / ledger-write-failed / owner-unresolved) maps to a banner via
+// lifecycleErrorMessage; a re-tap on an already-paid job is a no-op ok → ?done=1.
+async function submitMarkPaid(formData: FormData): Promise<void> {
+  'use server';
+  const jobId = String(formData.get('jobId') ?? '');
+  const result = await markJobPaid(jobId);
+  if (!result.ok) redirect(`/jobs?error=${result.reason}`);
+  redirect('/jobs?done=1');
+}
+
 const btn: React.CSSProperties = {
   padding: '0.4rem 0.7rem',
   fontSize: '0.9rem',
@@ -70,6 +87,24 @@ const nudgeBtn: React.CSSProperties = {
   background: '#e6f4ea',
   color: '#0a5c2b',
   fontWeight: 600,
+};
+
+// Green "money" affordance (DESIGN.md: green is RESERVED for Paid — amber is primary).
+const paidBtn: React.CSSProperties = {
+  padding: '0.4rem 0.7rem',
+  fontSize: '0.9rem',
+  cursor: 'pointer',
+  border: '1px solid #0a5c2b',
+  borderRadius: 4,
+  background: '#e6f4ea',
+  color: '#0a5c2b',
+  fontWeight: 600,
+};
+
+const paidLabel: React.CSSProperties = {
+  color: '#0a5c2b',
+  fontWeight: 600,
+  fontSize: '0.9rem',
 };
 
 const cell: React.CSSProperties = {
@@ -198,7 +233,15 @@ async function RebookPanel({ jobId }: { jobId: string }) {
 }
 
 /** The outcome/correction controls for one job, chosen by its current state. */
-function JobControls({ id, completion }: { id: string; completion: string }) {
+function JobControls({
+  id,
+  completion,
+  payment,
+}: {
+  id: string;
+  completion: string;
+  payment: string;
+}) {
   if (completion === 'booked') {
     // NORMAL marks + cancel + reschedule (Story 1.6). Cancel frees the slot
     // (cancelled does not consume); reschedule moves the row under the cap check.
@@ -261,14 +304,37 @@ function JobControls({ id, completion }: { id: string; completion: string }) {
   // Both are deferred to Story 1.6, which adds capacity-checked correction /
   // reschedule and re-opens these paths safely. See deferred-work.md.
   if (completion === 'completed') {
+    // Story 5.4 (FR32): a completed job carries an orthogonal payment state. `owed`
+    // exposes the one-tap Mark paid (→ markJobPaid, sole payment writer); `paid` shows
+    // a static confirmation, no re-flip control. The completed→cancelled correction
+    // (Story 1.5, AD-10) stays available in both cases.
     return (
-      <form action={submitCorrection}>
-        <input type="hidden" name="jobId" value={id} />
-        <input type="hidden" name="to" value="cancelled" />
-        <button type="submit" style={btn}>
-          Correct to cancelled
-        </button>
-      </form>
+      <div
+        style={{
+          display: 'flex',
+          gap: '0.4rem',
+          flexWrap: 'wrap',
+          alignItems: 'center',
+        }}
+      >
+        {payment === 'owed' ? (
+          <form action={submitMarkPaid}>
+            <input type="hidden" name="jobId" value={id} />
+            <button type="submit" style={paidBtn}>
+              Mark paid
+            </button>
+          </form>
+        ) : (
+          <span style={paidLabel}>Paid ✓</span>
+        )}
+        <form action={submitCorrection}>
+          <input type="hidden" name="jobId" value={id} />
+          <input type="hidden" name="to" value="cancelled" />
+          <button type="submit" style={btn}>
+            Correct to cancelled
+          </button>
+        </form>
+      </div>
     );
   }
   // no-show / cancelled: no correction offered until Story 1.6.
@@ -348,7 +414,11 @@ export default async function JobsPage({
                   {COMPLETION_LABEL[j.completion] ?? j.completion}
                 </td>
                 <td style={cell}>
-                  <JobControls id={j.id} completion={j.completion} />
+                  <JobControls
+                    id={j.id}
+                    completion={j.completion}
+                    payment={j.payment}
+                  />
                   {REBOOKABLE.has(j.completion) && (
                     <div style={{ marginTop: '0.4rem' }}>
                       {/* Zero-JS POST (like the cancel/move forms): prepareRebook mints

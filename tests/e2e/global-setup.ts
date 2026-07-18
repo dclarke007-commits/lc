@@ -91,6 +91,23 @@ export default async function globalSetup(): Promise<void> {
     })
     .returning();
 
+  // A second COMPLETED job left OWED (payment defaults to 'owed'): the drivable row for
+  // the mark-paid E2E (Story 5.4). Distinct date from the paid job so the two never
+  // collide. At mark-paid time this is the only completed+owed job in the DB, so the
+  // spec can click "Mark paid".first() deterministically.
+  const [owedJob] = await db
+    .insert(job)
+    .values({
+      ownerId,
+      clientId: activeClient.id,
+      date: isoDay(-6),
+      completion: 'completed',
+      priceCents: 20000,
+      idempotencyKey: `e2e-seed-owed-${Date.now()}`,
+      completedAt: new Date().toISOString(),
+    })
+    .returning();
+
   // The ONE public self-serve booking token (distinct PUBLIC_TOKEN_SECRET capability).
   const publicToken = await ensurePublicToken(ownerId);
 
@@ -104,6 +121,7 @@ export default async function globalSetup(): Promise<void> {
         activeClientId: activeClient.id,
         activeClientName: activeClient.name,
         completedJobId: completedJob.id,
+        completedOwedJobId: owedJob.id,
         // A near-future open day for the operator booking flow (all weekdays worked).
         bookingDate: isoDay(2),
       },
