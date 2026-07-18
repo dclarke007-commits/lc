@@ -778,3 +778,117 @@ export function repeatVsLapsedCounts(
   }
   return { repeat, lapsed };
 }
+
+// --- Story 6.2: the three leak-indicator RATES (derived on read, FR24/AR19) -------
+//
+// The honest conversion numbers, distinct from the 6.1 COUNTS (do not conflate — a
+// 6.1 "repeat/lapsed count" is an integer; a 6.2 "conversion" is a ratio). All three
+// are PURE functions of the passed rows plus (for caught-cold) an injected `today` —
+// no db, no `Date.now()`, no stored aggregate. Each reuses the ONE canonical predicate
+// for its concept rather than re-deriving it:
+//   • "a booking was made"   → capacity.consumesSlot (AD-2)
+//   • "a distinct inquiry"   → distinctInquiryCount (AR12, Story 4.4)
+//   • "a client went cold"   → goneCold / expectedNextDate (Story 3.5)
+// A rate with a ZERO denominator returns `null`, never 0 — "no inquiries yet" / "no
+// one-time clients yet" is not "0% converted"; reporting 0% would be the exact vanity
+// lie this dashboard refuses (FR25). The surface renders `null` as "—".
+
+const CAUGHT_COLD_WINDOW_DAYS = 7;
+
+/** The inquiry→booking conversion (AR19: bookings ÷ all logged inquiries, FR37). */
+export interface InquiryConversion {
+  bookings: number; // jobs that consumed a slot (a real booking was made, AD-2)
+  inquiries: number; // distinct logged inquiries (AR12 dedup — the denominator)
+  ratio: number | null; // bookings / inquiries, or null when inquiries === 0
+}
+
+/**
+ * Inquiry → booking conversion (FR24/AR19). Numerator = bookings that were actually
+ * MADE — a Job that consumes a slot per capacity.consumesSlot (AD-2: booked/completed/
+ * no-show; a `cancelled` booking was released and is not "a booking on the books").
+ * Denominator = distinctInquiryCount (AR12/Story 4.4 — the seam that dedup collapses a
+ * `link` auto-log and a manual log of the same contact into one). Cumulative / all-time
+ * (AR19 says "ALL logged inquiries" — no rolling window, unlike the 30-day repeat rate).
+ *
+ * DEV DECISION: the ratio is NOT capped at 1.0 and CAN exceed 100% — a repeat client
+ * books again without filing a fresh inquiry, so lifetime bookings honestly outrun
+ * lifetime inquiries. Capping it would hide that the roster is booking beyond inbound
+ * demand. `null` (not 0) when there are no inquiries yet (FR25 — "no data" ≠ "0%").
+ */
+export function inquiryConversion(
+  jobs: { completion: string }[],
+  inquiries: DistinctInquiryRow[],
+): InquiryConversion {
+  const bookings = jobs.filter((j) => consumesSlot(j)).length;
+  const inquiryCount = distinctInquiryCount(inquiries);
+  return {
+    bookings,
+    inquiries: inquiryCount,
+    ratio: inquiryCount === 0 ? null : bookings / inquiryCount,
+  };
+}
+
+/** The one-time → repeat conversion (AR19: one-time clients who later book ÷ one-time). */
+export interface OneTimeToRepeat {
+  oneTime: number; // clients whose stored cadence is `one-time` (the denominator)
+  converted: number; // of those, the ones who booked again (>= 2 bookings)
+  ratio: number | null; // converted / oneTime, or null when oneTime === 0
+}
+
+/**
+ * One-time → repeat conversion (FR13/FR24/AR19) — the share of one-time clients who
+ * came BACK. Denominator = clients whose stored `cadence` is `one-time` (the canonical
+ * one-timer label; a public self-booking stranger is created `one-time`, Story 4.2).
+ * Numerator = those with >= 2 bookings MADE (consumesSlot, AD-2): a second booking is
+ * the conversion act, whether or not it has completed yet.
+ *
+ * DEV DECISION — "book" = a made booking (consuming job), NOT a completed one. This is
+ * deliberately distinct from the 6.1 repeat COUNT (>= 2 *completed* jobs): 6.1 asks
+ * "did the work repeat?", 6.2 asks "did the one-timer choose to come back?" — the choice
+ * (booking) is the conversion signal. A re-booking does not auto-flip the DB cadence
+ * label, so this measures behavior (>= 2 bookings) against the label (`one-time`), which
+ * is exactly the leak: a "one-time" who is really a repeat. `null` when there are no
+ * one-time clients yet (FR25 — "no data" ≠ "0% converted").
+ */
+export function oneTimeToRepeat(clients: ClientLifecycle[]): OneTimeToRepeat {
+  let oneTime = 0;
+  let converted = 0;
+  for (const c of clients) {
+    if (c.cadence !== 'one-time') continue;
+    oneTime++;
+    const bookings = c.jobs.filter((j) => consumesSlot(j)).length;
+    if (bookings >= 2) converted++;
+  }
+  return {
+    oneTime,
+    converted,
+    ratio: oneTime === 0 ? null : converted / oneTime,
+  };
+}
+
+/**
+ * Count of REGULARS caught cold within the last week (FR24/AR19: "gone-cold flags raised
+ * within 7 days of the missed expected-next-date this week"). A regular is counted iff
+ * (a) they are gone-cold RIGHT NOW (goneCold — the one lapse definition, Story 3.5: past
+ * their expectedNextDate with no future booking on file) AND (b) the miss is FRESH — their
+ * expectedNextDate falls within the last `CAUGHT_COLD_WINDOW_DAYS` (7) days. The cold flag
+ * "raises" the day after the expected date, so `expected >= today-7d` captures a flag
+ * raised this week; goneCold already guarantees `expected < today`, so the upper bound
+ * holds for free. This is the ACT-NOW list's size: a regular cold for months is a lapse
+ * (6.1 lapsed count) but is NOT "caught cold this week" — only the just-slipped ones are.
+ * Pure derive-on-read (AD-7): book a future slot and the very next call drops them.
+ */
+export function caughtColdThisWeek(
+  clients: ClientLifecycle[],
+  today: string,
+): number {
+  const windowStart = addDaysToDate(today, -CAUGHT_COLD_WINDOW_DAYS);
+  let count = 0;
+  for (const c of clients) {
+    if (!goneCold(c.cadence, c.jobs, today)) continue;
+    // goneCold true ⇒ expectedNextDate is non-null and strictly before `today`.
+    const expected = expectedNextDate(c.cadence, c.jobs);
+    if (expected !== null && expected >= windowStart) count++;
+  }
+  return count;
+}

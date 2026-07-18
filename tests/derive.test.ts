@@ -15,6 +15,9 @@ import {
   monthlyRevenue,
   repeatBookingRate,
   repeatVsLapsedCounts,
+  inquiryConversion,
+  oneTimeToRepeat,
+  caughtColdThisWeek,
   type DeriveJob,
   type LedgerJob,
   type RevenueJob,
@@ -492,5 +495,133 @@ describe('derive.repeatVsLapsedCounts (Story 6.1, FR22)', () => {
 
   it('empty client list → zeros', () => {
     expect(repeatVsLapsedCounts([], today)).toEqual({ repeat: 0, lapsed: 0 });
+  });
+});
+
+// --- Story 6.2: leak-indicator rates ---------------------------------------------
+
+describe('derive.inquiryConversion (Story 6.2, FR24/AR19)', () => {
+  it('bookings ÷ distinct inquiries; cancelled jobs are NOT bookings', () => {
+    const jobs = [
+      { completion: 'booked' },
+      { completion: 'completed' },
+      { completion: 'no-show' }, // all three consume a slot → a booking was made
+      { completion: 'cancelled' }, // released → not a booking on the books
+    ];
+    // distinct inquiries: 1 distinct client (c1, twice) + 2 anonymous nulls = 3
+    const inquiries = [
+      { clientId: 'c1' },
+      { clientId: 'c1' },
+      { clientId: null },
+      { clientId: null },
+    ];
+    expect(inquiryConversion(jobs, inquiries)).toEqual({
+      bookings: 3,
+      inquiries: 3,
+      ratio: 1,
+    });
+  });
+
+  it('empty denominator (no inquiries) → ratio null, never 0 (FR25)', () => {
+    expect(inquiryConversion([{ completion: 'booked' }], [])).toEqual({
+      bookings: 1,
+      inquiries: 0,
+      ratio: null,
+    });
+  });
+
+  it('ratio is NOT capped — repeat bookings without a fresh inquiry exceed 100%', () => {
+    const jobs = [
+      { completion: 'booked' },
+      { completion: 'completed' },
+      { completion: 'completed' },
+    ];
+    // 3 bookings, 1 inquiry → 3.0 (300%), surfaced honestly
+    expect(inquiryConversion(jobs, [{ clientId: 'c1' }]).ratio).toBe(3);
+  });
+});
+
+describe('derive.oneTimeToRepeat (Story 6.2, FR13/FR24/AR19)', () => {
+  it('one-time clients with >=2 bookings ÷ one-time clients; non-one-time ignored', () => {
+    const clients: ClientLifecycle[] = [
+      // one-time, booked once → not converted
+      { cadence: 'one-time', jobs: [{ date: '2026-06-01', completion: 'booked' }] },
+      // one-time, booked twice → converted (a second booking is the conversion act)
+      {
+        cadence: 'one-time',
+        jobs: [
+          { date: '2026-06-01', completion: 'completed' },
+          { date: '2026-07-01', completion: 'booked' },
+        ],
+      },
+      // weekly (not one-time) with two bookings → NOT in the denominator
+      {
+        cadence: 'weekly',
+        jobs: [
+          { date: '2026-06-01', completion: 'booked' },
+          { date: '2026-06-08', completion: 'booked' },
+        ],
+      },
+      // one-time, one booking + one cancelled → cancelled is not a booking → not converted
+      {
+        cadence: 'one-time',
+        jobs: [
+          { date: '2026-06-01', completion: 'booked' },
+          { date: '2026-07-01', completion: 'cancelled' },
+        ],
+      },
+    ];
+    expect(oneTimeToRepeat(clients)).toEqual({
+      oneTime: 3,
+      converted: 1,
+      ratio: 1 / 3,
+    });
+  });
+
+  it('no one-time clients → ratio null, never 0 (FR25)', () => {
+    const clients: ClientLifecycle[] = [
+      { cadence: 'weekly', jobs: [{ date: '2026-06-01', completion: 'booked' }] },
+    ];
+    expect(oneTimeToRepeat(clients)).toEqual({ oneTime: 0, converted: 0, ratio: null });
+  });
+});
+
+describe('derive.caughtColdThisWeek (Story 6.2, FR24/AR19)', () => {
+  // today anchors "now"; weekly cadence interval = 7d, so expectedNextDate =
+  // last-completed + 7. The 7-day caught-cold window is [today-7, today).
+  const today = '2026-07-15';
+
+  it('counts only regulars whose lapse flag raised within the last 7 days', () => {
+    const clients: ClientLifecycle[] = [
+      // last completed 07-01 → expected 07-08; today 07-15 is 7d past → FRESH cold (counts)
+      { cadence: 'weekly', jobs: [{ date: '2026-07-01', completion: 'completed' }] },
+      // last completed 06-01 → expected 06-08; cold for weeks → NOT this week's catch
+      { cadence: 'weekly', jobs: [{ date: '2026-06-01', completion: 'completed' }] },
+      // last completed 06-30 → expected 07-07 (8d ago) → just outside the 7d window
+      { cadence: 'weekly', jobs: [{ date: '2026-06-30', completion: 'completed' }] },
+      // has a future booking → not cold at all
+      {
+        cadence: 'weekly',
+        jobs: [
+          { date: '2026-07-01', completion: 'completed' },
+          { date: '2026-07-20', completion: 'booked' },
+        ],
+      },
+      // one-time → never cold
+      { cadence: 'one-time', jobs: [{ date: '2026-07-01', completion: 'completed' }] },
+    ];
+    expect(caughtColdThisWeek(clients, today)).toBe(1);
+  });
+
+  it('boundary: expected exactly 7 days ago is IN the window (inclusive)', () => {
+    // last completed 07-01 → expected 07-08 = today-7 → inclusive → counts
+    const clients: ClientLifecycle[] = [
+      { cadence: 'weekly', jobs: [{ date: '2026-07-01', completion: 'completed' }] },
+    ];
+    expect(caughtColdThisWeek(clients, today)).toBe(1);
+  });
+
+  it('empty client list → 0', () => {
+    expect(caughtColdThisWeek([], today)).toBe(0);
   });
 });

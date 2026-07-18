@@ -97,7 +97,7 @@ development_status:
   # --- Epic 6: Leak-Detector Dashboard + Data Export ---
   epic-6: in-progress
   6-1-single-screen-dashboard-core: done
-  6-2-leak-indicators: backlog
+  6-2-leak-indicators: done
   6-3-gone-cold-list-with-win-back-access: backlog
   6-4-csv-export: backlog
   epic-6-retrospective: optional

@@ -2,7 +2,11 @@ import Link from 'next/link';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { SESSION_COOKIE, verifySession } from '@/lib/auth/session';
-import { getDashboardCapacity, getDashboardMetrics } from './actions';
+import {
+  getDashboardCapacity,
+  getDashboardMetrics,
+  getLeakIndicators,
+} from './actions';
 
 // Presentation-only: integer cents → "$1,234". No float math crosses the domain;
 // this is a label. Whole dollars — the operator reads trajectory, not pennies.
@@ -14,6 +18,13 @@ function fmtCents(cents: number): string {
 function fmtDeltaCents(cents: number): string {
   const sign = cents > 0 ? '+' : cents < 0 ? '−' : '';
   return `${sign}${fmtCents(Math.abs(cents))}`;
+}
+
+// A conversion ratio → whole-percent label. null (empty denominator) renders "—"
+// (FR25 — "no data" is never shown as "0%"). Presentation-only; the domain returns
+// the raw ratio and decides null vs a number.
+function fmtRate(ratio: number | null): string {
+  return ratio === null ? '—' : `${Math.round(ratio * 100)}%`;
 }
 
 // Operator surfaces stay dynamic — never `use cache` (AD-7/AD-13). Capacity is
@@ -67,6 +78,7 @@ export default async function DashboardPage() {
   // Derived on read (AD-7) via the action layer — surfaces never touch derive/db.
   const cap = await getDashboardCapacity();
   const metrics = await getDashboardMetrics();
+  const leaks = await getLeakIndicators();
   const full = cap.roomLeft === 0;
   const revenueUp = metrics.revenueDeltaCents >= 0;
 
@@ -139,6 +151,55 @@ export default async function DashboardPage() {
               : `${Math.round(metrics.repeatRate * 100)}%`}{' '}
             (30d)
           </div>
+        </div>
+      </section>
+
+      {/* Story 6.2 — the three leak indicators, front and center (FR24, AR19).
+          Each is a conversion the operator can watch close: is the inquiry leak,
+          the one-time leak, or a fresh regular-lapse the one to act on now? */}
+      <section
+        aria-labelledby="leaks-heading"
+        style={{
+          marginTop: '1rem',
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
+          gap: '0.75rem',
+        }}
+      >
+        <h2 id="leaks-heading" style={{ gridColumn: '1 / -1', fontSize: '1rem', margin: 0 }}>
+          Leak indicators
+        </h2>
+
+        {/* Inquiry leak (Epic 4) */}
+        <div style={tile}>
+          <div style={tileLabel}>Inquiry → booking</div>
+          <div style={tileValue}>{fmtRate(leaks.inquiryRate)}</div>
+          <div style={tileWhy}>
+            {leaks.inquiryBookings} booked / {leaks.inquiryCount} inquiries — inquiry leak
+          </div>
+        </div>
+
+        {/* Rebooking leak (Epic 3) */}
+        <div style={tile}>
+          <div style={tileLabel}>One-time → repeat</div>
+          <div style={tileValue}>{fmtRate(leaks.oneTimeRate)}</div>
+          <div style={tileWhy}>
+            {leaks.oneTimeConverted} of {leaks.oneTimeClients} one-timers came back — rebooking leak
+          </div>
+        </div>
+
+        {/* Fresh lapse — act now */}
+        <div style={tile}>
+          <div style={tileLabel}>Caught cold (7d)</div>
+          <div
+            style={{
+              ...tileValue,
+              color: leaks.caughtColdThisWeek > 0 ? '#b00020' : '#0a5c2b',
+            }}
+          >
+            {leaks.caughtColdThisWeek}
+          </div>
+          <div style={tileWhy}>regulars just slipped — win them back now</div>
         </div>
       </section>
 

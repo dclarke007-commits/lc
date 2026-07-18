@@ -6,12 +6,14 @@
 // no cron. The action resolves the owner's config + this-week-forward jobs, then
 // hands them to the pure `derive` module. Reads only; no write path here.
 
+import { cache } from 'react';
 import {
   getOwnerId,
   listJobsFrom,
   listJobsForMetrics,
   listClients,
   listLedgerJobs,
+  listInquiries,
 } from '@/lib/db/queries';
 import { getOwnerCapacity } from '@/app/(operator)/settings/actions';
 import { localDateKey, weekRangeOfDate } from '@/lib/domain/clock';
@@ -22,9 +24,36 @@ import {
   repeatBookingRate,
   repeatVsLapsedCounts,
   outstanding,
+  inquiryConversion,
+  oneTimeToRepeat,
+  caughtColdThisWeek,
   type DeriveJob,
   type ClientLifecycle,
 } from '@/lib/domain/derive';
+
+// Request-scoped de-dupe (Story 6.2): getDashboardMetrics AND getLeakIndicators both
+// run during the SAME dashboard render and read the same lean projections. React
+// `cache()` collapses each into one DB round-trip per request. Request-scoped, NOT
+// `use cache` — an operator surface stays live mid-call (AD-13); a later render re-reads.
+const metricsJobsCached = cache((ownerId: string) => listJobsForMetrics(ownerId));
+const clientsCached = cache((ownerId: string) => listClients(ownerId));
+const inquiriesCached = cache((ownerId: string) => listInquiries(ownerId));
+
+/** Group the owner's jobs per client and pair with each client's cadence — the
+ *  ClientLifecycle shape the repeat/lapsed, one-time→repeat, and caught-cold derives
+ *  all consume. Built once from the two shared reads. */
+function buildLifecycles(
+  clients: { id: string; cadence: ClientLifecycle['cadence'] }[],
+  jobs: { clientId: string; date: string; completion: string }[],
+): ClientLifecycle[] {
+  const byClient = new Map<string, DeriveJob[]>();
+  for (const j of jobs) {
+    const list = byClient.get(j.clientId) ?? [];
+    list.push({ date: j.date, completion: j.completion });
+    byClient.set(j.clientId, list);
+  }
+  return clients.map((c) => ({ cadence: c.cadence, jobs: byClient.get(c.id) ?? [] }));
+}
 
 /** One working day, plus the single next open day when this one is maxed (FR28). */
 export interface DashboardDay {
@@ -167,8 +196,8 @@ export async function getDashboardMetrics(): Promise<DashboardMetrics> {
   const today = localDateKey(now, config.timezone);
 
   const [metricsJobs, clients, ledgerJobs] = await Promise.all([
-    listJobsForMetrics(ownerId),
-    listClients(ownerId),
+    metricsJobsCached(ownerId),
+    clientsCached(ownerId),
     listLedgerJobs(ownerId),
   ]);
 
@@ -180,16 +209,7 @@ export async function getDashboardMetrics(): Promise<DashboardMetrics> {
   const repeatRate = repeatBookingRate(metricsJobs, now);
 
   // Group jobs per client for the lapse/repeat split; pair with each client's cadence.
-  const byClient = new Map<string, DeriveJob[]>();
-  for (const j of metricsJobs) {
-    const list = byClient.get(j.clientId) ?? [];
-    list.push({ date: j.date, completion: j.completion });
-    byClient.set(j.clientId, list);
-  }
-  const lifecycles: ClientLifecycle[] = clients.map((c) => ({
-    cadence: c.cadence,
-    jobs: byClient.get(c.id) ?? [],
-  }));
+  const lifecycles = buildLifecycles(clients, metricsJobs);
   const counts = repeatVsLapsedCounts(lifecycles, today);
 
   return {
@@ -202,5 +222,69 @@ export async function getDashboardMetrics(): Promise<DashboardMetrics> {
     repeatCount: counts.repeat,
     lapsedCount: counts.lapsed,
     repeatRate,
+  };
+}
+
+// --- Story 6.2: the three leak indicators (FR24, AR19/AD-7) -----------------------
+
+/** The three leak-indicator RATES the dashboard surfaces front-and-center (FR24). Each
+ *  ratio is `null` when its denominator is 0 (the surface renders "—"; "no data" ≠ "0%",
+ *  FR25). The raw numerator/denominator ride along so the surface can show "3 / 12". */
+export interface LeakIndicators {
+  // Inquiry → booking: are inbound asks turning into booked work? (Epic 4 leak.)
+  inquiryBookings: number;
+  inquiryCount: number;
+  inquiryRate: number | null;
+  // One-time → repeat: are one-timers coming back? (Epic 3 leak.)
+  oneTimeClients: number;
+  oneTimeConverted: number;
+  oneTimeRate: number | null;
+  // Regulars caught cold THIS WEEK: the act-now count of just-slipped regulars.
+  caughtColdThisWeek: number;
+}
+
+/**
+ * The three leak indicators, derived on read (AD-7). Surfaces call THIS, never lib/db or
+ * lib/domain directly. Owner resolved FAIL-LOUD (an unresolved owner is a deploy-invariant
+ * violation, not an empty dashboard). Reads three owner-scoped projections (AR9) — jobs,
+ * clients, inquiries — SHARED with getDashboardMetrics via request-scoped `cache()`, so the
+ * two dashboard actions add no extra DB round-trips. Hands them to the pure 6.2 derives:
+ *   • inquiryConversion(jobs, inquiries)  → inquiry→booking (bookings ÷ distinct inquiries)
+ *   • oneTimeToRepeat(lifecycles)         → one-time clients who booked again ÷ one-time
+ *   • caughtColdThisWeek(lifecycles, today) → regulars whose lapse flag raised this week
+ * The RSC surface stays dynamic (never `use cache`, AD-13) so the numbers are live.
+ */
+export async function getLeakIndicators(): Promise<LeakIndicators> {
+  const config = await getOwnerCapacity(); // carries the operator tz (AD-9)
+
+  let ownerId: string;
+  try {
+    ownerId = await getOwnerId();
+  } catch (err) {
+    console.error('[dashboard] getOwnerId failed (leak indicators read)', err);
+    throw new Error('owner-unresolved');
+  }
+
+  const today = localDateKey(new Date(), config.timezone);
+
+  const [metricsJobs, clients, inquiries] = await Promise.all([
+    metricsJobsCached(ownerId),
+    clientsCached(ownerId),
+    inquiriesCached(ownerId),
+  ]);
+
+  const inquiry = inquiryConversion(metricsJobs, inquiries);
+  const lifecycles = buildLifecycles(clients, metricsJobs);
+  const oneTime = oneTimeToRepeat(lifecycles);
+  const caughtCold = caughtColdThisWeek(lifecycles, today);
+
+  return {
+    inquiryBookings: inquiry.bookings,
+    inquiryCount: inquiry.inquiries,
+    inquiryRate: inquiry.ratio,
+    oneTimeClients: oneTime.oneTime,
+    oneTimeConverted: oneTime.converted,
+    oneTimeRate: oneTime.ratio,
+    caughtColdThisWeek: caughtCold,
   };
 }
