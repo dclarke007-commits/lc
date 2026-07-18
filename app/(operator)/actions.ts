@@ -42,6 +42,18 @@ const metricsJobsCached = cache((ownerId: string) => listJobsForMetrics(ownerId)
 const clientsCached = cache((ownerId: string) => listClients(ownerId));
 const inquiriesCached = cache((ownerId: string) => listInquiries(ownerId));
 
+// One `now` per render, shared across ALL dashboard actions (adversarial review,
+// story 6.2). The page fans out to getDashboardCapacity + getDashboardMetrics +
+// getLeakIndicators + getGoneColdList, each of which derives `today` from `now`. If
+// each called `new Date()` independently, a render straddling operator-local midnight
+// could compute `today` = D in one action and D+1 in the next, desynchronizing the
+// day-sensitive lapse panels (lapsed count vs caught-cold vs gone-cold list) by one
+// client for that render. React `cache()` over a zero-arg thunk returns the SAME
+// instant to every caller within one request, so every panel reads one consistent
+// `today` (and the capacity/metrics week math agrees on one `now`). Request-scoped,
+// so the next render re-reads a fresh instant (AD-13).
+const renderNow = cache(() => new Date());
+
 /** Group the owner's jobs per client and pair with each client's cadence — the
  *  ClientLifecycle shape the repeat/lapsed, one-time→repeat, and caught-cold derives
  *  all consume. Built once from the two shared reads. */
@@ -107,7 +119,7 @@ export async function getDashboardCapacity(): Promise<DashboardCapacity> {
     throw new Error('owner-unresolved');
   }
 
-  const today = localDateKey(new Date(), config.timezone);
+  const today = localDateKey(renderNow(), config.timezone);
   const { monday } = weekRangeOfDate(today);
 
   // Bounded read: this week's Monday forward covers the current-week counts AND
@@ -195,7 +207,7 @@ export async function getDashboardMetrics(): Promise<DashboardMetrics> {
     throw new Error('owner-unresolved');
   }
 
-  const now = new Date();
+  const now = renderNow();
   const today = localDateKey(now, config.timezone);
 
   const [metricsJobs, clients, ledgerJobs] = await Promise.all([
@@ -268,7 +280,7 @@ export async function getLeakIndicators(): Promise<LeakIndicators> {
     throw new Error('owner-unresolved');
   }
 
-  const today = localDateKey(new Date(), config.timezone);
+  const today = localDateKey(renderNow(), config.timezone);
 
   const [metricsJobs, clients, inquiries] = await Promise.all([
     metricsJobsCached(ownerId),
@@ -316,7 +328,7 @@ export async function getGoneColdList(): Promise<GoneColdRow[]> {
   }
 
   try {
-    const today = localDateKey(new Date(), config.timezone);
+    const today = localDateKey(renderNow(), config.timezone);
     const [metricsJobs, clients] = await Promise.all([
       metricsJobsCached(ownerId),
       clientsCached(ownerId),
