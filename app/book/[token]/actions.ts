@@ -13,6 +13,7 @@
 
 import { redirect } from 'next/navigation';
 import { confirmBookingResult } from './confirm';
+import { submitPublicRequestResult } from './request';
 
 // confirmBookingResult (the token→commit core) lives in ./confirm — a non-'use
 // server' module — so it is NOT registered as a public Server Action. Only
@@ -39,6 +40,28 @@ export async function confirmBooking(formData: FormData): Promise<void> {
     result.reason === 'week-full' ||
     result.reason === 'slot-unavailable'
   ) {
+    redirect(`/book/${encodeURIComponent(token)}?error=no-availability`);
+  }
+  redirect(`/book/${encodeURIComponent(token)}?error=invalid`);
+}
+
+/**
+ * Story 4.2 — the NEW-CLIENT public request action (zero-JS form, NFR1). A stranger
+ * submits name/phone/address + a chosen open day on the ONE public link; this delegates
+ * to submitPublicRequestResult (resolve token → provisional client + PendingRequest +
+ * one `link` inquiry, idempotent per visit, NO capacity — AR5/AR12) and redirect-masks
+ * the outcome. `redirect()` throws NEXT_REDIRECT so each branch terminates the action.
+ * A day that filled or was never offered (a lost race / tampered field) maps to the one
+ * client-facing no-availability line; any other rejection (including a fail-closed
+ * invalid token) → generic invalid. The raw machine reason is never shown.
+ */
+export async function submitPublicRequest(formData: FormData): Promise<void> {
+  const token = String(formData.get('token') ?? '');
+
+  const result = await submitPublicRequestResult(token, formData);
+  if (result.ok) redirect(`/book/${encodeURIComponent(token)}?submitted=1`);
+
+  if (result.reason === 'no-availability') {
     redirect(`/book/${encodeURIComponent(token)}?error=no-availability`);
   }
   redirect(`/book/${encodeURIComponent(token)}?error=invalid`);

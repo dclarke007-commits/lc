@@ -23,6 +23,8 @@ import {
   messageTemplate,
   messageLog,
   token,
+  pendingRequest,
+  inquiry,
 } from './schema';
 import type {
   Operator,
@@ -32,6 +34,8 @@ import type {
   MessageTemplate,
   MessageLog,
   Token,
+  PendingRequest,
+  Inquiry,
 } from './schema';
 
 /**
@@ -623,4 +627,84 @@ export async function deletePublicToken(
       ),
     );
   return (result.rowCount ?? 0) > 0;
+}
+
+// --- Public new-client booking request (Story 4.2, FR6/AR5/AR12) --------------
+// The ONE transactional write for a stranger's self-serve submission: a provisional
+// Client + a PendingRequest (NO capacity — AD-4/AR5) + at most one `link` Inquiry per
+// token-visit session (AR12). All three are one atomic unit keyed on the per-render
+// session nonce: the `link` inquiry insert is the idempotency CLAIM — if it conflicts
+// (a double-tap of the same rendered form), the whole transaction rolls back, so one
+// session yields EXACTLY one client + one pending request + one inquiry (never a
+// duplicate stranger). SQL + the transaction live here (AD-1/AD-2), mirroring how
+// commitBooking owns the capacity write; the domain core just calls this once.
+
+export interface PublicBookingRequestInput {
+  ownerId: string;
+  name: string;
+  phone: string;
+  address: string | null;
+  requestedDate: string; // 'YYYY-MM-DD', re-validated against the open set by the core
+  sessionNonce: string; // the per-render visit nonce (AR12 dedup key)
+}
+
+export type PublicBookingRequestResult =
+  | { created: true; client: Client; request: PendingRequest; inquiry: Inquiry }
+  // A repeat submit of the SAME token-visit session (same nonce) — idempotent no-op:
+  // nothing new was written, the first submission already stands.
+  | { created: false };
+
+// Internal sentinel: thrown to roll the transaction back when the session nonce is a
+// duplicate (the `link` inquiry insert found an existing row). Never escapes this fn.
+class DuplicatePublicSession extends Error {}
+
+/**
+ * Atomically record a new-client public booking request (Story 4.2). See the section
+ * note above for the idempotency contract. The provisional Client is `status:
+ * 'provisional'` with `cadence: 'one-time'` (a stranger form collects no cadence, and
+ * the column is NOT NULL with no DB default — AD-7 reserves `provisional` for exactly
+ * this). NEVER inserts a Job and NEVER touches capacity (AR5).
+ */
+export async function insertPublicBookingRequest(
+  input: PublicBookingRequestInput,
+): Promise<PublicBookingRequestResult> {
+  const { ownerId, name, phone, address, requestedDate, sessionNonce } = input;
+  try {
+    return await db.transaction(async (tx) => {
+      const [c] = await tx
+        .insert(client)
+        .values({
+          ownerId,
+          name,
+          phone,
+          address,
+          cadence: 'one-time',
+          status: 'provisional',
+        })
+        .returning();
+
+      const [req] = await tx
+        .insert(pendingRequest)
+        .values({ ownerId, clientId: c.id, date: requestedDate })
+        .returning();
+
+      const [inq] = await tx
+        .insert(inquiry)
+        .values({ ownerId, clientId: c.id, source: 'link', sessionNonce })
+        // AR12 dedup on the PARTIAL unique index (source='link'). A duplicate session
+        // nonce conflicts → no row returned → roll the whole submission back.
+        .onConflictDoNothing({
+          target: [inquiry.ownerId, inquiry.sessionNonce],
+          where: eq(inquiry.source, 'link'),
+        })
+        .returning();
+
+      if (!inq) throw new DuplicatePublicSession();
+
+      return { created: true, client: c, request: req, inquiry: inq };
+    });
+  } catch (err) {
+    if (err instanceof DuplicatePublicSession) return { created: false };
+    throw err;
+  }
 }

@@ -41,7 +41,7 @@
 # - Retrospective appends its action items to action_items; sprint-status surfaces open ones
 
 generated: 2026-07-15
-last_updated: 2026-07-17
+last_updated: 2026-07-17T11:47
 project: LovesCleaning
 # note: Epic 2 COMPLETE (dev + code-review, all 4 stories done) 2026-07-16 | 1-7 done (dev + code-review complete) 2026-07-16 — Epic 1 dev COMPLETE
 project_key: NOKEY
@@ -81,7 +81,7 @@ development_status:
   # --- Epic 4: Client Self-Booking — Plug the Inquiry Leak ---
   epic-4: in-progress
   4-1-public-self-serve-link-qr: done
-  4-2-new-client-public-booking-provisional-record-pending-request: backlog
+  4-2-new-client-public-booking-provisional-record-pending-request: review
   4-3-operator-approval-queue: backlog
   4-4-log-inquiry-with-source: backlog
   epic-4-retrospective: optional

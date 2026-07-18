@@ -14,7 +14,9 @@
 import { resolveBookingView } from '@/lib/domain/booking';
 import { resolvePublicBookingView } from '@/lib/domain/publicToken';
 import { formatDateKey } from '@/lib/domain/clock';
+import { generateTokenNonce } from '@/lib/auth/clientToken';
 import { confirmBooking } from './actions';
+import { PublicRequestForm } from './PublicRequestForm';
 
 export const dynamic = 'force-dynamic';
 
@@ -46,10 +48,10 @@ export default async function BookPage({
   searchParams,
 }: {
   params: Promise<{ token: string }>;
-  searchParams: Promise<{ booked?: string; error?: string }>;
+  searchParams: Promise<{ booked?: string; error?: string; submitted?: string }>;
 }) {
   const { token } = await params;
-  const { booked, error } = await searchParams;
+  const { booked, error, submitted } = await searchParams;
 
   // Story 4.1 — the ONE public self-serve token, resolved FIRST. A per-client token
   // fails verifyPublicToken fast (distinct PUBLIC_TOKEN_SECRET + the book-public
@@ -60,37 +62,59 @@ export default async function BookPage({
   const publicResult = await resolvePublicBookingView(token);
   if (publicResult.ok) {
     const { openSlots, nextOpen } = publicResult.view;
+    // Per-render token-visit session nonce (AR12): embedded in the form so a double-tap
+    // of THIS rendered form dedupes to one request/inquiry. A fresh render = a fresh
+    // visit session. force-dynamic (above) guarantees this is minted on every load.
+    const visit = generateTokenNonce();
+
+    // Untrusted ?error= from the redirect mask. Look it up with Object.hasOwn on a
+    // null-proto-safe map so a crafted ?error=__proto__ can never match a banner.
+    const PUBLIC_ERROR_COPY: Record<string, string> = {
+      'no-availability':
+        'That day was just taken — please pick another open day.',
+      invalid: 'Sorry, that didn’t go through. Please try again.',
+    };
+    const errorCopy =
+      typeof error === 'string' && Object.hasOwn(PUBLIC_ERROR_COPY, error)
+        ? PUBLIC_ERROR_COPY[error]
+        : null;
+
     return (
       <main style={mainStyle}>
         <h1 style={{ fontSize: '1.25rem' }}>Book a cleaning</h1>
-        <p style={{ color: '#555' }}>Here are our open days this week:</p>
+
+        {/* Request recorded — NOT a confirmed booking (AR5): the operator approves it
+            (Story 4.3). No slot is held on the strength of this. */}
+        {submitted ? (
+          <p style={{ ...bannerBase, background: '#e7f6ec', color: '#1a7f37' }}>
+            Thanks — your request is in. We’ll confirm your day shortly.
+          </p>
+        ) : null}
+
+        {errorCopy ? (
+          <p style={{ ...bannerBase, background: '#fdecea', color: '#b42318' }}>
+            {errorCopy}
+          </p>
+        ) : null}
 
         {openSlots.length > 0 ? (
-          <ul style={{ listStyle: 'none', padding: 0, margin: '1rem 0' }}>
-            {openSlots.map((slot) => (
-              <li
-                key={slot.date}
-                style={{
-                  ...slotButtonStyle,
-                  cursor: 'default',
-                  marginBottom: '0.5rem',
-                }}
-              >
-                {WEEKDAY_LABEL[slot.isoWeekday]} · {formatDateKey(slot.date)}
-              </li>
-            ))}
-          </ul>
+          <>
+            <p style={{ color: '#555' }}>
+              Pick an open day and tell us how to reach you:
+            </p>
+            <PublicRequestForm
+              token={token}
+              visit={visit}
+              openSlots={openSlots}
+              formatDate={formatDateKey}
+            />
+          </>
         ) : (
           <p style={{ color: '#555', margin: '1rem 0' }}>
             No open days this week.
             {nextOpen ? ` Next opening: ${formatDateKey(nextOpen)}.` : ''}
           </p>
         )}
-
-        <p style={{ color: '#888', fontSize: '0.9rem', marginTop: '1rem' }}>
-          To request one of these days, get in touch — online requests are coming
-          soon.
-        </p>
       </main>
     );
   }
