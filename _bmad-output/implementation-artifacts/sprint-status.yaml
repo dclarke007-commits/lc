@@ -82,7 +82,7 @@ development_status:
   epic-4: in-progress
   4-1-public-self-serve-link-qr: done
   4-2-new-client-public-booking-provisional-record-pending-request: done
-  4-3-operator-approval-queue: backlog
+  4-3-operator-approval-queue: done
   4-4-log-inquiry-with-source: backlog
   epic-4-retrospective: optional
 
