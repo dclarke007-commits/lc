@@ -10,6 +10,7 @@ import {
   nearestOpen,
   weekCapacity,
   distinctInquiryCount,
+  isLedgerEligible,
   type DeriveJob,
 } from '../lib/domain/derive';
 import { DEFAULT_CAPACITY, type CapacityConfig } from '../lib/domain/capacityConfig';
@@ -27,6 +28,36 @@ const SUN = '2026-07-19';
 function booked(date: string, n: number): DeriveJob[] {
   return Array.from({ length: n }, () => ({ date, completion: 'booked' }));
 }
+
+describe('derive.isLedgerEligible (Story 5.1, FR29/AR11)', () => {
+  it('a completed job IS ledger-eligible', () => {
+    expect(isLedgerEligible({ completion: 'completed' })).toBe(true);
+  });
+
+  it('booked / no-show / cancelled are NOT ledger-eligible', () => {
+    expect(isLedgerEligible({ completion: 'booked' })).toBe(false);
+    expect(isLedgerEligible({ completion: 'no-show' })).toBe(false);
+    expect(isLedgerEligible({ completion: 'cancelled' })).toBe(false);
+  });
+
+  it('gates on completion, NOT payment: a booked job carrying owed is still ineligible', () => {
+    // A new booking defaults to payment 'owed' (schema) while still `booked`;
+    // eligibility must ignore `payment` entirely and key only on completion (AR11).
+    expect(
+      isLedgerEligible({ completion: 'booked', payment: 'owed' } as {
+        completion: string;
+      }),
+    ).toBe(false);
+  });
+
+  it('amount is the per-job priceCents snapshot, independent of the config default', () => {
+    // The ledger reads the job's frozen priceCents (stamped at booking), never the
+    // operator's current defaultJobPriceCents — re-pricing never rewrites history.
+    const completedJob = { completion: 'completed', priceCents: 15000 };
+    expect(isLedgerEligible(completedJob)).toBe(true);
+    expect(completedJob.priceCents).toBe(15000);
+  });
+});
 
 describe('derive.roomLeft (AC1, FR26)', () => {
   it('empty book → full ceiling (14) of room', () => {

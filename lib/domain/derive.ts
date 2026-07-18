@@ -28,6 +28,22 @@ export interface DeriveJob {
   completion: string;
 }
 
+/**
+ * Ledger-eligibility (Story 5.1, FR29 / AR11 / AD-10). `payment` is orthogonal to
+ * `completion` but GATED: only a `completed` Job is ledger-eligible (`owed`/`paid`).
+ * A `booked`, `no-show`, or `cancelled` job is NEVER an outstanding obligation —
+ * regardless of its stored `payment` (a new booking defaults to `owed` while still
+ * `booked`). This is the SOLE definition of ledger-eligibility, mirroring the way
+ * capacity.consumesSlot is the sole definition of slot consumption: every ledger
+ * read (5.2 "who owes" aggregation, 5.3 reminder selection) and the 5.4 markPaid
+ * write path consult THIS predicate — the rule is never re-inlined elsewhere. The
+ * per-job amount is the job's frozen `priceCents` snapshot (stamped at booking),
+ * never the operator's current default — re-pricing never rewrites history.
+ */
+export function isLedgerEligible(job: { completion: string }): boolean {
+  return job.completion === 'completed';
+}
+
 /** One working day's capacity view, computed on read. */
 export interface DayCapacity {
   date: string; // 'YYYY-MM-DD'
