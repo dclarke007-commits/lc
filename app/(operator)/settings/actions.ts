@@ -9,10 +9,11 @@
 // defaults live in the domain (DEFAULT_CAPACITY), not in DB column defaults —
 // getOwnerCapacity substitutes them on first view (AR16, single source).
 
+import { requireOwnerId } from '@/lib/auth/requireOwnerId';
 import { revalidatePath } from 'next/cache';
 import { db } from '@/lib/db/client';
 import { capacitySettings } from '@/lib/db/schema';
-import { getOwnerId, getCapacitySettings } from '@/lib/db/queries';
+import { getCapacitySettings } from '@/lib/db/queries';
 import { ok, fail, type ActionResult } from '@/lib/domain/result';
 import {
   DEFAULT_CAPACITY,
@@ -33,9 +34,9 @@ export async function getOwnerCapacity(): Promise<CapacityConfig> {
   // shows the error boundary. (code-review 2026-07-16; parity with saveCapacitySettings.)
   let ownerId: string;
   try {
-    ownerId = await getOwnerId();
+    ownerId = await requireOwnerId();
   } catch (err) {
-    console.error('[settings] getOwnerId failed (read path)', err);
+    console.error('[settings] requireOwnerId failed (read path)', err);
     throw new Error('owner-unresolved');
   }
   const row = await getCapacitySettings(ownerId);
@@ -97,10 +98,10 @@ export async function saveCapacitySettings(
 
   let ownerId: string;
   try {
-    ownerId = await getOwnerId();
+    ownerId = await requireOwnerId();
   } catch (err) {
     // AR15: fail closed, but leave a trace in the platform logs.
-    console.error('[settings] getOwnerId failed', err);
+    console.error('[settings] requireOwnerId failed', err);
     return fail('owner-unresolved');
   }
 

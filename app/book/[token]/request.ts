@@ -17,9 +17,20 @@ import {
   resolvePublicTokenClaims,
   resolvePublicBookingView,
 } from '@/lib/domain/publicToken';
-import { insertPublicBookingRequest } from '@/lib/db/queries';
+import {
+  insertPublicBookingRequest,
+  countRecentPendingRequests,
+} from '@/lib/db/queries';
 import { generateTokenNonce } from '@/lib/auth/clientToken';
 import { ok, fail, type ActionResult } from '@/lib/domain/result';
+
+// Provisional-row cap window/limit (public-write rate limit, DB-backed half). Per owner:
+// at most PROVISIONAL_MAX_PER_WINDOW pending_request rows may be created in the trailing
+// PROVISIONAL_WINDOW_MS. Generous for a single cleaner's genuine inbound (a real stranger
+// files one request) while still bounding a scripted flood. Deliberately soft — capacity's
+// advisory lock is the one hard invariant; this only slows provisional-client minting.
+const PROVISIONAL_WINDOW_MS = 10 * 60 * 1000; // 10 minutes
+const PROVISIONAL_MAX_PER_WINDOW = 30;
 
 /**
  * Validate + normalise the stranger's submission. Minimal rules (NFR7): name and phone
@@ -91,6 +102,28 @@ export async function submitPublicRequestResult(
   const fields = readPublicFields(formData);
   if (!fields.ok) return fail(fields.reason);
 
+  // Provisional-row cap — cheap PRE-CHECK first (load-shed): reject BEFORE the expensive
+  // open-week derive so a capped flood does not pay token+availability resolution. This is
+  // best-effort; the atomic guarantee is the per-owner advisory-locked count inside
+  // insertPublicBookingRequest (closes the count-then-insert TOCTOU). Owner-scoped (AR7),
+  // never global. FAIL-CLOSED on a count error: if we cannot verify the cap we do NOT
+  // proceed — a DB error here would fail the insert anyway, so an induced count error can
+  // no longer widen the flood window (was previously fail-open).
+  const capSinceIso = new Date(Date.now() - PROVISIONAL_WINDOW_MS).toISOString();
+  try {
+    const recent = await countRecentPendingRequests(claims.ownerId, capSinceIso);
+    if (recent >= PROVISIONAL_MAX_PER_WINDOW) {
+      console.warn('[book] submitPublicRequest: provisional-row cap hit (pre-check)');
+      return fail('rate-limited');
+    }
+  } catch (err) {
+    console.error(
+      '[book] submitPublicRequest: provisional-row count failed (fail-closed)',
+      err instanceof Error ? err.message : 'unknown',
+    );
+    return fail('invalid');
+  }
+
   // Re-derive the offered open set (the same Story-1.7 derive the public view rendered).
   // Wrapped defensively: a corrupt settings.timezone makes the derive throw — that must
   // fail closed to a generic reason, never a raw 500 on the public route (story 3.1 P2).
@@ -114,7 +147,15 @@ export async function submitPublicRequestResult(
       address: fields.address,
       requestedDate: fields.date,
       sessionNonce: fields.sessionNonce,
+      // Atomic cap (TOCTOU close): the insert re-checks the count under a per-owner advisory
+      // lock, so a concurrent burst that all passed the pre-check above cannot overshoot.
+      cap: { sinceIso: capSinceIso, max: PROVISIONAL_MAX_PER_WINDOW },
     });
+    // The atomic cap fired under concurrency (pre-check passed but a burst raced) — surface
+    // the same "slow down" outcome as the pre-check path, not a false success.
+    if (!result.created && result.reason === 'rate-limited') {
+      return fail('rate-limited');
+    }
     // A duplicate (same session + same day) is still a SUCCESS to the stranger — their
     // identical request already stands; we just didn't write a second copy. A different
     // day in the same session DID record a new request (created:true), no lost booking.

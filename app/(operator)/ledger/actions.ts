@@ -7,8 +7,8 @@
 // MessageLog here — composing a reminder is side-effect-free; dispatch is logged
 // only later in Story 2.3's recordDispatch on the send tap (FR19: never auto-sent).
 
+import { requireOwnerId } from '@/lib/auth/requireOwnerId';
 import {
-  getOwnerId,
   getClient,
   getMessageTemplates,
   listLedgerJobs,
@@ -34,9 +34,9 @@ export async function draftPaymentReminder(
 ): Promise<ActionResult<MessageDraft>> {
   let ownerId: string;
   try {
-    ownerId = await getOwnerId();
+    ownerId = await requireOwnerId();
   } catch (err) {
-    console.error('[ledger] getOwnerId failed', err);
+    console.error('[ledger] requireOwnerId failed', err);
     return fail('owner-unresolved');
   }
 
@@ -74,9 +74,9 @@ export async function draftPaymentReminder(
 export async function markJobPaid(jobId: string): Promise<ActionResult<Job>> {
   let ownerId: string;
   try {
-    ownerId = await getOwnerId();
+    ownerId = await requireOwnerId();
   } catch (err) {
-    console.error('[ledger] getOwnerId failed (markPaid)', err);
+    console.error('[ledger] requireOwnerId failed (markPaid)', err);
     return fail('owner-unresolved');
   }
 

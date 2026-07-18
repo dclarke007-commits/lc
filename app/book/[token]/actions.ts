@@ -14,6 +14,15 @@
 import { redirect } from 'next/navigation';
 import { confirmBookingResult } from './confirm';
 import { submitPublicRequestResult } from './request';
+import { getRequestIp } from '@/lib/security/requestIp';
+import { checkThrottle } from '@/lib/security/rateLimit';
+
+// Per-IP sliding-window throttle for the UNAUTHENTICATED public writes (retrospective
+// action item — the previously-LOCKED gap). The cheap first line against a single source
+// hammering the book surface; the DURABLE per-owner cap on provisional rows lives in
+// request.ts. Distinct key prefixes give confirm and submit separate budgets. Best-effort
+// (in-memory, per-instance) — see lib/security/rateLimit for the documented limitation.
+const BOOK_THROTTLE = { limit: 10, windowMs: 60_000 };
 
 // confirmBookingResult (the token→commit core) lives in ./confirm — a non-'use
 // server' module — so it is NOT registered as a public Server Action. Only
@@ -31,6 +40,13 @@ import { submitPublicRequestResult } from './request';
 export async function confirmBooking(formData: FormData): Promise<void> {
   const token = String(formData.get('token') ?? '');
   const date = String(formData.get('date') ?? '');
+
+  // Throttle before any DB work. On block, redirect-mask to the existing generic banner
+  // (the known-client surface already renders `invalid`) — never reveal the throttle.
+  const ip = await getRequestIp();
+  if (!checkThrottle(`book:confirm:${ip}`, Date.now(), BOOK_THROTTLE).allowed) {
+    redirect(`/book/${encodeURIComponent(token)}?error=invalid`);
+  }
 
   const result = await confirmBookingResult(token, date);
   if (result.ok) redirect(`/book/${encodeURIComponent(token)}?booked=1`);
@@ -58,11 +74,23 @@ export async function confirmBooking(formData: FormData): Promise<void> {
 export async function submitPublicRequest(formData: FormData): Promise<void> {
   const token = String(formData.get('token') ?? '');
 
+  // Throttle before any DB work (per-IP first line); the durable per-owner provisional-row
+  // cap is enforced inside submitPublicRequestResult. Both map to the one "slow down" copy.
+  const ip = await getRequestIp();
+  if (!checkThrottle(`book:submit:${ip}`, Date.now(), BOOK_THROTTLE).allowed) {
+    redirect(`/book/${encodeURIComponent(token)}?error=too-many`);
+  }
+
   const result = await submitPublicRequestResult(token, formData);
   if (result.ok) redirect(`/book/${encodeURIComponent(token)}?submitted=1`);
 
   if (result.reason === 'no-availability') {
     redirect(`/book/${encodeURIComponent(token)}?error=no-availability`);
+  }
+  // The DB-backed provisional-row cap surfaces as the same "slow down" banner as the
+  // per-IP throttle above (abuse path — a generic, non-revealing message).
+  if (result.reason === 'rate-limited') {
+    redirect(`/book/${encodeURIComponent(token)}?error=too-many`);
   }
   redirect(`/book/${encodeURIComponent(token)}?error=invalid`);
 }

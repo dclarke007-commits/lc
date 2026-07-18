@@ -11,8 +11,8 @@
 // v1 is a single operator with modest row counts, so a materialized string is correct
 // and simple; a true chunked stream would be a Route Handler and is not needed yet.
 
+import { requireOwnerId } from '@/lib/auth/requireOwnerId';
 import {
-  getOwnerId,
   listClients,
   listJobsForExport,
 } from '@/lib/db/queries';
@@ -34,9 +34,9 @@ async function resolveOwner(): Promise<
   { ok: true; ownerId: string } | { ok: false; reason: string }
 > {
   try {
-    return { ok: true, ownerId: await getOwnerId() };
+    return { ok: true, ownerId: await requireOwnerId() };
   } catch (err) {
-    console.error('[export] getOwnerId failed', err);
+    console.error('[export] requireOwnerId failed', err);
     return { ok: false, reason: 'owner-unresolved' };
   }
 }

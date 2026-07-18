@@ -6,9 +6,9 @@
 // deep-link on the operator's tap. No write, no dispatch, no logging here
 // (Story 2.3 owns MessageLog); nothing sends autonomously (FR19).
 
+import { requireOwnerId } from '@/lib/auth/requireOwnerId';
 import { redirect } from 'next/navigation';
 import {
-  getOwnerId,
   listClients,
   getClient,
   getMessageTemplates,
@@ -33,9 +33,9 @@ export interface DraftClientOption {
 export async function listDraftClients(): Promise<DraftClientOption[]> {
   let ownerId: string;
   try {
-    ownerId = await getOwnerId();
+    ownerId = await requireOwnerId();
   } catch (err) {
-    console.error('[draft] getOwnerId failed (read path)', err);
+    console.error('[draft] requireOwnerId failed (read path)', err);
     throw new Error('owner-unresolved');
   }
   const clients = await listClients(ownerId);
@@ -60,9 +60,9 @@ export async function previewDraft(
 
   let ownerId: string;
   try {
-    ownerId = await getOwnerId();
+    ownerId = await requireOwnerId();
   } catch (err) {
-    console.error('[draft] getOwnerId failed', err);
+    console.error('[draft] requireOwnerId failed', err);
     return fail('owner-unresolved');
   }
 
@@ -113,9 +113,9 @@ export async function recordDispatch(
 
   let ownerId: string;
   try {
-    ownerId = await getOwnerId();
+    ownerId = await requireOwnerId();
   } catch (err) {
-    console.error('[draft] getOwnerId failed (dispatch)', err);
+    console.error('[draft] requireOwnerId failed (dispatch)', err);
     return fail('owner-unresolved');
   }
 

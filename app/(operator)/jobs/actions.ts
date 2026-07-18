@@ -6,10 +6,10 @@
 // boundary, no silent catch. The surface calls THIS (never lib/db or lifecycle
 // directly): surfaces → actions → domain → db.
 
+import { requireOwnerId } from '@/lib/auth/requireOwnerId';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import {
-  getOwnerId,
   listJobs,
   getJob,
   getClient,
@@ -62,9 +62,9 @@ export async function getOwnerJobs(): Promise<JobRow[]> {
   // would read as "no jobs"). The RSC render surface shows the error boundary.
   let ownerId: string;
   try {
-    ownerId = await getOwnerId();
+    ownerId = await requireOwnerId();
   } catch (err) {
-    console.error('[jobs] getOwnerId failed (read path)', err);
+    console.error('[jobs] requireOwnerId failed (read path)', err);
     throw new Error('owner-unresolved');
   }
   const jobs = await listJobs(ownerId);
@@ -94,9 +94,9 @@ export async function markOutcome(
 
   let ownerId: string;
   try {
-    ownerId = await getOwnerId();
+    ownerId = await requireOwnerId();
   } catch (err) {
-    console.error('[jobs] getOwnerId failed', err);
+    console.error('[jobs] requireOwnerId failed', err);
     return fail('owner-unresolved');
   }
 
@@ -131,9 +131,9 @@ export async function correctOutcome(
 
   let ownerId: string;
   try {
-    ownerId = await getOwnerId();
+    ownerId = await requireOwnerId();
   } catch (err) {
-    console.error('[jobs] getOwnerId failed', err);
+    console.error('[jobs] requireOwnerId failed', err);
     return fail('owner-unresolved');
   }
 
@@ -157,9 +157,9 @@ export async function cancelJob(
 
   let ownerId: string;
   try {
-    ownerId = await getOwnerId();
+    ownerId = await requireOwnerId();
   } catch (err) {
-    console.error('[jobs] getOwnerId failed', err);
+    console.error('[jobs] requireOwnerId failed', err);
     return fail('owner-unresolved');
   }
 
@@ -184,9 +184,9 @@ export async function rescheduleJob(
 
   let ownerId: string;
   try {
-    ownerId = await getOwnerId();
+    ownerId = await requireOwnerId();
   } catch (err) {
-    console.error('[jobs] getOwnerId failed', err);
+    console.error('[jobs] requireOwnerId failed', err);
     return fail('owner-unresolved');
   }
 
@@ -230,9 +230,9 @@ export async function getRebookProposal(
 ): Promise<ActionResult<RebookProposal>> {
   let ownerId: string;
   try {
-    ownerId = await getOwnerId();
+    ownerId = await requireOwnerId();
   } catch (err) {
-    console.error('[jobs] getOwnerId failed (rebook)', err);
+    console.error('[jobs] requireOwnerId failed (rebook)', err);
     return fail('owner-unresolved');
   }
 
@@ -336,9 +336,9 @@ export async function prepareRebook(formData: FormData): Promise<void> {
 
   let ownerId: string;
   try {
-    ownerId = await getOwnerId();
+    ownerId = await requireOwnerId();
   } catch (err) {
-    console.error('[jobs] getOwnerId failed (prepareRebook)', err);
+    console.error('[jobs] requireOwnerId failed (prepareRebook)', err);
     redirect('/jobs?error=owner-unresolved');
   }
 
@@ -380,9 +380,9 @@ export async function sendRebook(formData: FormData): Promise<void> {
 
   let ownerId: string;
   try {
-    ownerId = await getOwnerId();
+    ownerId = await requireOwnerId();
   } catch (err) {
-    console.error('[jobs] getOwnerId failed (sendRebook)', err);
+    console.error('[jobs] requireOwnerId failed (sendRebook)', err);
     redirect('/jobs?error=owner-unresolved');
   }
 

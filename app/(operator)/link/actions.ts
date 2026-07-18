@@ -5,9 +5,9 @@
 // rotatePublicToken) + the shared bookingBaseUrl + qrcode — never lib/db directly
 // (surfaces → actions → domain → db). Typed AR15 return { ok, data } | { ok:false }.
 
+import { requireOwnerId } from '@/lib/auth/requireOwnerId';
 import { redirect } from 'next/navigation';
 import QRCode from 'qrcode';
-import { getOwnerId } from '@/lib/db/queries';
 import { ok, fail, type ActionResult } from '@/lib/domain/result';
 import { ensurePublicToken, rotatePublicToken } from '@/lib/domain/publicToken';
 import { bookingBaseUrl } from '@/lib/domain/urls';
@@ -43,9 +43,9 @@ async function buildPublicLink(tokenValue: string): Promise<ActionResult<PublicL
 export async function getPublicBookingLink(): Promise<ActionResult<PublicLink>> {
   let ownerId: string;
   try {
-    ownerId = await getOwnerId();
+    ownerId = await requireOwnerId();
   } catch (err) {
-    console.error('[link] getOwnerId failed (read)', err);
+    console.error('[link] requireOwnerId failed (read)', err);
     return fail('owner-unresolved');
   }
   let tokenValue: string;
@@ -74,9 +74,9 @@ export async function getPublicBookingLink(): Promise<ActionResult<PublicLink>> 
 export async function rotatePublicLink(): Promise<void> {
   let ownerId: string;
   try {
-    ownerId = await getOwnerId();
+    ownerId = await requireOwnerId();
   } catch (err) {
-    console.error('[link] getOwnerId failed (rotate)', err);
+    console.error('[link] requireOwnerId failed (rotate)', err);
     redirect('/link?error=owner-unresolved');
   }
   try {

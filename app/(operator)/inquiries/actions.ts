@@ -1,7 +1,7 @@
 'use server';
 
 // Story 4.4 — the operator's MANUAL inquiry log (FR37/AR12). Sole write path = Server
-// Actions (AD-1). Owner is resolved from the SESSION via getOwnerId (AD-8) — this is an
+// Actions (AD-1). Owner is resolved from the SESSION via requireOwnerId (AD-8) — this is an
 // authenticated operator surface (behind proxy.ts), NOT the public token path of 4.2.
 // Return contract (AR15): { ok, data } | { ok:false, reason }; no thrown error crosses
 // the boundary; only lib/db speaks SQL (AD-1), reached directly here.
@@ -11,9 +11,9 @@
 // REJECTS `link` (and any unknown value), writing nothing, so a hand-crafted source=link
 // POST can never forge a link inquiry and skew provenance.
 
+import { requireOwnerId } from '@/lib/auth/requireOwnerId';
 import { revalidatePath } from 'next/cache';
 import {
-  getOwnerId,
   getClient,
   insertInquiry,
   listInquiries,
@@ -37,7 +37,7 @@ function isManualSource(v: string): v is ManualSource {
  * resolved here, so the filter value is always applied.
  */
 export async function listOwnerInquiries(): Promise<InquiryListItem[]> {
-  const ownerId = await getOwnerId();
+  const ownerId = await requireOwnerId();
   return listInquiries(ownerId);
 }
 
@@ -59,10 +59,10 @@ export async function logInquiry(
 
   let ownerId: string;
   try {
-    ownerId = await getOwnerId();
+    ownerId = await requireOwnerId();
   } catch (err) {
     // AR15: fail closed, but leave a trace in the platform logs.
-    console.error('[inquiries] getOwnerId failed', err);
+    console.error('[inquiries] requireOwnerId failed', err);
     return fail('owner-unresolved');
   }
 
