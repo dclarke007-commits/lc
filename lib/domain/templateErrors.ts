@@ -4,6 +4,8 @@
 // RSC reads it and calls this to render a server-side banner (zero client JS, NFR1).
 // No framework imports.
 
+import { safeErrorMessage } from './errorMessage';
+
 const TEMPLATE_ERROR_MESSAGES: Record<string, string> = {
   'template-type-invalid': 'That template type is not recognized.',
   'template-body-required': 'Template text cannot be empty.',
@@ -19,12 +21,5 @@ const TEMPLATE_ERROR_MESSAGES: Record<string, string> = {
 
 /** Human-readable text for a template action reason. Unknown → safe fallback. */
 export function templateErrorMessage(reason: string | undefined): string | null {
-  if (!reason) return null;
-  // Own-property check, not `[reason] ?? fallback`: a tampered ?error=__proto__/
-  // constructor would otherwise return a truthy inherited object/function that the
-  // RSC renders as a React child → 500 (code-review 2026-07-16).
-  if (!Object.hasOwn(TEMPLATE_ERROR_MESSAGES, reason)) {
-    return 'Something went wrong — please try again.';
-  }
-  return TEMPLATE_ERROR_MESSAGES[reason];
+  return safeErrorMessage(TEMPLATE_ERROR_MESSAGES, reason);
 }

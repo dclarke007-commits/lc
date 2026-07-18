@@ -41,7 +41,7 @@
 # - Retrospective appends its action items to action_items; sprint-status surfaces open ones
 
 generated: 2026-07-15
-last_updated: 2026-07-18T15:28
+last_updated: 2026-07-18T18:00
 project: LovesCleaning
 # note: Epic 2 COMPLETE (dev + code-review, all 4 stories done) 2026-07-16 | 1-7 done (dev + code-review complete) 2026-07-16 — Epic 1 dev COMPLETE
 project_key: NOKEY
@@ -58,7 +58,7 @@ development_status:
   1-5-mark-job-outcome-completed-no-show: done
   1-6-cancel-reschedule-capacity-release: done
   1-7-forecasting-lite-room-left-day-maxed-nearest-open: done
-  epic-1-retrospective: optional
+  epic-1-retrospective: done
 
   # --- Epic 2: Messaging Engine — Draft + Tap-to-Send ---
   epic-2: done
@@ -66,7 +66,7 @@ development_status:
   2-2-compose-messagedraft-deep-link-delivery: done
   2-3-dispatch-logging-drafted-vs-dispatched-idempotent: done
   2-4-booking-confirmation-message: done
-  epic-2-retrospective: optional
+  epic-2-retrospective: done
 
   # --- Epic 3: Rebooking & Win-Back — Plug the Revenue Leak ---
   epic-3: done
@@ -150,4 +150,28 @@ action_items:
   - epic: 6
     action: "Defense-in-depth auth decision (app-wide): whether operator Server Actions should verify session in-action (shared requireOperatorSession) vs rely solely on proxy.ts middleware. Pre-existing AD-6 pattern, not an Epic-6 regression."
     owner: "Project Lead + Developer"
+    status: open
+  - epic: 1
+    action: "Unify capacity.ts private week-arithmetic onto clock.ts (single-source the Mon-Sun week helpers; capacity keeps private copies pre-existing)."
+    owner: "Developer"
+    status: open
+  - epic: 1
+    action: "Drop the redundant non-unique owner_id index fully covered by the unique index (new migration; micro-cleanup)."
+    owner: "Developer"
+    status: open
+  - epic: 1
+    action: "zonedWallToUtc drops milliseconds when measuring the offset — latent, no current ms caller; add guard or test before one appears."
+    owner: "Developer"
+    status: open
+  - epic: 1
+    action: "Timezone is free-text on a phone-first surface; replace with a zero-JS <select> of common zones (NFR1 fit)."
+    owner: "Developer"
+    status: open
+  - epic: 2
+    action: "Introduce a shared safeErrorMessage(map, key) (Object.hasOwn-guarded) and route all error-message maps through it — kills the prototype-key crash class app-wide; capacityErrors.ts still latent."
+    owner: "Developer"
+    status: done
+  - epic: 2
+    action: "Add a nonce-keying convention to compose.ts docs: nonces key on the event instance (anchor/spell), never a bare entity id."
+    owner: "Developer"
     status: open
