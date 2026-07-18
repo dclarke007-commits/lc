@@ -42,7 +42,7 @@ Both reads are owner-scoped on the VALUE: `listClients` filters `client.ownerId`
 
 ### CSV correctness (the load-bearing bit)
 
-`escapeCsvField` quote-wraps any field containing a comma, double-quote, CR, or LF and doubles internal quotes — so a client name `Doe, Jane` or a multi-line address never shifts downstream columns. `null` → empty field (never the literal "null"). Integer `price_cents` serialize exactly (no float formatting). Proven in `tests/csv.test.ts`.
+`escapeCsvField` composes two layers: (1) **formula-injection neutralization (CWE-1236)** — a field whose text begins with `=`/`+`/`-`/`@`/TAB/CR is prefixed with `'` so a spreadsheet never executes it as a formula. This matters because names/addresses are **stranger-controlled** (public self-booking, Story 4.2), so a submitted name `=HYPERLINK(...)` would otherwise fire when the operator opens the export in Excel — and RFC quoting alone does NOT stop it. (2) **RFC-4180 quoting** — quote-wraps any field with a comma, double-quote, CR, or LF and doubles internal quotes, so `Doe, Jane` or a multi-line address never shifts downstream columns. `null` → empty field (never the literal "null"). Integer `price_cents` serialize exactly (no float formatting). Proven in `tests/csv.test.ts` (14 tests).
 
 ### Architecture guardrails
 

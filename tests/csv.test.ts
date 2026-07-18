@@ -32,6 +32,32 @@ describe('csv.escapeCsvField (RFC 4180)', () => {
     expect(escapeCsvField(20000)).toBe('20000');
     expect(escapeCsvField(0)).toBe('0');
   });
+
+  // CSV formula injection (CWE-1236) — stranger-controlled names/addresses (public
+  // self-booking, Story 4.2) must never execute as spreadsheet formulas on export.
+  it('neutralizes a leading formula trigger (= + - @) with a single quote', () => {
+    expect(escapeCsvField('=1+2')).toBe("'=1+2");
+    expect(escapeCsvField('+1+1')).toBe("'+1+1");
+    expect(escapeCsvField('-2+3')).toBe("'-2+3");
+    expect(escapeCsvField('@SUM(A1)')).toBe("'@SUM(A1)");
+  });
+
+  it('neutralizes a formula payload that also needs quoting (HYPERLINK)', () => {
+    // Leading '=' → prefix '; also has commas + quotes → quote-wrapped, internal "" doubled.
+    expect(escapeCsvField('=HYPERLINK("http://evil","x")')).toBe(
+      '"\'=HYPERLINK(""http://evil"",""x"")"',
+    );
+  });
+
+  it('neutralization composes with RFC-4180 quoting (formula + comma)', () => {
+    // Leading '=' AND a comma → prefixed with ' then quote-wrapped → "'=1,2"
+    expect(escapeCsvField('=1,2')).toBe('"\'=1,2"');
+  });
+
+  it('does NOT prefix a value whose formula char is not leading', () => {
+    expect(escapeCsvField('Jane=Doe')).toBe('Jane=Doe');
+    expect(escapeCsvField('a+b')).toBe('a+b');
+  });
 });
 
 describe('csv.toCsv', () => {
