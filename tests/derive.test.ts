@@ -623,6 +623,29 @@ describe('derive.caughtColdThisWeek (Story 6.2, FR24/AR19)', () => {
     expect(caughtColdThisWeek(clients, today)).toBe(1);
   });
 
+  it('boundary: expected exactly 8 days ago is OUT of the window (exclusive)', () => {
+    // last completed 06-30 → expected 07-07 = today-8 → just outside → excluded
+    const clients: ClientLifecycle[] = [
+      { cadence: 'weekly', jobs: [{ date: '2026-06-30', completion: 'completed' }] },
+    ];
+    expect(caughtColdThisWeek(clients, today)).toBe(0);
+  });
+
+  it('year rollover: the 7-day window crosses Dec→Jan correctly (date-key math)', () => {
+    // today 2026-01-03; weekly last completed 2025-12-20 → expected 2025-12-27.
+    // window start = 2026-01-03 - 7 = 2025-12-27 → expected == start → inclusive → counts.
+    // Proves ISO date-key localeCompare == calendar order across the year boundary.
+    const clients: ClientLifecycle[] = [
+      { cadence: 'weekly', jobs: [{ date: '2025-12-20', completion: 'completed' }] },
+    ];
+    expect(caughtColdThisWeek(clients, '2026-01-03')).toBe(1);
+    // One day earlier basis (expected 2025-12-26 = start-1) → outside → excluded.
+    const older: ClientLifecycle[] = [
+      { cadence: 'weekly', jobs: [{ date: '2025-12-19', completion: 'completed' }] },
+    ];
+    expect(caughtColdThisWeek(older, '2026-01-03')).toBe(0);
+  });
+
   it('empty client list → 0', () => {
     expect(caughtColdThisWeek([], today)).toBe(0);
   });

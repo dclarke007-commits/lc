@@ -137,18 +137,20 @@ export default async function DashboardPage() {
           </div>
         </div>
 
-        {/* Retention — revenue leak */}
+        {/* Retention — revenue leak. NOTE: repeat and lapsed are INDEPENDENT counts,
+            not a partition — a client with ≥2 completed jobs who is also cold right now
+            is counted in BOTH. The "·" separator (not "/") avoids reading as a ratio. */}
         <div style={tile}>
-          <div style={tileLabel}>Repeat / Lapsed</div>
+          <div style={tileLabel}>Repeat &amp; lapsed</div>
           <div style={tileValue}>
             {metrics.repeatCount}
-            <span style={tileUnit}> / </span>
+            <span style={tileUnit}> &middot; </span>
             <span style={{ color: metrics.lapsedCount > 0 ? '#b00020' : undefined }}>
               {metrics.lapsedCount}
             </span>
           </div>
           <div style={tileWhy}>
-            repeat rate{' '}
+            {metrics.repeatCount} repeat &middot; {metrics.lapsedCount} cold (independent) &middot; repeat rate{' '}
             {metrics.repeatRate === null
               ? '—'
               : `${Math.round(metrics.repeatRate * 100)}%`}{' '}
