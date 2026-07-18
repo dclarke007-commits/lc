@@ -892,3 +892,53 @@ export function caughtColdThisWeek(
   }
   return count;
 }
+
+// --- Story 6.3: the gone-cold list for the dashboard (derived on read, FR23) ------
+//
+// The dashboard's act-now list: every currently gone-cold client, so the operator can
+// tap straight into the Story 3.6 win-back. PURE (AD-7): a function of the passed rows
+// plus `today` — reuses goneCold / expectedNextDate (Story 3.5, the ONE lapse
+// definition), never re-derives lapse. The win-back credential/gate is NOT here — the
+// surface links to the existing win-back panel, which re-derives gone-cold server-side
+// on the tap (never trusts this list). This derive only SELECTS + ORDERS the cold set.
+
+/** A client the gone-cold list needs: identity + the lapse inputs (cadence + jobs). */
+export interface LapseClient {
+  id: string;
+  name: string;
+  cadence: Cadence;
+  jobs: DeriveJob[];
+}
+
+/** One row of the dashboard gone-cold list (FR23). `expectedNextDate` is non-null by
+ *  construction (a client is only cold once past a real expected date). */
+export interface GoneColdRow {
+  id: string;
+  name: string;
+  expectedNextDate: string; // the missed date — how overdue drives the sort
+}
+
+/**
+ * The dashboard's gone-cold list (FR23): every client gone-cold RIGHT NOW (goneCold —
+ * Story 3.5), ordered LONGEST-OVERDUE first (oldest missed `expectedNextDate` first, so
+ * the most-neglected regular surfaces at the top; stable tiebreak on name). Each row
+ * carries the client id the surface hands to the win-back link (`/clients?winback=<id>`)
+ * and the missed date for display. Pure derive-on-read (AD-7): book a future slot and the
+ * client drops off the very next render, with no stored flag. (The FRESH-lapse subset is
+ * the separate 6.2 caughtColdThisWeek count; this list is the full act-now set.)
+ */
+export function goneColdList(clients: LapseClient[], today: string): GoneColdRow[] {
+  const rows: GoneColdRow[] = [];
+  for (const c of clients) {
+    if (!goneCold(c.cadence, c.jobs, today)) continue;
+    // goneCold true ⇒ expectedNextDate is non-null (guarded, but assert for the type).
+    const expected = expectedNextDate(c.cadence, c.jobs);
+    if (expected === null) continue;
+    rows.push({ id: c.id, name: c.name, expectedNextDate: expected });
+  }
+  return rows.sort(
+    (a, b) =>
+      a.expectedNextDate.localeCompare(b.expectedNextDate) ||
+      a.name.localeCompare(b.name),
+  );
+}

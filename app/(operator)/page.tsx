@@ -6,6 +6,7 @@ import {
   getDashboardCapacity,
   getDashboardMetrics,
   getLeakIndicators,
+  getGoneColdList,
 } from './actions';
 
 // Presentation-only: integer cents → "$1,234". No float math crosses the domain;
@@ -79,6 +80,7 @@ export default async function DashboardPage() {
   const cap = await getDashboardCapacity();
   const metrics = await getDashboardMetrics();
   const leaks = await getLeakIndicators();
+  const cold = await getGoneColdList();
   const full = cap.roomLeft === 0;
   const revenueUp = metrics.revenueDeltaCents >= 0;
 
@@ -201,6 +203,57 @@ export default async function DashboardPage() {
           </div>
           <div style={tileWhy}>regulars just slipped — win them back now</div>
         </div>
+      </section>
+
+      {/* Story 6.3 — the gone-cold list with direct win-back (FR23). Each cold
+          regular is one tap from the Story-3.6 win-back panel, which re-derives the
+          gone-cold gate server-side (this list is never trusted as authorization). */}
+      <section
+        aria-labelledby="cold-heading"
+        style={{
+          marginTop: '1rem',
+          border: '1px solid #e2e2e2',
+          borderRadius: 8,
+          padding: '1rem',
+        }}
+      >
+        <h2 id="cold-heading" style={{ fontSize: '1rem', margin: '0 0 0.5rem' }}>
+          Gone cold &middot; win them back
+        </h2>
+        {cold.length === 0 ? (
+          <p style={{ margin: 0, color: '#0a5c2b', fontSize: '0.9rem' }}>
+            No regulars are cold right now.
+          </p>
+        ) : (
+          <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
+            {cold.map((c) => (
+              <li
+                key={c.id}
+                style={{
+                  display: 'flex',
+                  alignItems: 'baseline',
+                  justifyContent: 'space-between',
+                  gap: '0.75rem',
+                  padding: '0.5rem 0',
+                  borderBottom: '1px solid #eee',
+                }}
+              >
+                <span>
+                  <strong>{c.name}</strong>{' '}
+                  <span style={{ color: '#888', fontSize: '0.85rem' }}>
+                    due {fmtDay(c.expectedNextDate)}
+                  </span>
+                </span>
+                <Link
+                  href={`/clients?winback=${encodeURIComponent(c.id)}`}
+                  style={{ whiteSpace: 'nowrap' }}
+                >
+                  Win back →
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
       </section>
 
       <section

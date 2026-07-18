@@ -27,8 +27,11 @@ import {
   inquiryConversion,
   oneTimeToRepeat,
   caughtColdThisWeek,
+  goneColdList,
   type DeriveJob,
   type ClientLifecycle,
+  type LapseClient,
+  type GoneColdRow,
 } from '@/lib/domain/derive';
 
 // Request-scoped de-dupe (Story 6.2): getDashboardMetrics AND getLeakIndicators both
@@ -287,4 +290,54 @@ export async function getLeakIndicators(): Promise<LeakIndicators> {
     oneTimeRate: oneTime.ratio,
     caughtColdThisWeek: caughtCold,
   };
+}
+
+// --- Story 6.3: the gone-cold list with direct win-back access (FR23, AD-7) -------
+
+/**
+ * The dashboard's gone-cold list (FR23), derived on read (AD-7). Every currently
+ * gone-cold client, longest-overdue first, each carrying the id the surface hands to
+ * the existing Story-3.6 win-back panel (`/clients?winback=<id>`). Reads the SHARED
+ * owner-scoped projections (`cache()`), pairs each client with its jobs, and hands them
+ * to the pure `goneColdList` derive. Owner resolved FAIL-LOUD; but the lapse derivation
+ * itself FAILS OPEN to `[]` (mirrors clients/listOwnerClientsWithLapse): a corrupt
+ * settings.timezone (localDateKey throws) must not take the whole dashboard down — the
+ * act-now list simply renders empty, and the numbers/capacity above still show.
+ */
+export async function getGoneColdList(): Promise<GoneColdRow[]> {
+  const config = await getOwnerCapacity(); // carries the operator tz (AD-9)
+
+  let ownerId: string;
+  try {
+    ownerId = await getOwnerId();
+  } catch (err) {
+    console.error('[dashboard] getOwnerId failed (gone-cold list read)', err);
+    throw new Error('owner-unresolved');
+  }
+
+  try {
+    const today = localDateKey(new Date(), config.timezone);
+    const [metricsJobs, clients] = await Promise.all([
+      metricsJobsCached(ownerId),
+      clientsCached(ownerId),
+    ]);
+
+    const byClient = new Map<string, DeriveJob[]>();
+    for (const j of metricsJobs) {
+      const list = byClient.get(j.clientId) ?? [];
+      list.push({ date: j.date, completion: j.completion });
+      byClient.set(j.clientId, list);
+    }
+    const lapseClients: LapseClient[] = clients.map((c) => ({
+      id: c.id,
+      name: c.name,
+      cadence: c.cadence,
+      jobs: byClient.get(c.id) ?? [],
+    }));
+
+    return goneColdList(lapseClients, today);
+  } catch (err) {
+    console.error('[dashboard] gone-cold list derivation failed (fail-open, empty)', err);
+    return [];
+  }
 }

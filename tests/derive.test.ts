@@ -18,11 +18,13 @@ import {
   inquiryConversion,
   oneTimeToRepeat,
   caughtColdThisWeek,
+  goneColdList,
   type DeriveJob,
   type LedgerJob,
   type RevenueJob,
   type RepeatRateJob,
   type ClientLifecycle,
+  type LapseClient,
 } from '../lib/domain/derive';
 import { DEFAULT_CAPACITY, type CapacityConfig } from '../lib/domain/capacityConfig';
 
@@ -623,5 +625,43 @@ describe('derive.caughtColdThisWeek (Story 6.2, FR24/AR19)', () => {
 
   it('empty client list → 0', () => {
     expect(caughtColdThisWeek([], today)).toBe(0);
+  });
+});
+
+// --- Story 6.3: gone-cold list -----------------------------------------------------
+
+describe('derive.goneColdList (Story 6.3, FR23)', () => {
+  const today = '2026-07-15';
+
+  it('lists only cold clients, longest-overdue first, with id + missed date', () => {
+    const clients: LapseClient[] = [
+      // recent cold: expected 07-08
+      { id: 'b', name: 'Bea', cadence: 'weekly', jobs: [{ date: '2026-07-01', completion: 'completed' }] },
+      // long cold: expected 06-08 → sorts FIRST
+      { id: 'a', name: 'Ana', cadence: 'weekly', jobs: [{ date: '2026-06-01', completion: 'completed' }] },
+      // has a future booking → not cold
+      {
+        id: 'c',
+        name: 'Cy',
+        cadence: 'weekly',
+        jobs: [
+          { date: '2026-07-01', completion: 'completed' },
+          { date: '2026-07-20', completion: 'booked' },
+        ],
+      },
+      // one-time → never cold
+      { id: 'd', name: 'Dee', cadence: 'one-time', jobs: [{ date: '2026-07-01', completion: 'completed' }] },
+    ];
+    expect(goneColdList(clients, today)).toEqual([
+      { id: 'a', name: 'Ana', expectedNextDate: '2026-06-08' },
+      { id: 'b', name: 'Bea', expectedNextDate: '2026-07-08' },
+    ]);
+  });
+
+  it('no cold clients → empty list', () => {
+    const clients: LapseClient[] = [
+      { id: 'x', name: 'X', cadence: 'one-time', jobs: [{ date: '2026-07-01', completion: 'completed' }] },
+    ];
+    expect(goneColdList(clients, today)).toEqual([]);
   });
 });
