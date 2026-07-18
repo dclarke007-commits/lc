@@ -30,6 +30,10 @@ const LIFECYCLE_ERROR_MESSAGES: Record<string, string> = {
   // We re-show the updated proposal rather than send a slot the operator never saw.
   'slot-changed':
     'The open slot changed since you opened this — review the updated proposal, then send.',
+  // Mark-paid reasons, Story 5.4 (markJobPaid → ledger.markPaid). Surfaced on the same
+  // jobs page via the shared ?error= banner.
+  'not-ledger-eligible': 'Only a completed job can be marked paid.',
+  'ledger-write-failed': 'Could not mark the job paid — please try again.',
 };
 
 /** Human-readable text for a jobs-surface action reason. Unknown → safe fallback. */

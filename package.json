@@ -11,7 +11,9 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:seed": "tsx lib/db/seed.ts",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:e2e": "playwright test",
+    "test:e2e:install": "playwright install --with-deps chromium"
   },
   "dependencies": {
     "drizzle-orm": "^0.44.6",
@@ -22,6 +24,7 @@
     "react-dom": "^19.2.4"
   },
   "devDependencies": {
+    "@playwright/test": "^1.61.1",
     "@types/node": "^22.10.5",
     "@types/pg": "^8.15.5",
     "@types/qrcode": "^1.5.6",
