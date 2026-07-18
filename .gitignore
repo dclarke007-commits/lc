@@ -24,6 +24,11 @@ build
 .env.*
 !.env.example
 
+# playwright e2e artifacts
+tests/e2e/.state/
+playwright-report/
+test-results/
+
 # misc
 .DS_Store
 *.pem
