@@ -118,3 +118,85 @@ export async function verifyClientToken(
   }
   return null;
 }
+
+// --- Public self-serve booking token (Story 4.1, AD-6/FR4/FR34/NFR6) ---------
+// The sibling of the per-client token above: ONE unguessable, signed public link
+// (the `book-public` capability) that any prospective client can open with no
+// account, scoped to NO single client. Same HMAC-SHA256 primitive (hmac.ts) and
+// the same durable per-link nonce (D1). A DISTINCT secret (PUBLIC_TOKEN_SECRET,
+// key separation) so a per-client link and the public link can never be
+// cross-interpreted — and the capability guard on verify is a second, independent
+// barrier even if the secrets were ever the same.
+
+/** The scope the ONE public token carries. No `clientId` — it is client-less. */
+export interface PublicTokenClaims {
+  ownerId: string;
+  capability: 'book-public';
+  // Per-link random nonce (D1), persisted in the token row and folded into the
+  // signature so a rotate/revoke makes the old value unresolvable forever.
+  nonce: string;
+}
+
+/**
+ * Central, validated access to the public-token HMAC secret. DISTINCT from
+ * CLIENT_TOKEN_SECRET and SESSION_SECRET (key separation). Throws (fail-closed for
+ * signing) if missing or too weak; resolvePublicTokenClaims catches the throw and
+ * denies access. Deployment: if unset in prod, the public booking link fails closed.
+ */
+export function getPublicTokenSecret(): string {
+  const secret = process.env.PUBLIC_TOKEN_SECRET;
+  if (!secret || secret.length < MIN_SECRET_LENGTH) {
+    throw new Error(
+      `PUBLIC_TOKEN_SECRET must be set and at least ${MIN_SECRET_LENGTH} characters.`,
+    );
+  }
+  return secret;
+}
+
+/**
+ * Sign the public token. Canonical claim order ({ownerId, capability, nonce}) so the
+ * signature is stable regardless of how the caller built the object — one stable
+ * public link per owner (idempotent re-mint while the nonce is unchanged).
+ */
+export async function signPublicToken(
+  claims: PublicTokenClaims,
+  secret: string,
+): Promise<string> {
+  if (!secret || secret.length < MIN_SECRET_LENGTH) {
+    throw new Error('Refusing to sign a public token with a weak PUBLIC_TOKEN_SECRET.');
+  }
+  return signPayload(
+    {
+      ownerId: claims.ownerId,
+      capability: claims.capability,
+      nonce: claims.nonce,
+    },
+    secret,
+  );
+}
+
+/**
+ * Verify a public token and return its claims, or null. Fails CLOSED on: weak/missing
+ * secret, bad signature, malformed token, or a claim shape that is not exactly
+ * {ownerId:string, capability:'book-public', nonce:string}. The capability guard is
+ * the second barrier: a validly-signed token whose capability is anything but
+ * `book-public` (e.g. a per-client token) is never accepted on the public path.
+ */
+export async function verifyPublicToken(
+  token: string | undefined | null,
+  secret: string,
+): Promise<PublicTokenClaims | null> {
+  if (!secret || secret.length < MIN_SECRET_LENGTH) return null;
+  const payload = await verifyPayload(token, secret);
+  if (!payload) return null;
+  const { ownerId, capability, nonce } = payload;
+  if (
+    typeof ownerId === 'string' &&
+    capability === 'book-public' &&
+    typeof nonce === 'string' &&
+    nonce.length > 0
+  ) {
+    return { ownerId, capability, nonce };
+  }
+  return null;
+}

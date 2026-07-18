@@ -23,6 +23,8 @@ import {
   messageTemplate,
   messageLog,
   token,
+  pendingRequest,
+  inquiry,
 } from './schema';
 import type {
   Operator,
@@ -32,6 +34,8 @@ import type {
   MessageTemplate,
   MessageLog,
   Token,
+  PendingRequest,
+  Inquiry,
 } from './schema';
 
 /**
@@ -507,4 +511,222 @@ export async function findTokenByValue(
     .where(eq(token.tokenValue, tokenValue))
     .limit(1);
   return row;
+}
+
+// --- Public token (Story 4.1, AD-6) — the ONE client-less booking token ------
+// Siblings of the per-client helpers above, for the lone public token whose
+// client_id IS NULL. Because client_id is NULL, the (owner, client, capability)
+// unique key cannot dedupe them (NULLs distinct) — so these use the PARTIAL unique
+// index token_owner_public_uq (owner, capability WHERE client_id IS NULL) as the
+// conflict arbiter (targetWhere), guaranteeing exactly one public token per owner.
+
+/**
+ * The one live public token row, or undefined. Owner-scoped read (AD-8) on the
+ * client-less rows only (client_id IS NULL) — the read half of ensurePublicToken's
+ * read-or-create, returning the existing link verbatim (stable URL, D1).
+ */
+export async function findPublicToken(
+  ownerId: string,
+  capability: Token['capability'],
+): Promise<Token | undefined> {
+  const [row] = await db
+    .select()
+    .from(token)
+    .where(
+      and(
+        eq(token.ownerId, ownerId),
+        isNull(token.clientId),
+        eq(token.capability, capability),
+      ),
+    )
+    .limit(1);
+  return row;
+}
+
+/**
+ * Create the public token row ONLY if one does not already exist (race-safe first
+ * mint). `onConflictDoNothing` on the PARTIAL index (targetWhere client_id IS NULL)
+ * + `returning()` yields the just-inserted row, or nothing when a concurrent insert
+ * won — in which case we return the existing row. NEVER overwrites (that is
+ * rotatePublicTokenRow's job), so the URL stays stable on every re-mint (D1).
+ */
+export async function insertPublicTokenIfAbsent(
+  ownerId: string,
+  tokenValue: string,
+  capability: Token['capability'],
+  nonce: string,
+): Promise<Token> {
+  const [row] = await db
+    .insert(token)
+    .values({ ownerId, clientId: null, tokenValue, capability, nonce })
+    .onConflictDoNothing({
+      target: [token.ownerId, token.capability],
+      where: isNull(token.clientId),
+    })
+    .returning();
+  if (row) return row;
+  // Lost the first-mint race — the concurrent insert is the live link. It exists by the
+  // conflict we just hit; but if it was revoked in the interim (F3), re-mint upstream
+  // rather than cast undefined to Token.
+  const existing = await findPublicToken(ownerId, capability);
+  if (!existing) {
+    throw new Error('public token vanished after insert conflict (concurrent revoke)');
+  }
+  return existing;
+}
+
+/**
+ * Rotate the public link: overwrite `token_value` + `nonce` with a freshly-signed,
+ * fresh-nonce value (creating the row if absent) on the PARTIAL-index conflict.
+ * Durable revoke-and-reissue (D1): the old `token_value` is replaced, so the
+ * previously-issued (possibly leaked) link stops resolving forever. Owner-scoped.
+ */
+export async function rotatePublicTokenRow(
+  ownerId: string,
+  tokenValue: string,
+  capability: Token['capability'],
+  nonce: string,
+  // Heal-only guard (F2): when provided, the upsert UPDATE only fires if the row still
+  // holds this value — so a concurrent rotatePublicToken (which already changed it) WINS
+  // and the heal becomes a no-op (returns undefined) instead of clobbering the fresh
+  // link back to a stale value. Omitted for a genuine rotate (always overwrite).
+  expectedTokenValue?: string,
+): Promise<Token | undefined> {
+  const [row] = await db
+    .insert(token)
+    .values({ ownerId, clientId: null, tokenValue, capability, nonce })
+    .onConflictDoUpdate({
+      target: [token.ownerId, token.capability],
+      targetWhere: isNull(token.clientId),
+      set: { tokenValue, nonce },
+      ...(expectedTokenValue
+        ? { setWhere: eq(token.tokenValue, expectedTokenValue) }
+        : {}),
+    })
+    .returning();
+  return row;
+}
+
+/**
+ * Revoke the public link by deleting its (client-less) row — verification then fails
+ * closed even though the HMAC is still valid. Returns true if a row was removed.
+ * Owner-scoped (AD-8). Durable (D1): a later ensurePublicToken mints a NEW nonce → a
+ * NEW value; the deleted link never returns.
+ */
+export async function deletePublicToken(
+  ownerId: string,
+  capability: Token['capability'],
+): Promise<boolean> {
+  const result = await db
+    .delete(token)
+    .where(
+      and(
+        eq(token.ownerId, ownerId),
+        isNull(token.clientId),
+        eq(token.capability, capability),
+      ),
+    );
+  return (result.rowCount ?? 0) > 0;
+}
+
+// --- Public new-client booking request (Story 4.2, FR6/AR5/AR12) --------------
+// The ONE transactional write for a stranger's self-serve submission: a provisional
+// Client + a PendingRequest (NO capacity — AD-4/AR5) + at most one `link` Inquiry per
+// token-visit session (AR12). All three are one atomic unit keyed on the per-render
+// session nonce: the `link` inquiry insert is the idempotency CLAIM — if it conflicts
+// (a double-tap of the same rendered form), the whole transaction rolls back, so one
+// session yields EXACTLY one client + one pending request + one inquiry (never a
+// duplicate stranger). SQL + the transaction live here (AD-1/AD-2), mirroring how
+// commitBooking owns the capacity write; the domain core just calls this once.
+
+export interface PublicBookingRequestInput {
+  ownerId: string;
+  name: string;
+  phone: string;
+  address: string | null;
+  requestedDate: string; // 'YYYY-MM-DD', re-validated against the open set by the core
+  sessionNonce: string; // the per-render visit nonce (AR12 dedup key)
+}
+
+export type PublicBookingRequestResult =
+  | {
+      created: true;
+      client: Client;
+      request: PendingRequest;
+      // The `link` inquiry, or undefined when this session already logged one (a
+      // different-day resubmit in the same visit still records a new request but no
+      // second inquiry — AR12 one-per-session holds).
+      inquiry: Inquiry | undefined;
+    }
+  // A repeat submit of the SAME (session, day) — idempotent no-op: nothing new was
+  // written, the identical request already stands.
+  | { created: false };
+
+// Internal sentinel: thrown to roll the transaction back when this exact (owner,
+// session, day) request already exists (a same-form same-day double-tap). Never
+// escapes this fn.
+class DuplicatePublicSession extends Error {}
+
+/**
+ * Atomically record a new-client public booking request (Story 4.2). Idempotency is
+ * split across two keys so no legitimate request is ever lost while AR12 still holds:
+ *   • Client + PendingRequest key on (owner, session_nonce, DATE): a true double-tap of
+ *     the same rendered form + same day collapses to one; a back-button resubmit of a
+ *     DIFFERENT day in the same session is recorded as a distinct request.
+ *   • The `link` Inquiry keys on (owner, session_nonce) only (partial unique, source=
+ *     'link'): at most one per token-visit session (AR12) — a different-day resubmit
+ *     adds a request but NOT a second inquiry (it just conflicts and is skipped).
+ * The provisional Client is `status:'provisional'`, `cadence:'one-time'` (the stranger
+ * form collects no cadence; the column is NOT NULL with no DB default — AD-7 reserves
+ * `provisional` for exactly this). NEVER inserts a Job and NEVER touches capacity (AR5).
+ */
+export async function insertPublicBookingRequest(
+  input: PublicBookingRequestInput,
+): Promise<PublicBookingRequestResult> {
+  const { ownerId, name, phone, address, requestedDate, sessionNonce } = input;
+  try {
+    return await db.transaction(async (tx) => {
+      const [c] = await tx
+        .insert(client)
+        .values({
+          ownerId,
+          name,
+          phone,
+          address,
+          cadence: 'one-time',
+          status: 'provisional',
+        })
+        .returning();
+
+      // The request is the idempotency CLAIM now (keyed on owner+nonce+date). A same-
+      // session same-day conflict yields no row → roll the whole submission back (undo
+      // the provisional client we just inserted) so a double-tap can never duplicate.
+      const [req] = await tx
+        .insert(pendingRequest)
+        .values({ ownerId, clientId: c.id, date: requestedDate, sessionNonce })
+        .onConflictDoNothing({
+          target: [pendingRequest.ownerId, pendingRequest.sessionNonce, pendingRequest.date],
+        })
+        .returning();
+
+      if (!req) throw new DuplicatePublicSession();
+
+      // AR12: one `link` inquiry per session (partial unique, source='link'). On a
+      // different-day resubmit within the same session this conflicts → no row → we do
+      // NOT roll back (the new request must stand); the first inquiry already counts.
+      const [inq] = await tx
+        .insert(inquiry)
+        .values({ ownerId, clientId: c.id, source: 'link', sessionNonce })
+        .onConflictDoNothing({
+          target: [inquiry.ownerId, inquiry.sessionNonce],
+          where: eq(inquiry.source, 'link'),
+        })
+        .returning();
+
+      return { created: true, client: c, request: req, inquiry: inq };
+    });
+  } catch (err) {
+    if (err instanceof DuplicatePublicSession) return { created: false };
+    throw err;
+  }
 }

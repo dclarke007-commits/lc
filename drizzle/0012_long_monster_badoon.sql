@@ -1,0 +1,2 @@
+ALTER TABLE "pending_request" ADD COLUMN "session_nonce" text NOT NULL;--> statement-breakpoint
+CREATE UNIQUE INDEX "pending_request_owner_session_date_uq" ON "pending_request" USING btree ("owner_id","session_nonce","date");

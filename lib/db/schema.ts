@@ -380,8 +380,143 @@ export const token = pgTable(
       t.clientId,
       t.capability,
     ),
+    // Exactly ONE public token per owner (Story 4.1, AD-6). The index above CANNOT
+    // enforce this: Postgres treats NULL client_id values as DISTINCT, so multiple
+    // book-public rows (all client_id NULL) would coexist under it. This PARTIAL
+    // unique index scopes to the client-less rows only — at most one per
+    // (owner, capability) where client_id IS NULL. The public insert/rotate upsert
+    // uses this as the conflict arbiter (targetWhere client_id IS NULL).
+    uniqueIndex('token_owner_public_uq')
+      .on(t.ownerId, t.capability)
+      .where(sql`${t.clientId} is null`),
   ],
 );
 
 export type Token = typeof token.$inferSelect;
 export type NewToken = typeof token.$inferInsert;
+
+// PendingRequest lifecycle (Story 4.2, FR6/FR36, AD-4/AR5). A new-client public
+// request starts `pending` and NEITHER reserves NOR consumes capacity (AD-4): there
+// is no Job, no cap decrement, no lock — a row here is a stranger's *request*, not a
+// booking. The operator's approval queue (Story 4.3, FR36) transitions it: `approved`
+// runs commitBooking (the first approval on a shared slot wins), `declined` leaves the
+// slot untouched. `withdrawn` is a seam for a future client-cancel. Declared closed so
+// a fifth state is a deliberate schema change.
+export const pendingRequestStatus = pgEnum('pending_request_status', [
+  'pending',
+  'approved',
+  'declined',
+  'withdrawn',
+]);
+
+// PendingRequest (Story 4.2, FR6/AR5) — a new client's self-serve booking request,
+// awaiting operator approval. CRITICAL INVARIANT (AR5): this row holds NO capacity —
+// several pending requests may target the SAME day (no slot-uniqueness constraint),
+// and capacity is consumed ONLY when Story 4.3's approval calls commitBooking (AD-2).
+// `client_id` points at the provisional Client minted in the same submission. `date`
+// is the operator-local calendar day the stranger picked from the offered open set
+// (re-validated server-side, never trusted). Owner-scoped on every read/write (AD-8);
+// created_at is a UTC instant (AD-9).
+export const pendingRequest = pgTable(
+  'pending_request',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    // AD-8 tenancy seam: owner_id FK on every row, resolved from the public token
+    // (no session on the public surface). NOT NULL — an ownerless request is a leak.
+    ownerId: uuid('owner_id')
+      .notNull()
+      .references(() => operator.id, { onDelete: 'restrict' }),
+    // The provisional Client created in the same submission (Story 4.2).
+    clientId: uuid('client_id')
+      .notNull()
+      .references(() => client.id, { onDelete: 'restrict' }),
+    // Operator-local scheduled calendar day, 'YYYY-MM-DD' — NOT an instant. The day
+    // the stranger requested; the approval (4.3) re-checks the cap against it.
+    date: date('date', { mode: 'string' }).notNull(),
+    status: pendingRequestStatus('status').notNull().default('pending'),
+    // The per-render token-visit session nonce (AR12). Scopes request idempotency to
+    // (owner, nonce, date): a true double-tap of the SAME rendered form + SAME day
+    // collapses to one request, while a back-button resubmit of a DIFFERENT day in the
+    // same session is correctly recorded as a distinct request (never a silent lost
+    // booking) — even though the `link` Inquiry is still deduped to one per session.
+    sessionNonce: text('session_nonce').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
+      .defaultNow()
+      .notNull(),
+  },
+  (t) => [
+    // The approval queue (4.3) reads the owner's `pending` rows; the composite
+    // serves that owner-scoped-by-status read.
+    index('pending_request_owner_status_idx').on(t.ownerId, t.status),
+    index('pending_request_client_id_idx').on(t.clientId),
+    // Idempotency: at most one request per (owner, session_nonce, date). Deliberately
+    // NOT unique on (owner, date) alone — DIFFERENT visitors (distinct nonces) MAY
+    // target the same slot (FR36/AR5); only a same-visit same-day resubmit collapses.
+    uniqueIndex('pending_request_owner_session_date_uq').on(
+      t.ownerId,
+      t.sessionNonce,
+      t.date,
+    ),
+  ],
+);
+
+export type PendingRequest = typeof pendingRequest.$inferSelect;
+export type NewPendingRequest = typeof pendingRequest.$inferInsert;
+
+// Inquiry provenance (Story 4.2 AC2 / Story 4.4, FR37/AR12). Every inquiry carries a
+// source; a link visit that begins a booking auto-logs at most ONE `link` inquiry per
+// token-visit session (AR12), while phone/walk-in/referral/other are the operator's
+// manual logs (Story 4.4). Closed enum so an unlisted source is unpersistable.
+export const inquirySource = pgEnum('inquiry_source', [
+  'phone',
+  'walk-in',
+  'link',
+  'referral',
+  'other',
+]);
+
+// Inquiry (Story 4.2 AC2, FR37/AR12) — the inquiry→booking conversion denominator.
+// A `link` inquiry is auto-logged on a public new-client submission and DEDUPED to at
+// most one per token-visit session (AR12): `session_nonce` is the per-render visit
+// nonce embedded in the form, and the PARTIAL unique index below (source='link') makes
+// a double-tap of the same rendered form key to the SAME would-be row — the second
+// insert conflicts, which the submission transaction uses to stay fully idempotent
+// (one client + one pending request + one inquiry per session). Manual logs (Story 4.4)
+// carry no session_nonce (nullable). Owner-scoped (AD-8); created_at UTC (AD-9).
+export const inquiry = pgTable(
+  'inquiry',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    // AD-8 tenancy seam: owner_id FK on every row. NOT NULL — an ownerless inquiry
+    // would double-count into the wrong tenant's conversion metric.
+    ownerId: uuid('owner_id')
+      .notNull()
+      .references(() => operator.id, { onDelete: 'restrict' }),
+    // The provisional Client for a `link` inquiry; null for a bare manual log (4.4).
+    // set null on delete: an inquiry is a historical fact that must outlive the client.
+    clientId: uuid('client_id').references(() => client.id, {
+      onDelete: 'set null',
+    }),
+    source: inquirySource('source').notNull(),
+    // The per-render token-visit session nonce (AR12). Only `link` inquiries set it;
+    // it is the dedup key for the at-most-one-per-session invariant. Nullable so a
+    // future manual log (4.4) needs none.
+    sessionNonce: text('session_nonce'),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
+      .defaultNow()
+      .notNull(),
+  },
+  (t) => [
+    // Reads are owner-scoped (AD-8); the conversion derive (FR24/AR19) reads per owner.
+    index('inquiry_owner_id_idx').on(t.ownerId),
+    // AR12 invariant: at most one `link` inquiry per (owner, session_nonce). PARTIAL —
+    // scoped to link rows only (manual logs have a null nonce and must not collide),
+    // and the submission insert uses it as the ON CONFLICT DO NOTHING arbiter.
+    uniqueIndex('inquiry_owner_session_link_uq')
+      .on(t.ownerId, t.sessionNonce)
+      .where(sql`${t.source} = 'link'`),
+  ],
+);
+
+export type Inquiry = typeof inquiry.$inferSelect;
+export type NewInquiry = typeof inquiry.$inferInsert;

@@ -71,6 +71,27 @@
       "when": 1784228466387,
       "tag": "0009_awesome_mother_askani",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1784303253678,
+      "tag": "0010_condemned_christian_walker",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1784387080186,
+      "tag": "0011_remarkable_mongu",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1784393651860,
+      "tag": "0012_long_monster_badoon",
+      "breakpoints": true
     }
   ]
 }

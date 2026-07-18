@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "token_owner_public_uq" ON "token" USING btree ("owner_id","capability") WHERE "token"."client_id" is null;
