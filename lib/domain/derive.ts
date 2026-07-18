@@ -28,6 +28,84 @@ export interface DeriveJob {
   completion: string;
 }
 
+/**
+ * Ledger-eligibility (Story 5.1, FR29 / AR11 / AD-10). `payment` is orthogonal to
+ * `completion` but GATED: only a `completed` Job is ledger-eligible (`owed`/`paid`).
+ * A `booked`, `no-show`, or `cancelled` job is NEVER an outstanding obligation —
+ * regardless of its stored `payment` (a new booking defaults to `owed` while still
+ * `booked`). This is the SOLE definition of ledger-eligibility, mirroring the way
+ * capacity.consumesSlot is the sole definition of slot consumption: every ledger
+ * read (5.2 "who owes" aggregation, 5.3 reminder selection) and the 5.4 markPaid
+ * write path consult THIS predicate — the rule is never re-inlined elsewhere. The
+ * per-job amount is the job's frozen `priceCents` snapshot (stamped at booking),
+ * never the operator's current default — re-pricing never rewrites history.
+ */
+export function isLedgerEligible(job: { completion: string }): boolean {
+  return job.completion === 'completed';
+}
+
+/** A job row the ledger reads (Story 5.2) — completion gates eligibility, payment
+ * gates outstanding, priceCents is the frozen amount, client fields group it. */
+export interface LedgerJob {
+  clientId: string;
+  clientName: string;
+  completion: string;
+  payment: string; // 'paid' | 'owed'
+  priceCents: number;
+}
+
+/** One client's outstanding line in the "who owes" view. */
+export interface OutstandingClient {
+  clientId: string;
+  clientName: string;
+  owedCents: number; // sum of this client's owed, ledger-eligible job amounts
+  jobCount: number; // how many owed jobs make up owedCents
+}
+
+/** The outstanding-balance view: a grand total plus the per-client breakdown. */
+export interface OutstandingLedger {
+  totalCents: number;
+  clients: OutstandingClient[]; // owers only, highest owedCents first
+}
+
+/**
+ * "Who owes" (Story 5.2, FR30 / AR8 / AD-7). Derived on read from the passed rows —
+ * there is NO stored running total; pay or cancel a job and the next call reflects
+ * it with nothing to invalidate. A job counts toward the float iff it is
+ * ledger-eligible (isLedgerEligible — completed, AR11) AND its payment is `owed`:
+ * a `booked`/`no-show`/`cancelled` job carrying the default `owed` is excluded, so
+ * no phantom debt. Amounts are each job's frozen `priceCents` (integer cents,
+ * summed in cents — no float math). Clients are returned owers-only, highest
+ * balance first (stable tiebreak on name).
+ */
+export function outstanding(jobs: LedgerJob[]): OutstandingLedger {
+  const byClient = new Map<string, OutstandingClient>();
+  let totalCents = 0;
+
+  for (const j of jobs) {
+    if (!isLedgerEligible(j) || j.payment !== 'owed') continue;
+    totalCents += j.priceCents;
+    const line = byClient.get(j.clientId);
+    if (line) {
+      line.owedCents += j.priceCents;
+      line.jobCount += 1;
+    } else {
+      byClient.set(j.clientId, {
+        clientId: j.clientId,
+        clientName: j.clientName,
+        owedCents: j.priceCents,
+        jobCount: 1,
+      });
+    }
+  }
+
+  const clients = [...byClient.values()].sort(
+    (a, b) =>
+      b.owedCents - a.owedCents || a.clientName.localeCompare(b.clientName),
+  );
+  return { totalCents, clients };
+}
+
 /** One working day's capacity view, computed on read. */
 export interface DayCapacity {
   date: string; // 'YYYY-MM-DD'

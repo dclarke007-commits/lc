@@ -41,7 +41,7 @@
 # - Retrospective appends its action items to action_items; sprint-status surfaces open ones
 
 generated: 2026-07-15
-last_updated: 2026-07-17T11:47
+last_updated: 2026-07-18T13:12
 project: LovesCleaning
 # note: Epic 2 COMPLETE (dev + code-review, all 4 stories done) 2026-07-16 | 1-7 done (dev + code-review complete) 2026-07-16 — Epic 1 dev COMPLETE
 project_key: NOKEY
@@ -87,12 +87,12 @@ development_status:
   epic-4-retrospective: done
 
   # --- Epic 5: Cash Ledger — Plug the Payment Leak ---
-  epic-5: backlog
-  5-1-per-job-payment-status: backlog
-  5-2-outstanding-aggregation-who-owes: backlog
-  5-3-payment-reminder-draft: backlog
-  5-4-mark-paid: backlog
-  epic-5-retrospective: optional
+  epic-5: done
+  5-1-per-job-payment-status: done
+  5-2-outstanding-aggregation-who-owes: done
+  5-3-payment-reminder-draft: done
+  5-4-mark-paid: done
+  epic-5-retrospective: done
 
   # --- Epic 6: Leak-Detector Dashboard + Data Export ---
   epic-6: backlog

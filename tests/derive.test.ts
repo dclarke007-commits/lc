@@ -10,7 +10,10 @@ import {
   nearestOpen,
   weekCapacity,
   distinctInquiryCount,
+  isLedgerEligible,
+  outstanding,
   type DeriveJob,
+  type LedgerJob,
 } from '../lib/domain/derive';
 import { DEFAULT_CAPACITY, type CapacityConfig } from '../lib/domain/capacityConfig';
 
@@ -27,6 +30,94 @@ const SUN = '2026-07-19';
 function booked(date: string, n: number): DeriveJob[] {
   return Array.from({ length: n }, () => ({ date, completion: 'booked' }));
 }
+
+describe('derive.isLedgerEligible (Story 5.1, FR29/AR11)', () => {
+  it('a completed job IS ledger-eligible', () => {
+    expect(isLedgerEligible({ completion: 'completed' })).toBe(true);
+  });
+
+  it('booked / no-show / cancelled are NOT ledger-eligible', () => {
+    expect(isLedgerEligible({ completion: 'booked' })).toBe(false);
+    expect(isLedgerEligible({ completion: 'no-show' })).toBe(false);
+    expect(isLedgerEligible({ completion: 'cancelled' })).toBe(false);
+  });
+
+  it('gates on completion, NOT payment: a booked job carrying owed is still ineligible', () => {
+    // A new booking defaults to payment 'owed' (schema) while still `booked`;
+    // eligibility must ignore `payment` entirely and key only on completion (AR11).
+    expect(
+      isLedgerEligible({ completion: 'booked', payment: 'owed' } as {
+        completion: string;
+      }),
+    ).toBe(false);
+  });
+
+  it('amount is the per-job priceCents snapshot, independent of the config default', () => {
+    // The ledger reads the job's frozen priceCents (stamped at booking), never the
+    // operator's current defaultJobPriceCents — re-pricing never rewrites history.
+    const completedJob = { completion: 'completed', priceCents: 15000 };
+    expect(isLedgerEligible(completedJob)).toBe(true);
+    expect(completedJob.priceCents).toBe(15000);
+  });
+});
+
+describe('derive.outstanding — who owes (Story 5.2, FR30/AR8)', () => {
+  const ledgerJob = (o: Partial<LedgerJob>): LedgerJob => ({
+    clientId: 'c1',
+    clientName: 'Ann',
+    completion: 'completed',
+    payment: 'owed',
+    priceCents: 10000,
+    ...o,
+  });
+
+  it('empty book → zero total, no owers', () => {
+    expect(outstanding([])).toEqual({ totalCents: 0, clients: [] });
+  });
+
+  it('sums only completed+owed jobs (integer cents)', () => {
+    const total = outstanding([
+      ledgerJob({ priceCents: 10000 }),
+      ledgerJob({ priceCents: 5500 }),
+    ]);
+    expect(total.totalCents).toBe(15500);
+    expect(total.clients).toHaveLength(1);
+    expect(total.clients[0]).toMatchObject({ owedCents: 15500, jobCount: 2 });
+  });
+
+  it('excludes completed+paid (already settled)', () => {
+    expect(
+      outstanding([ledgerJob({ payment: 'paid', priceCents: 9999 })]).totalCents,
+    ).toBe(0);
+  });
+
+  it('excludes non-completed owed jobs — no phantom debt (AR11)', () => {
+    const jobs: LedgerJob[] = [
+      ledgerJob({ completion: 'booked', payment: 'owed' }),
+      ledgerJob({ completion: 'no-show', payment: 'owed' }),
+      ledgerJob({ completion: 'cancelled', payment: 'owed' }),
+    ];
+    expect(outstanding(jobs)).toEqual({ totalCents: 0, clients: [] });
+  });
+
+  it('groups by client and sorts by owedCents desc (name tiebreak)', () => {
+    const res = outstanding([
+      ledgerJob({ clientId: 'a', clientName: 'Ann', priceCents: 5000 }),
+      ledgerJob({ clientId: 'b', clientName: 'Bob', priceCents: 12000 }),
+      ledgerJob({ clientId: 'a', clientName: 'Ann', priceCents: 3000 }),
+    ]);
+    expect(res.totalCents).toBe(20000);
+    expect(res.clients.map((c) => c.clientId)).toEqual(['b', 'a']); // Bob 12000 > Ann 8000
+    expect(res.clients[1]).toMatchObject({ owedCents: 8000, jobCount: 2 });
+  });
+
+  it('is derived on read — mutating the input reflects immediately (AD-7)', () => {
+    const jobs = [ledgerJob({ priceCents: 10000 })];
+    expect(outstanding(jobs).totalCents).toBe(10000);
+    jobs[0].payment = 'paid'; // settle it
+    expect(outstanding(jobs).totalCents).toBe(0); // no stored total to invalidate
+  });
+});
 
 describe('derive.roomLeft (AC1, FR26)', () => {
   it('empty book → full ceiling (14) of room', () => {

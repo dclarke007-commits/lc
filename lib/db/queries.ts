@@ -15,6 +15,7 @@ import {
   sql,
 } from 'drizzle-orm';
 import { db } from './client';
+import type { LedgerJob } from '@/lib/domain/derive';
 import {
   operator,
   client,
@@ -171,6 +172,31 @@ export async function listJobs(ownerId: string): Promise<JobListItem[]> {
 export interface JobDateStatus {
   date: string;
   completion: string;
+}
+
+/**
+ * The owner's jobs projected for the ledger's "who owes" aggregation (Story 5.2):
+ * completion (eligibility gate), payment (owed gate), the frozen priceCents amount,
+ * and the client id/name for grouping. Owner-scoped on the VALUE (AD-8); the client
+ * join is owner-scoped too, so no other tenant's row is reachable. Kept as its own
+ * projection so `listJobs`/`JobListItem` stays lean. `derive.outstanding` does the
+ * filtering/summing on read — this query does no aggregation (AD-7).
+ */
+export async function listLedgerJobs(ownerId: string): Promise<LedgerJob[]> {
+  return db
+    .select({
+      clientId: job.clientId,
+      clientName: client.name,
+      completion: job.completion,
+      payment: job.payment,
+      priceCents: job.priceCents,
+    })
+    .from(job)
+    .innerJoin(
+      client,
+      and(eq(job.clientId, client.id), eq(client.ownerId, ownerId)),
+    )
+    .where(eq(job.ownerId, ownerId));
 }
 
 /**

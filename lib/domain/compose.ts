@@ -125,6 +125,28 @@ export function compose(
 }
 
 /**
+ * Compose a payment-reminder MessageDraft for a client who owes (Story 5.3, FR31).
+ * A reminder is NOT slot-bound, so `{slot}` blanks (empty string in). The amount is
+ * the ledger's integer-cents outstanding total (from derive.outstanding, 5.2),
+ * rendered by compose's formatAmount. Guarded: a non-integer or non-positive
+ * `owedCents` → null (never draft a "$0.00" reminder for someone who owes nothing).
+ * Pure and transport-agnostic like compose (AD-5) — the caller (the ledger Server
+ * Action) turns null into a typed `nothing-owed` failure and never dispatches here
+ * (FR19: reminders are operator-triggered on the send tap, never auto-sent).
+ */
+export function paymentReminderDraft(
+  client: ComposeClient,
+  owedCents: number,
+  templateBody: string,
+): MessageDraft | null {
+  if (!Number.isInteger(owedCents) || owedCents <= 0) return null;
+  return compose(client, '', owedCents, {
+    type: 'payment_reminder',
+    body: templateBody,
+  });
+}
+
+/**
  * The deterministic per-draft idempotency nonce for a Job's booking-confirmation
  * draft (Story 2.4, Open gap #2). Keyed on the Job id, NOT a random value: an
  * idempotent repeat `commitBooking` (AD-12) returns the SAME Job, so the same nonce
