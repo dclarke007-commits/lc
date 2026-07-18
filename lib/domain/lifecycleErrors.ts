@@ -6,6 +6,8 @@
 // reads it and renders a server-side banner with zero client JS (NFR1). No
 // framework imports.
 
+import { safeErrorMessage } from './errorMessage';
+
 const LIFECYCLE_ERROR_MESSAGES: Record<string, string> = {
   'job-not-found': 'That job could not be found.',
   'illegal-transition': 'That change is not allowed from the job’s current state.',
@@ -40,9 +42,5 @@ const LIFECYCLE_ERROR_MESSAGES: Record<string, string> = {
 export function lifecycleErrorMessage(
   reason: string | undefined,
 ): string | null {
-  if (!reason) return null;
-  return (
-    LIFECYCLE_ERROR_MESSAGES[reason] ??
-    'Something went wrong — please try again.'
-  );
+  return safeErrorMessage(LIFECYCLE_ERROR_MESSAGES, reason);
 }

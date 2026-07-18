@@ -4,6 +4,8 @@
 // action wrapper redirects to `?error=<reason>`, the page reads it and calls
 // this. No framework imports.
 
+import { safeErrorMessage } from './errorMessage';
+
 const CLIENT_ERROR_MESSAGES: Record<string, string> = {
   'name-required': 'Name is required.',
   'phone-required': 'Phone is required.',
@@ -25,6 +27,5 @@ const CLIENT_ERROR_MESSAGES: Record<string, string> = {
 
 /** Human-readable text for an action reason. Unknown reasons get a safe fallback. */
 export function clientErrorMessage(reason: string | undefined): string | null {
-  if (!reason) return null;
-  return CLIENT_ERROR_MESSAGES[reason] ?? 'Something went wrong — please try again.';
+  return safeErrorMessage(CLIENT_ERROR_MESSAGES, reason);
 }

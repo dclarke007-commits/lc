@@ -4,6 +4,8 @@
 // it and calls this to render a server-side banner with zero client JS (NFR1).
 // No framework imports.
 
+import { safeErrorMessage } from './errorMessage';
+
 const CAPACITY_ERROR_MESSAGES: Record<string, string> = {
   'working-days-required': 'Choose at least one working day.',
   'working-day-invalid': 'Working days are invalid.',
@@ -18,8 +20,5 @@ const CAPACITY_ERROR_MESSAGES: Record<string, string> = {
 
 /** Human-readable text for a capacity action reason. Unknown → safe fallback. */
 export function capacityErrorMessage(reason: string | undefined): string | null {
-  if (!reason) return null;
-  return (
-    CAPACITY_ERROR_MESSAGES[reason] ?? 'Something went wrong — please try again.'
-  );
+  return safeErrorMessage(CAPACITY_ERROR_MESSAGES, reason);
 }

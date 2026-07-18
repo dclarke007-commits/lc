@@ -4,6 +4,8 @@
 // and renders a server-side banner with zero client JS (NFR1). No framework
 // imports. `day-maxed`/`week-full` are the FR9 capacity reasons.
 
+import { safeErrorMessage } from './errorMessage';
+
 const BOOKING_ERROR_MESSAGES: Record<string, string> = {
   'day-maxed': 'That day is full. Turn on override to book past the cap.',
   'week-full': 'That week is full. Turn on override to book past it.',
@@ -22,13 +24,5 @@ const BOOKING_ERROR_MESSAGES: Record<string, string> = {
 
 /** Human-readable text for a booking action reason. Unknown → safe fallback. */
 export function bookingErrorMessage(reason: string | undefined): string | null {
-  if (!reason) return null;
-  // Own-property check, not `[reason] ?? fallback` (code-review 2026-07-16, P2):
-  // a tampered ?error=__proto__/constructor/toString would otherwise return a
-  // truthy inherited object/function that the RSC renders as a React child → 500.
-  // Mirrors the guard in templateErrors.ts.
-  if (!Object.hasOwn(BOOKING_ERROR_MESSAGES, reason)) {
-    return 'Something went wrong — please try again.';
-  }
-  return BOOKING_ERROR_MESSAGES[reason];
+  return safeErrorMessage(BOOKING_ERROR_MESSAGES, reason);
 }
