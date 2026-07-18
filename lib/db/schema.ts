@@ -124,10 +124,10 @@ export const capacitySettings = pgTable(
   },
   (t) => [
     // Single-row-per-owner invariant: at most one settings row per owner. The
-    // action UPSERTs on this conflict target.
+    // action UPSERTs on this conflict target. This single-column unique index
+    // ALSO serves every owner-scoped read (AD-8) — a separate non-unique
+    // owner_id index would be fully redundant (Epic-1 retro cleanup).
     uniqueIndex('capacity_settings_owner_uq').on(t.ownerId),
-    // Reads are always owner-scoped (AD-8); index the filter column.
-    index('capacity_settings_owner_id_idx').on(t.ownerId),
   ],
 );
 

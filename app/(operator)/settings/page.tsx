@@ -11,6 +11,21 @@ import { capacityErrorMessage } from '@/lib/domain/capacityErrors';
 
 export const dynamic = 'force-dynamic';
 
+// Common IANA timezones offered in the picker (phone-first, zero-JS <select> —
+// NFR1). Server-side validation (`timezone-invalid`) still accepts ANY valid
+// IANA zone; the operator's persisted zone is always merged in below so a value
+// outside this list is never silently dropped on save.
+const COMMON_TIMEZONES: string[] = [
+  'America/New_York',
+  'America/Chicago',
+  'America/Denver',
+  'America/Phoenix',
+  'America/Los_Angeles',
+  'America/Anchorage',
+  'Pacific/Honolulu',
+  'UTC',
+];
+
 // ISO weekday ints 1=Mon .. 7=Sun (matches lib/domain/clock.ts).
 const WEEKDAYS: { value: number; label: string }[] = [
   { value: 1, label: 'Mon' },
@@ -52,6 +67,11 @@ export default async function SettingsPage({
   const errorMsg = capacityErrorMessage(sp.error);
   const saved = sp.saved === '1';
   const workingDaySet = new Set(config.workingDays);
+  // Merge the persisted zone in (deduped) so a stored value outside the common
+  // list is still selectable and never silently reset on the next save.
+  const timezoneOptions = COMMON_TIMEZONES.includes(config.timezone)
+    ? COMMON_TIMEZONES
+    : [config.timezone, ...COMMON_TIMEZONES];
 
   return (
     <main style={{ padding: '1.5rem', maxWidth: 640 }}>
@@ -161,13 +181,13 @@ export default async function SettingsPage({
 
         <label style={field}>
           Timezone
-          <input
-            style={input}
-            name="timezone"
-            type="text"
-            defaultValue={config.timezone}
-            required
-          />
+          <select style={input} name="timezone" defaultValue={config.timezone} required>
+            {timezoneOptions.map((tz) => (
+              <option key={tz} value={tz}>
+                {tz}
+              </option>
+            ))}
+          </select>
         </label>
 
         <button

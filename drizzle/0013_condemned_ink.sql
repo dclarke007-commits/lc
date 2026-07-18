@@ -1,0 +1,1 @@
+DROP INDEX "capacity_settings_owner_id_idx";
