@@ -200,6 +200,43 @@ export async function listLedgerJobs(ownerId: string): Promise<LedgerJob[]> {
 }
 
 /**
+ * Lean, name-free projection every DASHBOARD metric + the clients-surface lapse
+ * annotation reads (Story 6.1; absorbs the Epic-5 retro perf debt). One owner-scoped
+ * query with NO client-name join — the goneCold/repeat/lapse/revenue derives never
+ * read the name (unlike `listJobs`/`JobListItem`, kept for the jobs page which does).
+ * Carries exactly the fields the derives consume: `clientId` (grouping/follow-on
+ * match), `completion` (eligibility/lapse), scheduled `date` (lapse basis), the UTC
+ * instants `completedAt`/`createdAt` (addendum-F repeat-rate, AR19 — never the
+ * scheduled date as a substitute), and the frozen `priceCents` (revenue). Owner-scoped
+ * on the VALUE (AD-8). Aggregation stays in `derive` on read (AD-7); this query sums
+ * nothing. Wrap in React `cache()` at the call site to de-dupe within one render.
+ */
+export interface JobMetricsRow {
+  clientId: string;
+  completion: string;
+  date: string;
+  completedAt: string | null;
+  createdAt: string;
+  priceCents: number;
+}
+
+export async function listJobsForMetrics(
+  ownerId: string,
+): Promise<JobMetricsRow[]> {
+  return db
+    .select({
+      clientId: job.clientId,
+      completion: job.completion,
+      date: job.date,
+      completedAt: job.completedAt,
+      createdAt: job.createdAt,
+      priceCents: job.priceCents,
+    })
+    .from(job)
+    .where(eq(job.ownerId, ownerId));
+}
+
+/**
  * The owner's jobs scheduled on or after `fromDateKey` ('YYYY-MM-DD') — the
  * bounded window derive (Story 1.7) reads to compute room-left/day-maxed for the
  * current week and scan forward for nearest-open. Owner-scoped on the VALUE
