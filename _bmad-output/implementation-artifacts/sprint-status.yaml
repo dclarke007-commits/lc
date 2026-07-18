@@ -89,7 +89,7 @@ development_status:
   # --- Epic 5: Cash Ledger — Plug the Payment Leak ---
   epic-5: in-progress
   5-1-per-job-payment-status: done
-  5-2-outstanding-aggregation-who-owes: backlog
+  5-2-outstanding-aggregation-who-owes: done
   5-3-payment-reminder-draft: backlog
   5-4-mark-paid: backlog
   epic-5-retrospective: optional
