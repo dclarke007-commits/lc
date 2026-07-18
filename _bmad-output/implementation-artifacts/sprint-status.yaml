@@ -41,7 +41,7 @@
 # - Retrospective appends its action items to action_items; sprint-status surfaces open ones
 
 generated: 2026-07-15
-last_updated: 2026-07-18T13:12
+last_updated: 2026-07-18T15:20
 project: LovesCleaning
 # note: Epic 2 COMPLETE (dev + code-review, all 4 stories done) 2026-07-16 | 1-7 done (dev + code-review complete) 2026-07-16 — Epic 1 dev COMPLETE
 project_key: NOKEY
@@ -95,12 +95,12 @@ development_status:
   epic-5-retrospective: done
 
   # --- Epic 6: Leak-Detector Dashboard + Data Export ---
-  epic-6: backlog
-  6-1-single-screen-dashboard-core: backlog
-  6-2-leak-indicators: backlog
-  6-3-gone-cold-list-with-win-back-access: backlog
-  6-4-csv-export: backlog
-  epic-6-retrospective: optional
+  epic-6: in-progress
+  6-1-single-screen-dashboard-core: done
+  6-2-leak-indicators: done
+  6-3-gone-cold-list-with-win-back-access: done
+  6-4-csv-export: done
+  epic-6-retrospective: done
 
 action_items:
   - epic: 3
@@ -114,7 +114,7 @@ action_items:
   - epic: 3
     action: "Before Epic 6 dashboard (FR23) surfaces lapse at scale, address deferred perf: bounded/per-client listJobs projection, drop unused clientName join, de-dupe winback double-load"
     owner: "Developer"
-    status: open
+    status: done
   - epic: 3
     action: "Establish a fail-pattern-uniformity check for RSC read surfaces (every read path fail-closed/open consistently, AD-8)"
     owner: "Developer"
@@ -130,4 +130,24 @@ action_items:
   - epic: 4
     action: "Public write surfaces (4.2 submit, 4.4 log) have no rate limiting — accepted gap (LOCKED). Add per-IP throttle + provisional-row cap before/when the app becomes multi-tenant or lower-trust."
     owner: "Developer"
+    status: open
+  - epic: 6
+    action: "Owner-isolation DB-integration tests for dashboard/export data paths (listJobsForMetrics, listJobsForExport, getDashboardMetrics/getLeakIndicators/getGoneColdList/exportClientsCsv/exportJobsCsv). Scoping confirmed by security review; tests would lock it."
+    owner: "Developer"
+    status: open
+  - epic: 6
+    action: "Add explicit caughtCold/lapse boundary tests to tests/derive.test.ts: today-8 exclusion + a year/month rollover case (adversarial testing gap)."
+    owner: "Developer"
+    status: open
+  - epic: 6
+    action: "Cross-action today consistency test: assert lapsed count, caught-cold count, and gone-cold list agree within one render (the renderNow fix is untested)."
+    owner: "Developer"
+    status: open
+  - epic: 6
+    action: "Repeat/Lapsed label nuance — the 6-1 counts are independent, not a partition (a repeat client can also be lapsed). Consider a surface label/copy tweak."
+    owner: "Developer"
+    status: open
+  - epic: 6
+    action: "Defense-in-depth auth decision (app-wide): whether operator Server Actions should verify session in-action (shared requireOperatorSession) vs rely solely on proxy.ts middleware. Pre-existing AD-6 pattern, not an Epic-6 regression."
+    owner: "Project Lead + Developer"
     status: open

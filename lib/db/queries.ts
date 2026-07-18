@@ -168,6 +168,48 @@ export async function listJobs(ownerId: string): Promise<JobListItem[]> {
     .orderBy(desc(job.date), asc(job.id));
 }
 
+/**
+ * A job row shaped for the CSV data-export (Story 6.4, FR35/AR17). Carries the
+ * human-meaningful columns the operator owns — the client's NAME (not just the id),
+ * the scheduled day, lifecycle + payment state, the frozen amount, and the timestamps.
+ * Owner-scoped on the VALUE (AD-8) on BOTH the job filter AND the client join, so no
+ * other tenant's row is reachable (AR9). Its own projection so `listJobs`/`JobListItem`
+ * (the jobs page) and `listJobsForMetrics` (the dashboard derives) stay lean.
+ */
+export interface JobExportRow {
+  id: string;
+  clientName: string;
+  date: string;
+  completion: string;
+  payment: string;
+  priceCents: number;
+  completedAt: string | null;
+  createdAt: string;
+}
+
+export async function listJobsForExport(
+  ownerId: string,
+): Promise<JobExportRow[]> {
+  return db
+    .select({
+      id: job.id,
+      clientName: client.name,
+      date: job.date,
+      completion: job.completion,
+      payment: job.payment,
+      priceCents: job.priceCents,
+      completedAt: job.completedAt,
+      createdAt: job.createdAt,
+    })
+    .from(job)
+    .innerJoin(
+      client,
+      and(eq(job.clientId, client.id), eq(client.ownerId, ownerId)),
+    )
+    .where(eq(job.ownerId, ownerId))
+    .orderBy(desc(job.date), asc(job.id));
+}
+
 /** The minimal Job projection derive-on-read needs (Story 1.7): date + status. */
 export interface JobDateStatus {
   date: string;
@@ -196,6 +238,43 @@ export async function listLedgerJobs(ownerId: string): Promise<LedgerJob[]> {
       client,
       and(eq(job.clientId, client.id), eq(client.ownerId, ownerId)),
     )
+    .where(eq(job.ownerId, ownerId));
+}
+
+/**
+ * Lean, name-free projection every DASHBOARD metric + the clients-surface lapse
+ * annotation reads (Story 6.1; absorbs the Epic-5 retro perf debt). One owner-scoped
+ * query with NO client-name join — the goneCold/repeat/lapse/revenue derives never
+ * read the name (unlike `listJobs`/`JobListItem`, kept for the jobs page which does).
+ * Carries exactly the fields the derives consume: `clientId` (grouping/follow-on
+ * match), `completion` (eligibility/lapse), scheduled `date` (lapse basis), the UTC
+ * instants `completedAt`/`createdAt` (addendum-F repeat-rate, AR19 — never the
+ * scheduled date as a substitute), and the frozen `priceCents` (revenue). Owner-scoped
+ * on the VALUE (AD-8). Aggregation stays in `derive` on read (AD-7); this query sums
+ * nothing. Wrap in React `cache()` at the call site to de-dupe within one render.
+ */
+export interface JobMetricsRow {
+  clientId: string;
+  completion: string;
+  date: string;
+  completedAt: string | null;
+  createdAt: string;
+  priceCents: number;
+}
+
+export async function listJobsForMetrics(
+  ownerId: string,
+): Promise<JobMetricsRow[]> {
+  return db
+    .select({
+      clientId: job.clientId,
+      completion: job.completion,
+      date: job.date,
+      completedAt: job.completedAt,
+      createdAt: job.createdAt,
+      priceCents: job.priceCents,
+    })
+    .from(job)
     .where(eq(job.ownerId, ownerId));
 }
 

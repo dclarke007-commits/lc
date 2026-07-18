@@ -8,6 +8,7 @@
 // crosses the boundary; no silent catch. Only lib/db speaks SQL (AD-1) — this
 // action reaches it directly; surfaces never do.
 
+import { cache } from 'react';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { and, eq } from 'drizzle-orm';
@@ -18,7 +19,7 @@ import {
   getOwnerId,
   listClients,
   getClient,
-  listJobs,
+  listJobsForMetrics,
   getCapacitySettings,
   getMessageTemplates,
 } from '@/lib/db/queries';
@@ -190,6 +191,15 @@ async function resolveConfig(ownerId: string): Promise<CapacityConfig> {
     : DEFAULT_CAPACITY;
 }
 
+/**
+ * Per-request de-duped read of the owner's jobs (Epic-5 retro perf debt, Story 6.1).
+ * `listOwnerClientsWithLapse` (the client list) and `deriveWinBack` (the win-back
+ * panel) both run during the SAME /clients render; React `cache()` collapses their
+ * two reads into one DB round-trip per request. It is request-scoped (NOT `use cache`
+ * — an operator surface stays live, AD-13), so a later render re-reads fresh rows.
+ */
+const jobsForMetrics = cache((ownerId: string) => listJobsForMetrics(ownerId));
+
 /** Group the owner's jobs into per-client DeriveJob projections (date + completion). */
 function jobsByClient(
   jobs: { clientId: string; date: string; completion: string }[],
@@ -221,7 +231,7 @@ export async function listOwnerClientsWithLapse(): Promise<ClientRow[]> {
   try {
     const config = await resolveConfig(ownerId);
     const today = localDateKey(new Date(), config.timezone);
-    const byClient = jobsByClient(await listJobs(ownerId));
+    const byClient = jobsByClient(await jobsForMetrics(ownerId));
     return clients.map((c) => ({
       ...c,
       goneCold: goneCold(c.cadence, byClient.get(c.id) ?? [], today),
@@ -267,7 +277,8 @@ async function deriveWinBack(
     // from canonical rows on the tap — the same view-time computation the list rendered.
     const config = await resolveConfig(ownerId);
     const today = localDateKey(new Date(), config.timezone);
-    const clientJobs = jobsByClient(await listJobs(ownerId)).get(clientId) ?? [];
+    const clientJobs =
+      jobsByClient(await jobsForMetrics(ownerId)).get(clientId) ?? [];
     if (!goneCold(c.cadence, clientJobs, today)) return fail('not-gone-cold');
 
     // The operator's win_back copy, or the domain default when unseeded (mirrors the

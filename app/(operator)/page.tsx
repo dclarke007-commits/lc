@@ -2,7 +2,32 @@ import Link from 'next/link';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { SESSION_COOKIE, verifySession } from '@/lib/auth/session';
-import { getDashboardCapacity } from './actions';
+import { ExportButtons } from './export/ExportButtons';
+import {
+  getDashboardCapacity,
+  getDashboardMetrics,
+  getLeakIndicators,
+  getGoneColdList,
+} from './actions';
+
+// Presentation-only: integer cents → "$1,234". No float math crosses the domain;
+// this is a label. Whole dollars — the operator reads trajectory, not pennies.
+function fmtCents(cents: number): string {
+  return `$${Math.round(cents / 100).toLocaleString('en-US')}`;
+}
+
+// Signed delta with an explicit +, for the month-over-month revenue trend.
+function fmtDeltaCents(cents: number): string {
+  const sign = cents > 0 ? '+' : cents < 0 ? '−' : '';
+  return `${sign}${fmtCents(Math.abs(cents))}`;
+}
+
+// A conversion ratio → whole-percent label. null (empty denominator) renders "—"
+// (FR25 — "no data" is never shown as "0%"). Presentation-only; the domain returns
+// the raw ratio and decides null vs a number.
+function fmtRate(ratio: number | null): string {
+  return ratio === null ? '—' : `${Math.round(ratio * 100)}%`;
+}
 
 // Operator surfaces stay dynamic — never `use cache` (AD-7/AD-13). Capacity is
 // derived on read, so the numbers below are live mid-call.
@@ -24,6 +49,26 @@ const cell: React.CSSProperties = {
   textAlign: 'left',
 };
 
+// Story 6.1 metric tiles — phone-legible, one number each.
+const tile: React.CSSProperties = {
+  border: '1px solid #e2e2e2',
+  borderRadius: 8,
+  padding: '0.75rem',
+};
+const tileLabel: React.CSSProperties = {
+  fontSize: '0.8rem',
+  color: '#666',
+  textTransform: 'uppercase',
+  letterSpacing: '0.03em',
+};
+const tileValue: React.CSSProperties = {
+  fontSize: '1.5rem',
+  fontWeight: 600,
+  marginTop: '0.2rem',
+};
+const tileUnit: React.CSSProperties = { fontSize: '1rem', color: '#888', fontWeight: 400 };
+const tileWhy: React.CSSProperties = { fontSize: '0.75rem', color: '#888', marginTop: '0.3rem' };
+
 // Empty authenticated shell + at-a-glance capacity (Story 1.7). proxy.ts gates
 // this route; the in-page session read is defense-in-depth (AD-6).
 export default async function DashboardPage() {
@@ -34,11 +79,183 @@ export default async function DashboardPage() {
 
   // Derived on read (AD-7) via the action layer — surfaces never touch derive/db.
   const cap = await getDashboardCapacity();
+  const metrics = await getDashboardMetrics();
+  const leaks = await getLeakIndicators();
+  const cold = await getGoneColdList();
   const full = cap.roomLeft === 0;
+  const revenueUp = metrics.revenueDeltaCents >= 0;
 
   return (
     <main style={{ padding: '1.5rem', maxWidth: 640 }}>
       <h1 style={{ fontSize: '1.25rem', margin: 0 }}>Operator dashboard</h1>
+
+      {/* Story 6.1 — the honest numbers. Each tile maps to a named leak or a
+          cash/capacity decision (FR25, NFR1); nothing vanity ships here. */}
+      <section
+        aria-labelledby="metrics-heading"
+        style={{
+          marginTop: '1rem',
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
+          gap: '0.75rem',
+        }}
+      >
+        <h2 id="metrics-heading" style={{ gridColumn: '1 / -1', fontSize: '1rem', margin: 0 }}>
+          The numbers
+        </h2>
+
+        {/* Capacity decision */}
+        <div style={tile}>
+          <div style={tileLabel}>Utilization</div>
+          <div style={tileValue}>
+            {metrics.consuming}
+            <span style={tileUnit}> / {metrics.weeklyCeiling}</span>
+          </div>
+          <div style={tileWhy}>booked this week — capacity</div>
+        </div>
+
+        {/* Payment leak */}
+        <div style={tile}>
+          <div style={tileLabel}>Outstanding</div>
+          <div
+            style={{
+              ...tileValue,
+              color: metrics.outstandingTotalCents > 0 ? '#b00020' : '#0a5c2b',
+            }}
+          >
+            {fmtCents(metrics.outstandingTotalCents)}
+          </div>
+          <div style={tileWhy}>owed to you — payment leak</div>
+        </div>
+
+        {/* Cash trajectory */}
+        <div style={tile}>
+          <div style={tileLabel}>Revenue (mo.)</div>
+          <div style={tileValue}>{fmtCents(metrics.revenueThisMonthCents)}</div>
+          <div style={{ ...tileWhy, color: revenueUp ? '#0a5c2b' : '#b00020' }}>
+            {fmtDeltaCents(metrics.revenueDeltaCents)} vs last month
+          </div>
+        </div>
+
+        {/* Retention — revenue leak */}
+        <div style={tile}>
+          <div style={tileLabel}>Repeat / Lapsed</div>
+          <div style={tileValue}>
+            {metrics.repeatCount}
+            <span style={tileUnit}> / </span>
+            <span style={{ color: metrics.lapsedCount > 0 ? '#b00020' : undefined }}>
+              {metrics.lapsedCount}
+            </span>
+          </div>
+          <div style={tileWhy}>
+            repeat rate{' '}
+            {metrics.repeatRate === null
+              ? '—'
+              : `${Math.round(metrics.repeatRate * 100)}%`}{' '}
+            (30d)
+          </div>
+        </div>
+      </section>
+
+      {/* Story 6.2 — the three leak indicators, front and center (FR24, AR19).
+          Each is a conversion the operator can watch close: is the inquiry leak,
+          the one-time leak, or a fresh regular-lapse the one to act on now? */}
+      <section
+        aria-labelledby="leaks-heading"
+        style={{
+          marginTop: '1rem',
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
+          gap: '0.75rem',
+        }}
+      >
+        <h2 id="leaks-heading" style={{ gridColumn: '1 / -1', fontSize: '1rem', margin: 0 }}>
+          Leak indicators
+        </h2>
+
+        {/* Inquiry leak (Epic 4) */}
+        <div style={tile}>
+          <div style={tileLabel}>Inquiry → booking</div>
+          <div style={tileValue}>{fmtRate(leaks.inquiryRate)}</div>
+          <div style={tileWhy}>
+            {leaks.inquiryBookings} booked / {leaks.inquiryCount} inquiries — inquiry leak
+          </div>
+        </div>
+
+        {/* Rebooking leak (Epic 3) */}
+        <div style={tile}>
+          <div style={tileLabel}>One-time → repeat</div>
+          <div style={tileValue}>{fmtRate(leaks.oneTimeRate)}</div>
+          <div style={tileWhy}>
+            {leaks.oneTimeConverted} of {leaks.oneTimeClients} one-timers came back — rebooking leak
+          </div>
+        </div>
+
+        {/* Fresh lapse — act now */}
+        <div style={tile}>
+          <div style={tileLabel}>Caught cold (7d)</div>
+          <div
+            style={{
+              ...tileValue,
+              color: leaks.caughtColdThisWeek > 0 ? '#b00020' : '#0a5c2b',
+            }}
+          >
+            {leaks.caughtColdThisWeek}
+          </div>
+          <div style={tileWhy}>regulars just slipped — win them back now</div>
+        </div>
+      </section>
+
+      {/* Story 6.3 — the gone-cold list with direct win-back (FR23). Each cold
+          regular is one tap from the Story-3.6 win-back panel, which re-derives the
+          gone-cold gate server-side (this list is never trusted as authorization). */}
+      <section
+        aria-labelledby="cold-heading"
+        style={{
+          marginTop: '1rem',
+          border: '1px solid #e2e2e2',
+          borderRadius: 8,
+          padding: '1rem',
+        }}
+      >
+        <h2 id="cold-heading" style={{ fontSize: '1rem', margin: '0 0 0.5rem' }}>
+          Gone cold &middot; win them back
+        </h2>
+        {cold.length === 0 ? (
+          <p style={{ margin: 0, color: '#0a5c2b', fontSize: '0.9rem' }}>
+            No regulars are cold right now.
+          </p>
+        ) : (
+          <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
+            {cold.map((c) => (
+              <li
+                key={c.id}
+                style={{
+                  display: 'flex',
+                  alignItems: 'baseline',
+                  justifyContent: 'space-between',
+                  gap: '0.75rem',
+                  padding: '0.5rem 0',
+                  borderBottom: '1px solid #eee',
+                }}
+              >
+                <span>
+                  <strong>{c.name}</strong>{' '}
+                  <span style={{ color: '#888', fontSize: '0.85rem' }}>
+                    due {fmtDay(c.expectedNextDate)}
+                  </span>
+                </span>
+                <Link
+                  href={`/clients?winback=${encodeURIComponent(c.id)}`}
+                  style={{ whiteSpace: 'nowrap' }}
+                >
+                  Win back →
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
 
       <section
         aria-labelledby="cap-heading"
@@ -132,6 +349,27 @@ export default async function DashboardPage() {
             ))}
           </tbody>
         </table>
+      </section>
+
+      {/* Story 6.4 — data ownership. Export the owner's clients + jobs as CSV so the
+          data is owned, not rented (FR35, NFR5). Server Action does the owner-scoped
+          read + serialize; this is only the download trigger. */}
+      <section
+        aria-labelledby="export-heading"
+        style={{
+          marginTop: '1rem',
+          border: '1px solid #e2e2e2',
+          borderRadius: 8,
+          padding: '1rem',
+        }}
+      >
+        <h2 id="export-heading" style={{ fontSize: '1rem', margin: '0 0 0.5rem' }}>
+          Own your data
+        </h2>
+        <p style={{ margin: '0 0 0.75rem', fontSize: '0.85rem', color: '#666' }}>
+          Download your clients and jobs as CSV — your data, not rented.
+        </p>
+        <ExportButtons />
       </section>
 
       <nav style={{ marginTop: '1rem', display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>

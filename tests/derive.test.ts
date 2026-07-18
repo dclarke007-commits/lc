@@ -12,8 +12,19 @@ import {
   distinctInquiryCount,
   isLedgerEligible,
   outstanding,
+  monthlyRevenue,
+  repeatBookingRate,
+  repeatVsLapsedCounts,
+  inquiryConversion,
+  oneTimeToRepeat,
+  caughtColdThisWeek,
+  goneColdList,
   type DeriveJob,
   type LedgerJob,
+  type RevenueJob,
+  type RepeatRateJob,
+  type ClientLifecycle,
+  type LapseClient,
 } from '../lib/domain/derive';
 import { DEFAULT_CAPACITY, type CapacityConfig } from '../lib/domain/capacityConfig';
 
@@ -338,5 +349,319 @@ describe('derive.distinctInquiryCount (AC2, AR12)', () => {
         { clientId: null },
       ]),
     ).toBe(4); // distinct clients {c1,c2}=2 + 2 anonymous
+  });
+});
+
+// --- Story 6.1: dashboard core metrics -------------------------------------------
+// Chicago is UTC-5 during July DST, which lets a UTC instant just after midnight fall
+// into the PREVIOUS local calendar day/month — the case AD-9 (operator-local) exists for.
+const TZ = 'America/Chicago';
+
+describe('derive.monthlyRevenue (Story 6.1, FR22/AR8)', () => {
+  const now = new Date('2026-07-15T12:00:00Z'); // local July → this=2026-07, last=2026-06
+
+  it('sums ledger-eligible amounts into this vs last operator-local month', () => {
+    const jobs: RevenueJob[] = [
+      { completion: 'completed', completedAt: '2026-07-10T12:00:00Z', priceCents: 20000 }, // this
+      { completion: 'completed', completedAt: '2026-06-20T12:00:00Z', priceCents: 15000 }, // last
+    ];
+    expect(monthlyRevenue(jobs, now, TZ)).toEqual({
+      thisMonthCents: 20000,
+      lastMonthCents: 15000,
+      deltaCents: 5000,
+    });
+  });
+
+  it('buckets by operator-local month, not UTC (AD-9)', () => {
+    // 2026-08-01T04:30Z is 2026-07-31 23:30 in Chicago → counts as THIS month (July).
+    const jobs: RevenueJob[] = [
+      { completion: 'completed', completedAt: '2026-08-01T04:30:00Z', priceCents: 5000 },
+    ];
+    expect(monthlyRevenue(jobs, now, TZ).thisMonthCents).toBe(5000);
+  });
+
+  it('excludes no-show / cancelled / booked (not ledger-eligible) and out-of-window months', () => {
+    const jobs: RevenueJob[] = [
+      { completion: 'no-show', completedAt: '2026-07-05T12:00:00Z', priceCents: 99999 },
+      { completion: 'cancelled', completedAt: '2026-07-05T12:00:00Z', priceCents: 99999 },
+      { completion: 'booked', completedAt: null, priceCents: 99999 },
+      { completion: 'completed', completedAt: '2026-05-01T12:00:00Z', priceCents: 99999 }, // May
+    ];
+    expect(monthlyRevenue(jobs, now, TZ)).toEqual({
+      thisMonthCents: 0,
+      lastMonthCents: 0,
+      deltaCents: 0,
+    });
+  });
+
+  it('handles the January → previous-December year rollover', () => {
+    const jan = new Date('2027-01-10T12:00:00Z');
+    const jobs: RevenueJob[] = [
+      { completion: 'completed', completedAt: '2026-12-20T12:00:00Z', priceCents: 8000 },
+    ];
+    expect(monthlyRevenue(jobs, jan, TZ).lastMonthCents).toBe(8000);
+  });
+});
+
+describe('derive.repeatBookingRate — addendum-F rolling 30-day (Story 6.1, AR19)', () => {
+  const now = new Date('2026-07-31T12:00:00Z'); // window: (2026-07-01T12:00Z, 2026-07-31T12:00Z]
+
+  it('null (not 0) when no completed jobs in the window', () => {
+    const jobs: RepeatRateJob[] = [
+      { clientId: 'c1', completion: 'booked', completedAt: null, createdAt: '2026-07-10T12:00:00Z' },
+      // completed but BEFORE the window
+      { clientId: 'c2', completion: 'completed', completedAt: '2026-05-01T12:00:00Z', createdAt: '2026-05-01T12:00:00Z' },
+    ];
+    expect(repeatBookingRate(jobs, now)).toBeNull();
+  });
+
+  it('same-client follow-on within 30 days counts; a lone completion does not', () => {
+    const jobs: RepeatRateJob[] = [
+      // c1 completed in window + a follow-on booking created 10 days later → numerator
+      { clientId: 'c1', completion: 'completed', completedAt: '2026-07-10T12:00:00Z', createdAt: '2026-07-10T12:00:00Z' },
+      { clientId: 'c1', completion: 'booked', completedAt: null, createdAt: '2026-07-20T12:00:00Z' },
+      // c2 completed in window, no follow-on → denominator only
+      { clientId: 'c2', completion: 'completed', completedAt: '2026-07-15T12:00:00Z', createdAt: '2026-07-15T12:00:00Z' },
+    ];
+    expect(repeatBookingRate(jobs, now)).toBe(0.5);
+  });
+
+  it('follow-on at exactly +30d counts (inclusive); +30d+1ms does not', () => {
+    const inclusive: RepeatRateJob[] = [
+      { clientId: 'c1', completion: 'completed', completedAt: '2026-07-10T00:00:00Z', createdAt: '2026-07-10T00:00:00Z' },
+      { clientId: 'c1', completion: 'booked', completedAt: null, createdAt: '2026-08-09T00:00:00Z' }, // +30d exactly
+    ];
+    expect(repeatBookingRate(inclusive, now)).toBe(1);
+
+    const justOver: RepeatRateJob[] = [
+      { clientId: 'c1', completion: 'completed', completedAt: '2026-07-10T00:00:00Z', createdAt: '2026-07-10T00:00:00Z' },
+      { clientId: 'c1', completion: 'booked', completedAt: null, createdAt: '2026-08-09T00:00:00.001Z' }, // +30d +1ms
+    ];
+    expect(repeatBookingRate(justOver, now)).toBe(0);
+  });
+
+  it('a booking predating the completion is not a re-book of it', () => {
+    const jobs: RepeatRateJob[] = [
+      { clientId: 'c1', completion: 'completed', completedAt: '2026-07-20T12:00:00Z', createdAt: '2026-07-20T12:00:00Z' },
+      // created BEFORE the completion instant → does not count
+      { clientId: 'c1', completion: 'booked', completedAt: null, createdAt: '2026-07-01T13:00:00Z' },
+    ];
+    expect(repeatBookingRate(jobs, now)).toBe(0);
+  });
+
+  it('a lone completion whose createdAt STRICTLY precedes its completedAt does not self-count', () => {
+    // The realistic ordering the write path guarantees (lifecycle.ts stamps completedAt =
+    // now() >= createdAt): booked 07-05, completed 07-15. Strict-after excludes the job
+    // as its own follow-on → 0/1, not 1/1. Locks the invariant the self-exclusion relies on.
+    const jobs: RepeatRateJob[] = [
+      { clientId: 'c1', completion: 'completed', completedAt: '2026-07-15T12:00:00Z', createdAt: '2026-07-05T09:00:00Z' },
+    ];
+    expect(repeatBookingRate(jobs, now)).toBe(0);
+  });
+
+  it('two completed jobs in-window where the newer IS the older\'s follow-on → 0.5', () => {
+    // Adversarial gap: the self-exclusion (strict >) and the mutual-follow-on logic
+    // interact. Job1 completed 07-10; Job2 created 07-15 (5d after Job1's completion,
+    // within +30d) → Job1 has a follow-on. Job2 completed 07-25 has no later booking →
+    // denominator only. Neither counts itself (each createdAt <= its own completedAt).
+    const jobs: RepeatRateJob[] = [
+      { clientId: 'c1', completion: 'completed', completedAt: '2026-07-10T12:00:00Z', createdAt: '2026-07-05T12:00:00Z' },
+      { clientId: 'c1', completion: 'completed', completedAt: '2026-07-25T12:00:00Z', createdAt: '2026-07-15T12:00:00Z' },
+    ];
+    // denom = 2 (both completed in window), numer = 1 (Job1 → Job2) → 0.5
+    expect(repeatBookingRate(jobs, now)).toBe(0.5);
+  });
+});
+
+describe('derive.repeatVsLapsedCounts (Story 6.1, FR22)', () => {
+  const today = '2026-07-15';
+
+  it('counts repeat (>=2 completed) and lapsed (gone-cold) independently', () => {
+    const clients: ClientLifecycle[] = [
+      // repeat (2 completed) AND not lapsed (has a future booking) → repeat only
+      {
+        cadence: 'weekly',
+        jobs: [
+          { date: '2026-05-01', completion: 'completed' },
+          { date: '2026-05-08', completion: 'completed' },
+          { date: '2026-07-20', completion: 'booked' },
+        ],
+      },
+      // 1 completed, no future → gone-cold → lapsed only
+      { cadence: 'weekly', jobs: [{ date: '2026-06-01', completion: 'completed' }] },
+      // one-time, 1 completed → neither (never cold, not repeat)
+      { cadence: 'one-time', jobs: [{ date: '2026-06-01', completion: 'completed' }] },
+    ];
+    expect(repeatVsLapsedCounts(clients, today)).toEqual({ repeat: 1, lapsed: 1 });
+  });
+
+  it('empty client list → zeros', () => {
+    expect(repeatVsLapsedCounts([], today)).toEqual({ repeat: 0, lapsed: 0 });
+  });
+});
+
+// --- Story 6.2: leak-indicator rates ---------------------------------------------
+
+describe('derive.inquiryConversion (Story 6.2, FR24/AR19)', () => {
+  it('bookings ÷ distinct inquiries; cancelled jobs are NOT bookings', () => {
+    const jobs = [
+      { completion: 'booked' },
+      { completion: 'completed' },
+      { completion: 'no-show' }, // all three consume a slot → a booking was made
+      { completion: 'cancelled' }, // released → not a booking on the books
+    ];
+    // distinct inquiries: 1 distinct client (c1, twice) + 2 anonymous nulls = 3
+    const inquiries = [
+      { clientId: 'c1' },
+      { clientId: 'c1' },
+      { clientId: null },
+      { clientId: null },
+    ];
+    expect(inquiryConversion(jobs, inquiries)).toEqual({
+      bookings: 3,
+      inquiries: 3,
+      ratio: 1,
+    });
+  });
+
+  it('empty denominator (no inquiries) → ratio null, never 0 (FR25)', () => {
+    expect(inquiryConversion([{ completion: 'booked' }], [])).toEqual({
+      bookings: 1,
+      inquiries: 0,
+      ratio: null,
+    });
+  });
+
+  it('ratio is NOT capped — repeat bookings without a fresh inquiry exceed 100%', () => {
+    const jobs = [
+      { completion: 'booked' },
+      { completion: 'completed' },
+      { completion: 'completed' },
+    ];
+    // 3 bookings, 1 inquiry → 3.0 (300%), surfaced honestly
+    expect(inquiryConversion(jobs, [{ clientId: 'c1' }]).ratio).toBe(3);
+  });
+});
+
+describe('derive.oneTimeToRepeat (Story 6.2, FR13/FR24/AR19)', () => {
+  it('one-time clients with >=2 bookings ÷ one-time clients; non-one-time ignored', () => {
+    const clients: ClientLifecycle[] = [
+      // one-time, booked once → not converted
+      { cadence: 'one-time', jobs: [{ date: '2026-06-01', completion: 'booked' }] },
+      // one-time, booked twice → converted (a second booking is the conversion act)
+      {
+        cadence: 'one-time',
+        jobs: [
+          { date: '2026-06-01', completion: 'completed' },
+          { date: '2026-07-01', completion: 'booked' },
+        ],
+      },
+      // weekly (not one-time) with two bookings → NOT in the denominator
+      {
+        cadence: 'weekly',
+        jobs: [
+          { date: '2026-06-01', completion: 'booked' },
+          { date: '2026-06-08', completion: 'booked' },
+        ],
+      },
+      // one-time, one booking + one cancelled → cancelled is not a booking → not converted
+      {
+        cadence: 'one-time',
+        jobs: [
+          { date: '2026-06-01', completion: 'booked' },
+          { date: '2026-07-01', completion: 'cancelled' },
+        ],
+      },
+    ];
+    expect(oneTimeToRepeat(clients)).toEqual({
+      oneTime: 3,
+      converted: 1,
+      ratio: 1 / 3,
+    });
+  });
+
+  it('no one-time clients → ratio null, never 0 (FR25)', () => {
+    const clients: ClientLifecycle[] = [
+      { cadence: 'weekly', jobs: [{ date: '2026-06-01', completion: 'booked' }] },
+    ];
+    expect(oneTimeToRepeat(clients)).toEqual({ oneTime: 0, converted: 0, ratio: null });
+  });
+});
+
+describe('derive.caughtColdThisWeek (Story 6.2, FR24/AR19)', () => {
+  // today anchors "now"; weekly cadence interval = 7d, so expectedNextDate =
+  // last-completed + 7. The 7-day caught-cold window is [today-7, today).
+  const today = '2026-07-15';
+
+  it('counts only regulars whose lapse flag raised within the last 7 days', () => {
+    const clients: ClientLifecycle[] = [
+      // last completed 07-01 → expected 07-08; today 07-15 is 7d past → FRESH cold (counts)
+      { cadence: 'weekly', jobs: [{ date: '2026-07-01', completion: 'completed' }] },
+      // last completed 06-01 → expected 06-08; cold for weeks → NOT this week's catch
+      { cadence: 'weekly', jobs: [{ date: '2026-06-01', completion: 'completed' }] },
+      // last completed 06-30 → expected 07-07 (8d ago) → just outside the 7d window
+      { cadence: 'weekly', jobs: [{ date: '2026-06-30', completion: 'completed' }] },
+      // has a future booking → not cold at all
+      {
+        cadence: 'weekly',
+        jobs: [
+          { date: '2026-07-01', completion: 'completed' },
+          { date: '2026-07-20', completion: 'booked' },
+        ],
+      },
+      // one-time → never cold
+      { cadence: 'one-time', jobs: [{ date: '2026-07-01', completion: 'completed' }] },
+    ];
+    expect(caughtColdThisWeek(clients, today)).toBe(1);
+  });
+
+  it('boundary: expected exactly 7 days ago is IN the window (inclusive)', () => {
+    // last completed 07-01 → expected 07-08 = today-7 → inclusive → counts
+    const clients: ClientLifecycle[] = [
+      { cadence: 'weekly', jobs: [{ date: '2026-07-01', completion: 'completed' }] },
+    ];
+    expect(caughtColdThisWeek(clients, today)).toBe(1);
+  });
+
+  it('empty client list → 0', () => {
+    expect(caughtColdThisWeek([], today)).toBe(0);
+  });
+});
+
+// --- Story 6.3: gone-cold list -----------------------------------------------------
+
+describe('derive.goneColdList (Story 6.3, FR23)', () => {
+  const today = '2026-07-15';
+
+  it('lists only cold clients, longest-overdue first, with id + missed date', () => {
+    const clients: LapseClient[] = [
+      // recent cold: expected 07-08
+      { id: 'b', name: 'Bea', cadence: 'weekly', jobs: [{ date: '2026-07-01', completion: 'completed' }] },
+      // long cold: expected 06-08 → sorts FIRST
+      { id: 'a', name: 'Ana', cadence: 'weekly', jobs: [{ date: '2026-06-01', completion: 'completed' }] },
+      // has a future booking → not cold
+      {
+        id: 'c',
+        name: 'Cy',
+        cadence: 'weekly',
+        jobs: [
+          { date: '2026-07-01', completion: 'completed' },
+          { date: '2026-07-20', completion: 'booked' },
+        ],
+      },
+      // one-time → never cold
+      { id: 'd', name: 'Dee', cadence: 'one-time', jobs: [{ date: '2026-07-01', completion: 'completed' }] },
+    ];
+    expect(goneColdList(clients, today)).toEqual([
+      { id: 'a', name: 'Ana', expectedNextDate: '2026-06-08' },
+      { id: 'b', name: 'Bea', expectedNextDate: '2026-07-08' },
+    ]);
+  });
+
+  it('no cold clients → empty list', () => {
+    const clients: LapseClient[] = [
+      { id: 'x', name: 'X', cadence: 'one-time', jobs: [{ date: '2026-07-01', completion: 'completed' }] },
+    ];
+    expect(goneColdList(clients, today)).toEqual([]);
   });
 });
