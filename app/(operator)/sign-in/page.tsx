@@ -18,7 +18,7 @@ export default function SignInPage() {
     startTransition(async () => {
       const result = await signIn(formData);
       if (result.ok) {
-        router.replace('/');
+        router.replace('/dashboard');
         router.refresh();
       } else {
         setError(result.reason);

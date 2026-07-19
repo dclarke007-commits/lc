@@ -10,7 +10,7 @@ import { SESSION_COOKIE, verifySession } from '@/lib/auth/session';
 export const dynamic = 'force-dynamic';
 
 const NAV = [
-  { href: '/', label: 'Dashboard' },
+  { href: '/dashboard', label: 'Dashboard' },
   { href: '/clients', label: 'Clients' },
   { href: '/bookings', label: 'Book a job' },
   { href: '/jobs', label: 'Jobs' },
@@ -22,7 +22,7 @@ const NAV = [
 
 function Brand() {
   return (
-    <Link href="/" className="brand">
+    <Link href="/dashboard" className="brand">
       <span className="brand__mark" aria-hidden="true">
         &#10022;
       </span>
