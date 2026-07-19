@@ -5,6 +5,7 @@
 // <form> posting a source (+ optional client) to a thin server-action wrapper that
 // redirects to a banner param.
 
+import { randomUUID } from 'node:crypto';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { logInquiry, listOwnerInquiries } from './actions';
@@ -91,6 +92,11 @@ export default async function InquiriesPage({
       : null;
   const logged = sp.logged === '1';
 
+  // Per-render submit nonce (Epic 4 retro action item): a fresh id each render, embedded in
+  // the form. A double-tap of THIS rendered form resubmits the same nonce → the action dedups
+  // it to one inquiry; a new page load mints a new nonce → a genuinely new log is allowed.
+  const submitNonce = randomUUID();
+
   return (
     <main style={{ padding: '1.5rem', maxWidth: 640 }}>
       <p style={{ margin: '0 0 1rem' }}>
@@ -131,6 +137,7 @@ export default async function InquiriesPage({
       <section style={{ marginBottom: '2rem' }}>
         <h2 style={{ fontSize: '1rem' }}>Log an inquiry</h2>
         <form action={submitInquiry} style={{ maxWidth: 360 }}>
+          <input type="hidden" name="submitNonce" value={submitNonce} />
           <label style={{ display: 'block', marginBottom: '0.75rem' }}>
             Source
             <select name="source" required defaultValue="phone" style={field}>

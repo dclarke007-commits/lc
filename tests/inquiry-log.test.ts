@@ -174,3 +174,61 @@ describe('Story 4.4 AC2 — distinct-inquiry dedup over real rows (AR12)', () =>
     expect(distinctInquiryCount(rows)).toBe(2);
   });
 });
+
+describe('Epic 4 retro — manual double-submit dedup (per-render submit nonce)', () => {
+  it('two logs with the SAME submitNonce → ONE row (idempotent double-tap), second returns the first row', async () => {
+    const submitNonce = 'render-nonce-A';
+    const first = await logInquiry(form({ source: 'phone', submitNonce }));
+    expect(first.ok).toBe(true);
+    if (!first.ok) return;
+    expect(first.data.sessionNonce).toBe(submitNonce);
+
+    // A double-tap of the SAME rendered form resubmits the same nonce.
+    const second = await logInquiry(form({ source: 'phone', submitNonce }));
+    expect(second.ok).toBe(true);
+    if (!second.ok) return;
+    // Idempotent: it resolves to the ALREADY-logged row, not a new one.
+    expect(second.data.id).toBe(first.data.id);
+
+    const rows = await db.select().from(inquiry).where(eq(inquiry.ownerId, ownerId));
+    expect(rows).toHaveLength(1);
+  });
+
+  it('two logs with DIFFERENT submitNonces → TWO rows (distinct renders, genuinely distinct logs)', async () => {
+    await logInquiry(form({ source: 'phone', submitNonce: 'render-1' }));
+    await logInquiry(form({ source: 'phone', submitNonce: 'render-2' }));
+
+    const rows = await db.select().from(inquiry).where(eq(inquiry.ownerId, ownerId));
+    expect(rows).toHaveLength(2);
+  });
+
+  it('a nonce-less manual log is never deduped (legacy path): two → TWO rows, session_nonce null', async () => {
+    await logInquiry(form({ source: 'phone' }));
+    await logInquiry(form({ source: 'phone' }));
+
+    const rows = await db.select().from(inquiry).where(eq(inquiry.ownerId, ownerId));
+    expect(rows).toHaveLength(2);
+    expect(rows.every((r) => r.sessionNonce === null)).toBe(true);
+  });
+
+  it('the manual dedup index is DISJOINT from the `link` index: a link inquiry sharing a nonce value does NOT block a manual log', async () => {
+    // A 4.2 link inquiry carries session_nonce='shared'; a manual log with submitNonce='shared'
+    // must still insert — the two partial indexes (source='link' vs source<>'link') are disjoint.
+    const req = await insertPublicBookingRequest({
+      ownerId,
+      name: 'Grace Hopper',
+      phone: '555-0199',
+      address: null,
+      requestedDate: '2999-02-02',
+      sessionNonce: 'shared',
+    });
+    expect(req.created).toBe(true);
+
+    const manual = await logInquiry(form({ source: 'phone', submitNonce: 'shared' }));
+    expect(manual.ok).toBe(true);
+
+    const rows = await db.select().from(inquiry).where(eq(inquiry.ownerId, ownerId));
+    expect(rows).toHaveLength(2); // one link + one manual, both with nonce 'shared'
+    expect(rows.map((r) => r.source).sort()).toEqual(['link', 'phone']);
+  });
+});

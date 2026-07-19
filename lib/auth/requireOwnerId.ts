@@ -16,6 +16,19 @@
 // actions already wrap owner resolution in try/catch and convert the throw to their
 // fail-closed ActionResult (or let it hit the RSC error boundary) — the SAME contract
 // getOwnerId had, so call sites swap 1:1.
+//
+// FAIL-PATTERN UNIFORMITY (Epic 3 retro action item — enforced by
+// tests/read-surface-fail-uniformity.test.ts). Every RSC read surface MUST fail CLOSED when
+// this rejects — it must NEVER degrade to data (an empty list, DEFAULT_CAPACITY, default
+// templates) on an unresolved owner, because that renders an authenticated-looking page for a
+// caller with no verified session. The TWO sanctioned shapes:
+//   • a bare-value reader (returns T, e.g. listOwnerInquiries → InquiryListItem[]) lets the
+//     rejection PROPAGATE — either directly, or re-thrown as `throw new Error('owner-unresolved')`
+//     after logging — so the RSC error boundary shows, never a silent [].
+//   • an ActionResult reader (returns { ok } | { ok:false, reason }) catches and returns
+//     `fail('owner-unresolved')` — a typed failure carrying NO data.
+// A first-run DEFAULT (no settings row, no seeded template) is a SEPARATE concern reached only
+// AFTER a successful owner resolve — never conflate it with the auth-failure path.
 
 import { cookies } from 'next/headers';
 import { SESSION_COOKIE, verifySession, getSessionSecret } from '@/lib/auth/session';

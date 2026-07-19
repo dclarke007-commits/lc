@@ -41,7 +41,7 @@
 # - Retrospective appends its action items to action_items; sprint-status surfaces open ones
 
 generated: 2026-07-15
-last_updated: 2026-07-18T18:00
+last_updated: 2026-07-19T03:50
 project: LovesCleaning
 # note: Epic 2 COMPLETE (dev + code-review, all 4 stories done) 2026-07-16 | 1-7 done (dev + code-review complete) 2026-07-16 — Epic 1 dev COMPLETE
 project_key: NOKEY
@@ -106,11 +106,13 @@ action_items:
   - epic: 3
     action: "Introduce a named hasFutureBooking (booked-only) predicate for lapse, distinct from capacity.consumesSlot; document the intentional divergence at both sites"
     owner: "Developer"
-    status: open
+    status: done
+    resolution: "Done (chore/epic3-6-open-debt): extracted derive.hasFutureBooking(jobs, today) (booked-only) and routed goneCold through it; DIVERGENCE NOTE added at BOTH sites (the predicate's own doc + a note at capacity.consumesSlot explaining why lapse must NOT reuse the slot-consuming set — a today/future no-show is the lapse signal). Unit-tested in tests/derive.test.ts (narrower-than-consumesSlot cases)."
   - epic: 3
     action: "Add a nonce-keying convention to compose.ts docs: nonces key on the event instance (anchor/spell), never a bare entity id"
     owner: "Developer"
-    status: open
+    status: done
+    resolution: "Done (chore/epic3-6-open-debt): added a 'Dispatch-nonce keying convention' doc block above the nonce helpers in compose.ts — nonces key on the EVENT INSTANCE (anchor job id / cold-spell expectedNextDate), never a bare entity id, with the under-count failure mode that motivates it and a rule for new helpers."
   - epic: 3
     action: "Before Epic 6 dashboard (FR23) surfaces lapse at scale, address deferred perf: bounded/per-client listJobs projection, drop unused clientName join, de-dupe winback double-load"
     owner: "Developer"
@@ -118,7 +120,8 @@ action_items:
   - epic: 3
     action: "Establish a fail-pattern-uniformity check for RSC read surfaces (every read path fail-closed/open consistently, AD-8)"
     owner: "Developer"
-    status: open
+    status: done
+    resolution: "Done (chore/epic3-6-open-debt): audit confirmed all read surfaces ALREADY fail-closed (bare-value readers propagate/rethrow, ActionResult readers return fail('owner-unresolved') — none degrade to []/DEFAULT on auth failure). Locked it with tests/read-surface-fail-uniformity.test.ts (drives requireOwnerId to reject, asserts all 13 zero-arg bare readers reject + getPublicBookingLink returns a data-less failure) and codified the convention in lib/auth/requireOwnerId.ts."
   - epic: 3
     action: "Carry 3-1 token replay/revocation rigor + adversarial and security review into Epic 4 public self-serve (4-1/4-2)"
     owner: "Developer"
@@ -126,7 +129,8 @@ action_items:
   - epic: 4
     action: "Manual logInquiry (4.4) has no double-submit dedup — a double-tapped anonymous manual log inflates the inquiry→booking denominator. Accepted for single-operator v1; Epic 6 FR24 dashboard should dedupe manual double-logs (or add a per-render submit nonce + partial index if it matters)."
     owner: "Developer"
-    status: open
+    status: done
+    resolution: "Done (chore/epic3-6-open-debt): per-render submit nonce + partial unique index. inquiries/page.tsx embeds a fresh randomUUID() per render as a hidden submitNonce; logInquiry passes it to insertInquiry, which ON CONFLICT DO NOTHING dedups on the new partial index inquiry_owner_submit_manual_uq (owner, session_nonce WHERE source<>'link') — reusing the existing session_nonce column, disjoint from the link index. A double-tap collapses to one row (returns the existing); a nonce-less log keeps legacy insert-always. Migration 0014 (single CREATE UNIQUE INDEX). Tests in tests/inquiry-log.test.ts."
   - epic: 4
     action: "Public write surfaces (4.2 submit, 4.4 log) have no rate limiting — accepted gap (LOCKED). Add per-IP throttle + provisional-row cap before/when the app becomes multi-tenant or lower-trust."
     owner: "Developer"
@@ -177,4 +181,5 @@ action_items:
   - epic: 2
     action: "Add a nonce-keying convention to compose.ts docs: nonces key on the event instance (anchor/spell), never a bare entity id."
     owner: "Developer"
-    status: open
+    status: done
+    resolution: "Done (chore/epic3-6-open-debt): same fix as the epic-3 duplicate of this item — 'Dispatch-nonce keying convention' doc block added above the nonce helpers in compose.ts."

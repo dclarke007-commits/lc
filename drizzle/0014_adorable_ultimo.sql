@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "inquiry_owner_submit_manual_uq" ON "inquiry" USING btree ("owner_id","session_nonce") WHERE "inquiry"."source" <> 'link';

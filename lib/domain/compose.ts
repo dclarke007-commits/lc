@@ -146,6 +146,23 @@ export function paymentReminderDraft(
   });
 }
 
+// --- Dispatch-nonce keying convention (Epic 2 + Epic 3 retro action item) ---------
+//
+// Every message-dispatch idempotency nonce below keys on the EVENT INSTANCE, never on a
+// bare entity id. The event instance is whatever recurring thing "sends this message once":
+//   • a booking-confirmation / rebooking nudge → the ANCHOR JOB id (confirm:<jobId>,
+//     rebook:<jobId>) — one dispatch per job.
+//   • a win-back check-in → the client id AND the cold-SPELL discriminator
+//     (winback:<clientId>:<expectedNextDate>) — one dispatch per cold spell, NOT per client.
+// The rule exists because a bare-entity key (e.g. winback:<clientId>) collapses EVERY future
+// occurrence into one lifetime MessageLog row: the second genuine send reuses the first's
+// nonce, the (owner, draft_nonce) dispatch guard matches the old row, dispatched_at is never
+// re-stamped, and the real send goes unlogged (under-counting fatigue/conversion). Keying on
+// the instance means each occurrence gets a fresh nonce → a fresh row, while a re-TAP within
+// the same instance still resubmits the SAME nonce → dispatched_at stamped exactly once
+// (Story 2.3 idempotency: re-opens the chat, never double-logs). New nonce helpers MUST pick
+// an instance discriminator that advances once per occurrence — never a bare id alone.
+
 /**
  * The deterministic per-draft idempotency nonce for a Job's booking-confirmation
  * draft (Story 2.4, Open gap #2). Keyed on the Job id, NOT a random value: an

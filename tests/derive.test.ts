@@ -19,6 +19,7 @@ import {
   oneTimeToRepeat,
   caughtColdThisWeek,
   goneColdList,
+  hasFutureBooking,
   type DeriveJob,
   type LedgerJob,
   type RevenueJob,
@@ -686,5 +687,39 @@ describe('derive.goneColdList (Story 6.3, FR23)', () => {
       { id: 'x', name: 'X', cadence: 'one-time', jobs: [{ date: '2026-07-01', completion: 'completed' }] },
     ];
     expect(goneColdList(clients, today)).toEqual([]);
+  });
+});
+
+describe('derive.hasFutureBooking — lapse "on the books" predicate (Epic 3 retro)', () => {
+  const today = '2026-07-15';
+
+  it('true only for a job dated on/after today with completion `booked`', () => {
+    expect(
+      hasFutureBooking([{ date: '2026-07-20', completion: 'booked' }], today),
+    ).toBe(true);
+    // `today` itself counts (on/after, inclusive).
+    expect(
+      hasFutureBooking([{ date: today, completion: 'booked' }], today),
+    ).toBe(true);
+  });
+
+  it('false for a PAST booked job (already elapsed)', () => {
+    expect(
+      hasFutureBooking([{ date: '2026-07-10', completion: 'booked' }], today),
+    ).toBe(false);
+  });
+
+  it('INTENTIONALLY narrower than consumesSlot: a future no-show / completed / cancelled does NOT count', () => {
+    // consumesSlot(no-show|completed)=true, but lapse must NOT let them suppress cold —
+    // a future no-show is the very lapse signal. Only a live `booked` future counts.
+    for (const completion of ['no-show', 'completed', 'cancelled']) {
+      expect(
+        hasFutureBooking([{ date: '2026-07-20', completion }], today),
+      ).toBe(false);
+    }
+  });
+
+  it('false for an empty job list', () => {
+    expect(hasFutureBooking([], today)).toBe(false);
   });
 });

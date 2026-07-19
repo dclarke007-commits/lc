@@ -556,6 +556,24 @@ export function expectedNextDate(
 }
 
 /**
+ * Does the client have a FUTURE booking on file as of `today`? True iff some job is dated
+ * on/after `today` with completion `booked` (Story 3.5 Task 2 — the lapse "on the books"
+ * predicate). INTENTIONALLY NARROWER than capacity.consumesSlot (which also counts
+ * `completed`/`no-show`): for lapse, a today/future `no-show` is the very lapse signal, so
+ * it must NOT suppress cold, and a data-anomalous future `completed` must not either — only
+ * a live `booked` future appointment means "they are on the books." A future `cancelled` was
+ * released and never counts. This divergence from consumesSlot is deliberate and documented
+ * at BOTH sites (see the note at capacity.consumesSlot). Pure (AD-7): book a future slot and
+ * the very next call flips true, with no stored flag.
+ */
+export function hasFutureBooking(jobs: DeriveJob[], today: string): boolean {
+  for (const j of jobs) {
+    if (j.date >= today && j.completion === 'booked') return true;
+  }
+  return false;
+}
+
+/**
  * Is the client gone-cold (FR17/AC2)? True only when `today` has PASSED the
  * expectedNextDate (strictly after — on the expected date itself they are merely due,
  * not yet cold) AND there is no future booking on file. "No future booking on file" =
@@ -580,14 +598,11 @@ export function goneCold(
   if (today <= expected) return false; // due, but not yet PAST the expected date
 
   // A future BOOKED appointment (dated today or later) means they are on the books — not
-  // cold, regardless of how far past the expected date we are. Only `booked` counts:
-  // reusing capacity.consumesSlot here would also let a today/future `no-show` (the very
-  // lapse signal) or a data-anomalous future `completed` suppress cold (code review
-  // 2026-07-17). expectedNextDate already ignores no-show; the suppressor now matches.
-  for (const j of jobs) {
-    if (j.date >= today && j.completion === 'booked') return false;
-  }
-  return true;
+  // cold, regardless of how far past the expected date we are. The suppressor is the named
+  // hasFutureBooking predicate (booked-only), INTENTIONALLY narrower than consumesSlot so a
+  // today/future `no-show` (the very lapse signal) never suppresses cold (code review
+  // 2026-07-17). expectedNextDate already ignores no-show; the suppressor matches.
+  return !hasFutureBooking(jobs, today);
 }
 
 // --- Story 4.4: distinct-inquiry denominator (derived on read, AR12/FR37) --------
