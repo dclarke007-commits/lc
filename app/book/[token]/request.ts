@@ -29,8 +29,8 @@ import { ok, fail, type ActionResult } from '@/lib/domain/result';
 // PROVISIONAL_WINDOW_MS. Generous for a single cleaner's genuine inbound (a real stranger
 // files one request) while still bounding a scripted flood. Deliberately soft — capacity's
 // advisory lock is the one hard invariant; this only slows provisional-client minting.
-const PROVISIONAL_WINDOW_MS = 10 * 60 * 1000; // 10 minutes
-const PROVISIONAL_MAX_PER_WINDOW = 30;
+export const PROVISIONAL_WINDOW_MS = 10 * 60 * 1000; // 10 minutes
+export const PROVISIONAL_MAX_PER_WINDOW = 30;
 
 /**
  * Validate + normalise the stranger's submission. Minimal rules (NFR7): name and phone
@@ -41,7 +41,7 @@ const PROVISIONAL_MAX_PER_WINDOW = 30;
  * DISTINCT, never colliding with a legitimate session's dedup row. On any failure returns
  * a machine reason and the caller writes NOTHING.
  */
-function readPublicFields(formData: FormData):
+export function readPublicFields(formData: FormData):
   | { ok: true; name: string; phone: string; address: string | null; date: string; sessionNonce: string }
   | { ok: false; reason: string } {
   const name = String(formData.get('name') ?? '').trim();
