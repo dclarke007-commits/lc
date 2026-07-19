@@ -30,10 +30,12 @@ const slotButtonStyle: React.CSSProperties = {
   width: '100%',
   textAlign: 'left',
   padding: '0.75rem 1rem',
-  border: '1px solid #ddd',
-  borderRadius: 8,
-  background: '#fff',
+  border: '1px solid var(--line)',
+  borderRadius: 'var(--radius-sm)',
+  background: 'var(--surface)',
+  color: 'var(--ink)',
   fontSize: '1rem',
+  fontWeight: 500,
   cursor: 'pointer',
 };
 
@@ -101,7 +103,7 @@ export default async function BookPage({
 
         {openSlots.length > 0 ? (
           <>
-            <p style={{ color: '#555' }}>
+            <p style={{ color: 'var(--muted)' }}>
               Pick an open day and tell us how to reach you:
             </p>
             <PublicRequestForm
@@ -112,7 +114,7 @@ export default async function BookPage({
             />
           </>
         ) : (
-          <p style={{ color: '#555', margin: '1rem 0' }}>
+          <p style={{ color: 'var(--muted)', margin: '1rem 0' }}>
             No open days this week.
             {nextOpen ? ` Next opening: ${formatDateKey(nextOpen)}.` : ''}
           </p>
@@ -129,7 +131,7 @@ export default async function BookPage({
     return (
       <main style={mainStyle}>
         <h1 style={{ fontSize: '1.25rem' }}>Link not valid</h1>
-        <p style={{ color: '#555' }}>
+        <p style={{ color: 'var(--muted)' }}>
           This booking link isn’t valid. Please ask for a new link.
         </p>
       </main>
@@ -165,7 +167,7 @@ export default async function BookPage({
         </p>
       ) : null}
 
-      <p style={{ color: '#555' }}>Hi {clientName} — choose an open day:</p>
+      <p style={{ color: 'var(--muted)' }}>Hi {clientName} — choose an open day:</p>
 
       {openSlots.length > 0 ? (
         <ul style={{ listStyle: 'none', padding: 0, margin: '1rem 0' }}>
@@ -185,7 +187,7 @@ export default async function BookPage({
           ))}
         </ul>
       ) : (
-        <p style={{ color: '#555', margin: '1rem 0' }}>
+        <p style={{ color: 'var(--muted)', margin: '1rem 0' }}>
           No open days this week.
           {nextOpen ? ` Next opening: ${formatDateKey(nextOpen)}.` : ''}
         </p>

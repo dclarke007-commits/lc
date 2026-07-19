@@ -14,32 +14,33 @@ const WEEKDAY_LABEL = ['', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 const fieldStyle: React.CSSProperties = {
   display: 'block',
   width: '100%',
-  padding: '0.6rem 0.75rem',
-  border: '1px solid #ddd',
-  borderRadius: 8,
+  padding: '0.65rem 0.8rem',
+  border: '1px solid var(--line)',
+  borderRadius: 'var(--radius-sm)',
   fontSize: '1rem',
-  marginTop: '0.25rem',
+  marginTop: '0.35rem',
 };
 
 const labelStyle: React.CSSProperties = {
   display: 'block',
-  margin: '0.75rem 0',
-  color: '#333',
-  fontSize: '0.95rem',
+  margin: '0.9rem 0',
+  color: 'var(--ink)',
+  fontSize: '0.9rem',
+  fontWeight: 600,
 };
 
 const submitStyle: React.CSSProperties = {
   display: 'block',
   width: '100%',
-  padding: '0.75rem 1rem',
+  padding: '0.8rem 1rem',
   border: 'none',
-  borderRadius: 8,
-  background: '#1a7f37',
+  borderRadius: 'var(--radius-sm)',
+  background: 'var(--green)',
   color: '#fff',
   fontSize: '1rem',
   fontWeight: 600,
   cursor: 'pointer',
-  marginTop: '1rem',
+  marginTop: '1.25rem',
 };
 
 /**
@@ -89,7 +90,7 @@ export function PublicRequestForm({
       </label>
 
       <label style={labelStyle}>
-        Service address <span style={{ color: '#888' }}>(optional)</span>
+        Service address <span style={{ color: 'var(--faint)', fontWeight: 400 }}>(optional)</span>
         <input
           style={fieldStyle}
           type="text"

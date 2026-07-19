@@ -44,30 +44,46 @@ function fmtDay(dateKey: string): string {
 }
 
 const cell: React.CSSProperties = {
-  padding: '0.5rem 0.6rem',
-  borderBottom: '1px solid #eee',
+  padding: '0.6rem 0.7rem',
+  borderBottom: '1px solid var(--line)',
   textAlign: 'left',
 };
 
-// Story 6.1 metric tiles — phone-legible, one number each.
+// Story 6.1 metric tiles — phone-legible, one number each. A top accent bar
+// (via .tile-accent + --tile-bar) encodes each tile's health at a glance.
 const tile: React.CSSProperties = {
-  border: '1px solid #e2e2e2',
-  borderRadius: 8,
-  padding: '0.75rem',
+  background: 'var(--surface)',
+  border: '1px solid var(--line)',
+  borderRadius: 'var(--radius)',
+  padding: '0.9rem',
+  boxShadow: 'var(--shadow-sm)',
 };
 const tileLabel: React.CSSProperties = {
-  fontSize: '0.8rem',
-  color: '#666',
+  fontSize: '0.75rem',
+  color: 'var(--muted)',
   textTransform: 'uppercase',
-  letterSpacing: '0.03em',
+  letterSpacing: '0.05em',
+  fontWeight: 600,
 };
 const tileValue: React.CSSProperties = {
-  fontSize: '1.5rem',
-  fontWeight: 600,
-  marginTop: '0.2rem',
+  fontFamily: 'var(--font-display)',
+  fontSize: '1.7rem',
+  fontWeight: 700,
+  letterSpacing: '-0.02em',
+  marginTop: '0.3rem',
+  fontVariantNumeric: 'tabular-nums',
 };
-const tileUnit: React.CSSProperties = { fontSize: '1rem', color: '#888', fontWeight: 400 };
-const tileWhy: React.CSSProperties = { fontSize: '0.75rem', color: '#888', marginTop: '0.3rem' };
+const tileUnit: React.CSSProperties = { fontSize: '1rem', color: 'var(--faint)', fontWeight: 400 };
+const tileWhy: React.CSSProperties = { fontSize: '0.75rem', color: 'var(--muted)', marginTop: '0.4rem' };
+
+const card: React.CSSProperties = {
+  marginTop: '1.25rem',
+  background: 'var(--surface)',
+  border: '1px solid var(--line)',
+  borderRadius: 'var(--radius)',
+  padding: '1.1rem',
+  boxShadow: 'var(--shadow-sm)',
+};
 
 // Empty authenticated shell + at-a-glance capacity (Story 1.7). proxy.ts gates
 // this route; the in-page session read is defense-in-depth (AD-6).
@@ -85,9 +101,18 @@ export default async function DashboardPage() {
   const full = cap.roomLeft === 0;
   const revenueUp = metrics.revenueDeltaCents >= 0;
 
+  const used = cap.weeklyCeiling - cap.roomLeft;
+  const pct =
+    cap.weeklyCeiling > 0
+      ? Math.min(100, Math.round((used / cap.weeklyCeiling) * 100))
+      : 0;
+
   return (
-    <main style={{ padding: '1.5rem', maxWidth: 640 }}>
-      <h1 style={{ fontSize: '1.25rem', margin: 0 }}>Operator dashboard</h1>
+    <main style={{ padding: '1.5rem 0 2.5rem', maxWidth: 680 }}>
+      <h1 style={{ margin: '0.25rem 0 0' }}>Operator dashboard</h1>
+      <p style={{ margin: '0.25rem 0 0', color: 'var(--muted)' }}>
+        The honest numbers — where the money leaks, and the room you have left.
+      </p>
 
       {/* Story 6.1 — the honest numbers. Each tile maps to a named leak or a
           cash/capacity decision (FR25, NFR1); nothing vanity ships here. */}
@@ -105,7 +130,10 @@ export default async function DashboardPage() {
         </h2>
 
         {/* Capacity decision */}
-        <div style={tile}>
+        <div
+          className="tile-accent"
+          style={{ ...tile, '--tile-bar': 'var(--teal)' } as React.CSSProperties}
+        >
           <div style={tileLabel}>Utilization</div>
           <div style={tileValue}>
             {metrics.consuming}
@@ -115,12 +143,20 @@ export default async function DashboardPage() {
         </div>
 
         {/* Payment leak */}
-        <div style={tile}>
+        <div
+          className="tile-accent"
+          style={{
+            ...tile,
+            '--tile-bar':
+              metrics.outstandingTotalCents > 0 ? 'var(--danger)' : 'var(--green)',
+          } as React.CSSProperties}
+        >
           <div style={tileLabel}>Outstanding</div>
           <div
             style={{
               ...tileValue,
-              color: metrics.outstandingTotalCents > 0 ? '#b00020' : '#0a5c2b',
+              color:
+                metrics.outstandingTotalCents > 0 ? 'var(--danger)' : 'var(--success)',
             }}
           >
             {fmtCents(metrics.outstandingTotalCents)}
@@ -129,10 +165,16 @@ export default async function DashboardPage() {
         </div>
 
         {/* Cash trajectory */}
-        <div style={tile}>
+        <div
+          className="tile-accent"
+          style={{
+            ...tile,
+            '--tile-bar': revenueUp ? 'var(--green)' : 'var(--danger)',
+          } as React.CSSProperties}
+        >
           <div style={tileLabel}>Revenue (mo.)</div>
           <div style={tileValue}>{fmtCents(metrics.revenueThisMonthCents)}</div>
-          <div style={{ ...tileWhy, color: revenueUp ? '#0a5c2b' : '#b00020' }}>
+          <div style={{ ...tileWhy, color: revenueUp ? 'var(--success)' : 'var(--danger)' }}>
             {fmtDeltaCents(metrics.revenueDeltaCents)} vs last month
           </div>
         </div>
@@ -140,12 +182,15 @@ export default async function DashboardPage() {
         {/* Retention — revenue leak. NOTE: repeat and lapsed are INDEPENDENT counts,
             not a partition — a client with ≥2 completed jobs who is also cold right now
             is counted in BOTH. The "·" separator (not "/") avoids reading as a ratio. */}
-        <div style={tile}>
+        <div
+          className="tile-accent"
+          style={{ ...tile, '--tile-bar': 'var(--teal)' } as React.CSSProperties}
+        >
           <div style={tileLabel}>Repeat &amp; lapsed</div>
           <div style={tileValue}>
             {metrics.repeatCount}
             <span style={tileUnit}> &middot; </span>
-            <span style={{ color: metrics.lapsedCount > 0 ? '#b00020' : undefined }}>
+            <span style={{ color: metrics.lapsedCount > 0 ? 'var(--danger)' : undefined }}>
               {metrics.lapsedCount}
             </span>
           </div>
@@ -176,7 +221,10 @@ export default async function DashboardPage() {
         </h2>
 
         {/* Inquiry leak (Epic 4) */}
-        <div style={tile}>
+        <div
+          className="tile-accent"
+          style={{ ...tile, '--tile-bar': 'var(--teal)' } as React.CSSProperties}
+        >
           <div style={tileLabel}>Inquiry → booking</div>
           <div style={tileValue}>{fmtRate(leaks.inquiryRate)}</div>
           <div style={tileWhy}>
@@ -185,7 +233,10 @@ export default async function DashboardPage() {
         </div>
 
         {/* Rebooking leak (Epic 3) */}
-        <div style={tile}>
+        <div
+          className="tile-accent"
+          style={{ ...tile, '--tile-bar': 'var(--teal)' } as React.CSSProperties}
+        >
           <div style={tileLabel}>One-time → repeat</div>
           <div style={tileValue}>{fmtRate(leaks.oneTimeRate)}</div>
           <div style={tileWhy}>
@@ -194,12 +245,19 @@ export default async function DashboardPage() {
         </div>
 
         {/* Fresh lapse — act now */}
-        <div style={tile}>
+        <div
+          className="tile-accent"
+          style={{
+            ...tile,
+            '--tile-bar':
+              leaks.caughtColdThisWeek > 0 ? 'var(--danger)' : 'var(--green)',
+          } as React.CSSProperties}
+        >
           <div style={tileLabel}>Caught cold (7d)</div>
           <div
             style={{
               ...tileValue,
-              color: leaks.caughtColdThisWeek > 0 ? '#b00020' : '#0a5c2b',
+              color: leaks.caughtColdThisWeek > 0 ? 'var(--danger)' : 'var(--success)',
             }}
           >
             {leaks.caughtColdThisWeek}
@@ -213,18 +271,13 @@ export default async function DashboardPage() {
           gone-cold gate server-side (this list is never trusted as authorization). */}
       <section
         aria-labelledby="cold-heading"
-        style={{
-          marginTop: '1rem',
-          border: '1px solid #e2e2e2',
-          borderRadius: 8,
-          padding: '1rem',
-        }}
+        style={card}
       >
         <h2 id="cold-heading" style={{ fontSize: '1rem', margin: '0 0 0.5rem' }}>
           Gone cold &middot; win them back
         </h2>
         {cold.length === 0 ? (
-          <p style={{ margin: 0, color: '#0a5c2b', fontSize: '0.9rem' }}>
+          <p style={{ margin: 0, color: 'var(--success)', fontSize: '0.9rem' }}>
             No regulars are cold right now.
           </p>
         ) : (
@@ -238,12 +291,12 @@ export default async function DashboardPage() {
                   justifyContent: 'space-between',
                   gap: '0.75rem',
                   padding: '0.5rem 0',
-                  borderBottom: '1px solid #eee',
+                  borderBottom: '1px solid var(--line)',
                 }}
               >
                 <span>
                   <strong>{c.name}</strong>{' '}
-                  <span style={{ color: '#888', fontSize: '0.85rem' }}>
+                  <span style={{ color: 'var(--faint)', fontSize: '0.85rem' }}>
                     due {fmtDay(c.expectedNextDate)}
                   </span>
                 </span>
@@ -261,49 +314,50 @@ export default async function DashboardPage() {
 
       <section
         aria-labelledby="cap-heading"
-        style={{
-          marginTop: '1rem',
-          border: '1px solid #e2e2e2',
-          borderRadius: 8,
-          padding: '1rem',
-        }}
+        style={card}
       >
         <h2 id="cap-heading" style={{ fontSize: '1rem', margin: '0 0 0.5rem' }}>
           This week &middot; {fmtDay(cap.weekStart)}
         </h2>
 
-        <p style={{ margin: '0 0 0.75rem', fontSize: '1.05rem' }}>
+        <p style={{ margin: '0 0 0.6rem', fontSize: '1.05rem' }}>
           <strong>Room left this week:</strong>{' '}
-          <span style={{ color: full ? '#b00020' : '#0a5c2b' }}>
+          <span
+            style={{
+              color: full ? 'var(--danger)' : 'var(--success)',
+              fontWeight: 600,
+            }}
+          >
             {cap.roomLeft}
           </span>{' '}
-          <span style={{ color: '#888' }}>/ {cap.weeklyCeiling}</span>
+          <span style={{ color: 'var(--faint)' }}>/ {cap.weeklyCeiling}</span>
           {cap.over > 0 && (
-            <span
-              role="status"
-              style={{
-                marginLeft: '0.5rem',
-                color: '#8a4b00',
-                background: '#fff3e0',
-                padding: '0.1rem 0.4rem',
-                borderRadius: 4,
-                fontSize: '0.85rem',
-              }}
-            >
+            <span className="tag tag--warn" role="status" style={{ marginLeft: '0.5rem' }}>
               &#9888; {cap.over} over
             </span>
           )}
         </p>
+
+        {/* Signature — the week as a fill line: how much of the ceiling is spoken
+            for. Green→teal while there's room; amber→red once the week is full. */}
+        <div
+          className="meter"
+          role="img"
+          aria-label={`${used} of ${cap.weeklyCeiling} booked this week`}
+          style={{ '--pct': `${pct}%`, marginBottom: '0.9rem' } as React.CSSProperties}
+        >
+          <div className={`meter__fill${full ? ' meter__fill--full' : ''}`} />
+        </div>
 
         {full && (
           <p
             role="status"
             style={{
               margin: '0 0 0.75rem',
-              color: '#8a4b00',
-              background: '#fff3e0',
+              color: 'var(--amber)',
+              background: 'var(--amber-bg)',
               padding: '0.5rem 0.7rem',
-              borderRadius: 4,
+              borderRadius: 'var(--radius-sm)',
               fontSize: '0.9rem',
             }}
           >
@@ -331,11 +385,11 @@ export default async function DashboardPage() {
                 </td>
                 <td style={cell}>
                   {d.past ? (
-                    <span style={{ color: '#999' }}>Past</span>
+                    <span className="tag tag--muted">Past</span>
                   ) : d.open ? (
-                    <span style={{ color: '#0a5c2b' }}>Open</span>
+                    <span className="tag tag--open">Open</span>
                   ) : d.maxed ? (
-                    <span style={{ color: '#b00020' }}>
+                    <span className="tag tag--danger">
                       Day-maxed
                       {d.nextOpen
                         ? ` · next open ${fmtDay(d.nextOpen)}`
@@ -344,7 +398,7 @@ export default async function DashboardPage() {
                   ) : (
                     // Under its per-day cap, but the WEEK is at the ceiling — not
                     // bookable without an override. Distinct from "Day-maxed".
-                    <span style={{ color: '#b00020' }}>Week full</span>
+                    <span className="tag tag--danger">Week full</span>
                   )}
                 </td>
               </tr>
@@ -358,31 +412,16 @@ export default async function DashboardPage() {
           read + serialize; this is only the download trigger. */}
       <section
         aria-labelledby="export-heading"
-        style={{
-          marginTop: '1rem',
-          border: '1px solid #e2e2e2',
-          borderRadius: 8,
-          padding: '1rem',
-        }}
+        style={card}
       >
         <h2 id="export-heading" style={{ fontSize: '1rem', margin: '0 0 0.5rem' }}>
           Own your data
         </h2>
-        <p style={{ margin: '0 0 0.75rem', fontSize: '0.85rem', color: '#666' }}>
+        <p style={{ margin: '0 0 0.75rem', fontSize: '0.85rem', color: 'var(--muted)' }}>
           Download your clients and jobs as CSV — your data, not rented.
         </p>
         <ExportButtons />
       </section>
-
-      <nav style={{ marginTop: '1rem', display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
-        <Link href="/clients">Clients</Link>
-        <Link href="/bookings">Book a job</Link>
-        <Link href="/jobs">Jobs</Link>
-        <Link href="/requests">Requests</Link>
-        <Link href="/inquiries">Inquiries</Link>
-        <Link href="/link">Public link</Link>
-        <Link href="/settings">Availability &amp; caps</Link>
-      </nav>
     </main>
   );
 }
