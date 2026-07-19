@@ -6,7 +6,7 @@
 // The sign-in surface itself must be reachable while unauthenticated.
 
 const PUBLIC_PREFIXES = ['/book'];
-const PUBLIC_EXACT = new Set(['/sign-in']);
+const PUBLIC_EXACT = new Set(['/', '/sign-in', '/request']);
 
 /**
  * True when a path is reachable WITHOUT an operator session.
