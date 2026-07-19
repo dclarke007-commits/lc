@@ -6,9 +6,9 @@
 // no cron. The action resolves the owner's config + this-week-forward jobs, then
 // hands them to the pure `derive` module. Reads only; no write path here.
 
+import { requireOwnerId } from '@/lib/auth/requireOwnerId';
 import { cache } from 'react';
 import {
-  getOwnerId,
   listJobsFrom,
   listJobsForMetrics,
   listClients,
@@ -113,9 +113,9 @@ export async function getDashboardCapacity(): Promise<DashboardCapacity> {
 
   let ownerId: string;
   try {
-    ownerId = await getOwnerId();
+    ownerId = await requireOwnerId();
   } catch (err) {
-    console.error('[dashboard] getOwnerId failed (read path)', err);
+    console.error('[dashboard] requireOwnerId failed (read path)', err);
     throw new Error('owner-unresolved');
   }
 
@@ -201,9 +201,9 @@ export async function getDashboardMetrics(): Promise<DashboardMetrics> {
 
   let ownerId: string;
   try {
-    ownerId = await getOwnerId();
+    ownerId = await requireOwnerId();
   } catch (err) {
-    console.error('[dashboard] getOwnerId failed (metrics read)', err);
+    console.error('[dashboard] requireOwnerId failed (metrics read)', err);
     throw new Error('owner-unresolved');
   }
 
@@ -274,9 +274,9 @@ export async function getLeakIndicators(): Promise<LeakIndicators> {
 
   let ownerId: string;
   try {
-    ownerId = await getOwnerId();
+    ownerId = await requireOwnerId();
   } catch (err) {
-    console.error('[dashboard] getOwnerId failed (leak indicators read)', err);
+    console.error('[dashboard] requireOwnerId failed (leak indicators read)', err);
     throw new Error('owner-unresolved');
   }
 
@@ -321,9 +321,9 @@ export async function getGoneColdList(): Promise<GoneColdRow[]> {
 
   let ownerId: string;
   try {
-    ownerId = await getOwnerId();
+    ownerId = await requireOwnerId();
   } catch (err) {
-    console.error('[dashboard] getOwnerId failed (gone-cold list read)', err);
+    console.error('[dashboard] requireOwnerId failed (gone-cold list read)', err);
     throw new Error('owner-unresolved');
   }
 

@@ -12,6 +12,7 @@ import {
   isNull,
   isNotNull,
   inArray,
+  count,
   sql,
 } from 'drizzle-orm';
 import { db } from './client';
@@ -751,6 +752,11 @@ export interface PublicBookingRequestInput {
   address: string | null;
   requestedDate: string; // 'YYYY-MM-DD', re-validated against the open set by the core
   sessionNonce: string; // the per-render visit nonce (AR12 dedup key)
+  // Optional atomic provisional-row cap (public-write rate limit). When set, the insert
+  // takes a per-owner advisory lock and rejects (result reason 'rate-limited') if the
+  // owner already has >= max pending_request rows created at/after sinceIso — closing the
+  // count-then-insert TOCTOU a cheap pre-check alone cannot (a concurrent burst).
+  cap?: { sinceIso: string; max: number };
 }
 
 export type PublicBookingRequestResult =
@@ -763,14 +769,20 @@ export type PublicBookingRequestResult =
       // second inquiry — AR12 one-per-session holds).
       inquiry: Inquiry | undefined;
     }
-  // A repeat submit of the SAME (session, day) — idempotent no-op: nothing new was
-  // written, the identical request already stands.
-  | { created: false };
+  // created:false covers two non-writes: an idempotent duplicate (reason 'duplicate' — a
+  // same-(session,day) repeat; the identical request already stands) OR the owner's
+  // provisional-row cap firing under the atomic in-transaction guard (reason 'rate-limited').
+  | { created: false; reason?: 'duplicate' | 'rate-limited' };
 
 // Internal sentinel: thrown to roll the transaction back when this exact (owner,
 // session, day) request already exists (a same-form same-day double-tap). Never
 // escapes this fn.
 class DuplicatePublicSession extends Error {}
+
+// Internal sentinel: thrown to roll the transaction back when the owner's provisional-row
+// cap is reached, checked under a per-owner advisory lock so concurrent submits cannot each
+// observe count<max and all insert (TOCTOU close). Never escapes this fn — mapped to a result.
+class ProvisionalCapExceeded extends Error {}
 
 /**
  * Atomically record a new-client public booking request (Story 4.2). Idempotency is
@@ -788,9 +800,31 @@ class DuplicatePublicSession extends Error {}
 export async function insertPublicBookingRequest(
   input: PublicBookingRequestInput,
 ): Promise<PublicBookingRequestResult> {
-  const { ownerId, name, phone, address, requestedDate, sessionNonce } = input;
+  const { ownerId, name, phone, address, requestedDate, sessionNonce, cap } =
+    input;
   try {
     return await db.transaction(async (tx) => {
+      // Atomic provisional-row cap (TOCTOU close). Serialize THIS owner's provisional
+      // inserts on a per-owner xact-scoped advisory lock (auto-released on commit/rollback,
+      // mirroring commitBooking's capacity lock), THEN count within the lock: concurrent
+      // submits can no longer each read count<max before any insert. A cheap pre-check in
+      // the core still sheds load before the derive; this is the correctness backstop.
+      if (cap) {
+        await tx.execute(
+          sql`select pg_advisory_xact_lock(hashtext(${`${ownerId}:provisional`}))`,
+        );
+        const [capRow] = await tx
+          .select({ n: count() })
+          .from(pendingRequest)
+          .where(
+            and(
+              eq(pendingRequest.ownerId, ownerId),
+              gte(pendingRequest.createdAt, cap.sinceIso),
+            ),
+          );
+        if ((capRow?.n ?? 0) >= cap.max) throw new ProvisionalCapExceeded();
+      }
+
       const [c] = await tx
         .insert(client)
         .values({
@@ -831,9 +865,38 @@ export async function insertPublicBookingRequest(
       return { created: true, client: c, request: req, inquiry: inq };
     });
   } catch (err) {
-    if (err instanceof DuplicatePublicSession) return { created: false };
+    if (err instanceof DuplicatePublicSession) {
+      return { created: false, reason: 'duplicate' };
+    }
+    if (err instanceof ProvisionalCapExceeded) {
+      return { created: false, reason: 'rate-limited' };
+    }
     throw err;
   }
+}
+
+/**
+ * Count the owner's pending_request rows created at/after `sinceIso` (a UTC instant
+ * string). The DURABLE half of the public-write rate limit (retrospective action item):
+ * unlike the in-memory per-IP throttle (lib/security/rateLimit), this reads canonical
+ * rows, so the cap survives cold starts and spans every Fluid Compute instance. Owner-
+ * scoped (AD-8) — the cap is per operator, resolved from the public token (AR7), never
+ * global, so one owner's inbound flood can never throttle another's.
+ */
+export async function countRecentPendingRequests(
+  ownerId: string,
+  sinceIso: string,
+): Promise<number> {
+  const [row] = await db
+    .select({ n: count() })
+    .from(pendingRequest)
+    .where(
+      and(
+        eq(pendingRequest.ownerId, ownerId),
+        gte(pendingRequest.createdAt, sinceIso),
+      ),
+    );
+  return row?.n ?? 0;
 }
 
 // --- Approval queue (Story 4.3, FR36/AD-2/AD-8) -------------------------------

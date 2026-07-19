@@ -73,6 +73,8 @@ export default async function BookPage({
       'no-availability':
         'That day was just taken — please pick another open day.',
       invalid: 'Sorry, that didn’t go through. Please try again.',
+      'too-many':
+        'You’re going a bit fast — please wait a moment and try again.',
     };
     const errorCopy =
       typeof error === 'string' && Object.hasOwn(PUBLIC_ERROR_COPY, error)

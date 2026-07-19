@@ -8,9 +8,9 @@
 //
 // The surface calls THIS (never lib/db): surfaces → actions → domain → db.
 
+import { requireOwnerId } from '@/lib/auth/requireOwnerId';
 import { revalidatePath } from 'next/cache';
 import {
-  getOwnerId,
   listClients,
   getClient,
   getJob,
@@ -35,9 +35,9 @@ export async function getBookableClients(): Promise<Client[]> {
   // would read as "no clients"). The RSC render surface shows the error boundary.
   let ownerId: string;
   try {
-    ownerId = await getOwnerId();
+    ownerId = await requireOwnerId();
   } catch (err) {
-    console.error('[bookings] getOwnerId failed (read path)', err);
+    console.error('[bookings] requireOwnerId failed (read path)', err);
     throw new Error('owner-unresolved');
   }
   return listClients(ownerId);
@@ -72,9 +72,9 @@ export async function createBooking(
 
   let ownerId: string;
   try {
-    ownerId = await getOwnerId();
+    ownerId = await requireOwnerId();
   } catch (err) {
-    console.error('[bookings] getOwnerId failed', err);
+    console.error('[bookings] requireOwnerId failed', err);
     return fail('owner-unresolved');
   }
 
@@ -135,9 +135,9 @@ export async function getConfirmationDraft(
 ): Promise<ActionResult<ConfirmationDraft>> {
   let ownerId: string;
   try {
-    ownerId = await getOwnerId();
+    ownerId = await requireOwnerId();
   } catch (err) {
-    console.error('[bookings] getOwnerId failed (confirmation)', err);
+    console.error('[bookings] requireOwnerId failed (confirmation)', err);
     return fail('owner-unresolved');
   }
 

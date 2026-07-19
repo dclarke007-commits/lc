@@ -130,7 +130,8 @@ action_items:
   - epic: 4
     action: "Public write surfaces (4.2 submit, 4.4 log) have no rate limiting — accepted gap (LOCKED). Add per-IP throttle + provisional-row cap before/when the app becomes multi-tenant or lower-trust."
     owner: "Developer"
-    status: open
+    status: done
+    resolution: "Done (chore/security-defense-in-depth): per-IP sliding-window throttle (lib/security/rateLimit + requestIp) at the book action boundary (confirm + submit) + DB-backed provisional-row cap (queries.countRecentPendingRequests, 30/10min per owner) in submitPublicRequestResult. In-memory throttle documented as best-effort/per-instance; DB cap is the durable, instance-spanning half. tests/rate-limit.test.ts."
   - epic: 6
     action: "Owner-isolation DB-integration tests for dashboard/export data paths (listJobsForMetrics, listJobsForExport, listInquiries). Bogus owner_id returns none; seeded owner sees its rows. (operator_singleton blocks a 2nd live tenant, so filter-value coverage is the achievable proof.) tests/dashboard-owner-scope.test.ts."
     owner: "Developer"
@@ -142,7 +143,8 @@ action_items:
   - epic: 6
     action: "Cross-action today consistency test: assert lapsed count, caught-cold count, and gone-cold list agree within one render (the renderNow fix is untested). Deferred — needs React request-context simulation to exercise cache() dedup; fragile as a direct unit test."
     owner: "Developer"
-    status: open
+    status: done
+    resolution: "Done (chore/security-defense-in-depth): pinned the invariant at the pure derive layer instead of simulating React cache() — for one `today`, repeatVsLapsedCounts.lapsed === goneColdList length and caughtColdThisWeek ⊆ that set; plus a midnight-straddle case proving two different `today` values desync (why the shared renderNow instant is load-bearing). tests/dashboard-lapse-consistency.test.ts."
   - epic: 6
     action: "Repeat/Lapsed label nuance — clarified as INDEPENDENT counts (not a partition): '·' separator, '(independent)' note, tile relabelled 'Repeat & lapsed'. app/(operator)/page.tsx."
     owner: "Developer"
@@ -150,7 +152,8 @@ action_items:
   - epic: 6
     action: "Defense-in-depth auth decision (app-wide): whether operator Server Actions should verify session in-action (shared requireOperatorSession) vs rely solely on proxy.ts middleware. Pre-existing AD-6 pattern, not an Epic-6 regression."
     owner: "Project Lead + Developer"
-    status: open
+    status: done
+    resolution: "Decided IN-ACTION verification + implemented (chore/security-defense-in-depth): lib/auth/requireOwnerId verifies the HMAC session cookie (signature + expiry) in-action and returns session.sub as the owner_id; all 12 operator action files swapped getOwnerId()→requireOwnerId() so a matcher gap / direct action invocation can never run owner-scoped work without a verified session. proxy.ts remains the navigation gate. getOwnerId() retained as the DB primitive (seed/tests). Real impl unit-tested in tests/require-owner-id.test.ts; integration tests delegate via a setup.ts mock."
   - epic: 1
     action: "Unify capacity.ts private week-arithmetic onto clock.ts (single-source the Mon-Sun week helpers; capacity keeps private copies pre-existing)."
     owner: "Developer"

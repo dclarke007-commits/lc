@@ -8,6 +8,7 @@
 // crosses the boundary; no silent catch. Only lib/db speaks SQL (AD-1) — this
 // action reaches it directly; surfaces never do.
 
+import { requireOwnerId } from '@/lib/auth/requireOwnerId';
 import { cache } from 'react';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
@@ -16,7 +17,6 @@ import { db } from '@/lib/db/client';
 import { client } from '@/lib/db/schema';
 import type { Client } from '@/lib/db/schema';
 import {
-  getOwnerId,
   listClients,
   getClient,
   listJobsForMetrics,
@@ -73,13 +73,13 @@ function readFields(formData: FormData):
  * owner_id is resolved here, so the filter value is always applied.
  */
 export async function listOwnerClients(): Promise<Client[]> {
-  const ownerId = await getOwnerId();
+  const ownerId = await requireOwnerId();
   return listClients(ownerId);
 }
 
 /** Owner-scoped single read for the edit surface (populates the form). */
 export async function getOwnerClient(id: string): Promise<Client | undefined> {
-  const ownerId = await getOwnerId();
+  const ownerId = await requireOwnerId();
   return getClient(ownerId, id);
 }
 
@@ -91,10 +91,10 @@ export async function createClient(
 
   let ownerId: string;
   try {
-    ownerId = await getOwnerId();
+    ownerId = await requireOwnerId();
   } catch (err) {
     // AR15: fail closed, but leave a trace in the platform logs.
-    console.error('[clients] getOwnerId failed', err);
+    console.error('[clients] requireOwnerId failed', err);
     return fail('owner-unresolved');
   }
 
@@ -130,10 +130,10 @@ export async function editClient(
 
   let ownerId: string;
   try {
-    ownerId = await getOwnerId();
+    ownerId = await requireOwnerId();
   } catch (err) {
     // AR15: fail closed, but leave a trace in the platform logs.
-    console.error('[clients] getOwnerId failed', err);
+    console.error('[clients] requireOwnerId failed', err);
     return fail('owner-unresolved');
   }
 
@@ -220,7 +220,7 @@ function jobsByClient(
  * surface reads the boolean; it never imports derive or lib/db.
  */
 export async function listOwnerClientsWithLapse(): Promise<ClientRow[]> {
-  const ownerId = await getOwnerId();
+  const ownerId = await requireOwnerId();
   const clients = await listClients(ownerId);
 
   // Fail-OPEN on the lapse annotation only (code review 2026-07-17): the derivation reads
@@ -260,9 +260,9 @@ async function deriveWinBack(
 ): Promise<ActionResult<WinBackContext>> {
   let ownerId: string;
   try {
-    ownerId = await getOwnerId();
+    ownerId = await requireOwnerId();
   } catch (err) {
-    console.error('[clients] getOwnerId failed (win-back)', err);
+    console.error('[clients] requireOwnerId failed (win-back)', err);
     return fail('owner-unresolved');
   }
 

@@ -10,10 +10,11 @@
 // copy lives in the domain (DEFAULT_TEMPLATE_BODIES), not in DB column defaults —
 // getOwnerTemplates substitutes a default for any type not yet seeded.
 
+import { requireOwnerId } from '@/lib/auth/requireOwnerId';
 import { revalidatePath } from 'next/cache';
 import { db } from '@/lib/db/client';
 import { messageTemplate } from '@/lib/db/schema';
-import { getOwnerId, getMessageTemplates } from '@/lib/db/queries';
+import { getMessageTemplates } from '@/lib/db/queries';
 import { ok, fail, type ActionResult } from '@/lib/domain/result';
 import {
   MESSAGE_TEMPLATE_TYPES,
@@ -43,9 +44,9 @@ export interface TemplateView {
 export async function getOwnerTemplates(): Promise<TemplateView[]> {
   let ownerId: string;
   try {
-    ownerId = await getOwnerId();
+    ownerId = await requireOwnerId();
   } catch (err) {
-    console.error('[templates] getOwnerId failed (read path)', err);
+    console.error('[templates] requireOwnerId failed (read path)', err);
     throw new Error('owner-unresolved');
   }
 
@@ -77,10 +78,10 @@ export async function saveMessageTemplate(
 
   let ownerId: string;
   try {
-    ownerId = await getOwnerId();
+    ownerId = await requireOwnerId();
   } catch (err) {
     // AR15: fail closed, but leave a trace in the platform logs.
-    console.error('[templates] getOwnerId failed', err);
+    console.error('[templates] requireOwnerId failed', err);
     return fail('owner-unresolved');
   }
 

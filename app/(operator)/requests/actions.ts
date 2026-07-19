@@ -1,7 +1,7 @@
 'use server';
 
 // Story 4.3 — the operator's approval-queue actions. Sole write path = Server
-// Actions (AD-1). Owner is resolved from the SESSION via getOwnerId (AD-8) — this is
+// Actions (AD-1). Owner is resolved from the SESSION via requireOwnerId (AD-8) — this is
 // an authenticated operator surface (behind proxy.ts), NOT the public token path of
 // 4.2. The ONLY untrusted input is the pending-request `id`; owner/client/date are
 // never taken from a form field. Approve routes through the ONE capacity path
@@ -9,6 +9,7 @@
 // capacity. Return contract (AR15): { ok, data } | { ok:false, reason }; no thrown
 // error crosses the boundary; only lib/db speaks SQL (AD-1), reached directly here.
 
+import { requireOwnerId } from '@/lib/auth/requireOwnerId';
 import { revalidatePath } from 'next/cache';
 import { and, eq } from 'drizzle-orm';
 import { db } from '@/lib/db/client';
@@ -28,7 +29,6 @@ const NO_AVAILABILITY_REASONS = new Set([
   'non-working-day',
 ]);
 import {
-  getOwnerId,
   listPendingRequests,
   getPendingRequest,
   setPendingRequestStatus,
@@ -45,7 +45,7 @@ import { ok, fail, type ActionResult } from '@/lib/domain/result';
 export async function listOwnerPendingRequests(): Promise<
   PendingRequestListItem[]
 > {
-  const ownerId = await getOwnerId();
+  const ownerId = await requireOwnerId();
   return listPendingRequests(ownerId);
 }
 
@@ -78,10 +78,10 @@ export async function approveRequest(
 
   let ownerId: string;
   try {
-    ownerId = await getOwnerId();
+    ownerId = await requireOwnerId();
   } catch (err) {
     // AR15: fail closed, but leave a trace in the platform logs.
-    console.error('[requests] getOwnerId failed', err);
+    console.error('[requests] requireOwnerId failed', err);
     return fail('owner-unresolved');
   }
 
@@ -182,10 +182,10 @@ export async function declineRequest(
 
   let ownerId: string;
   try {
-    ownerId = await getOwnerId();
+    ownerId = await requireOwnerId();
   } catch (err) {
     // AR15: fail closed, but leave a trace in the platform logs.
-    console.error('[requests] getOwnerId failed', err);
+    console.error('[requests] requireOwnerId failed', err);
     return fail('owner-unresolved');
   }
 
