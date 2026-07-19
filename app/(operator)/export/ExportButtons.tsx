@@ -50,13 +50,17 @@ export function ExportButtons() {
     }
   }
 
+  // Secondary (outlined) button: white fill, ink label. Sets color explicitly so
+  // the global primary-button color (#fff) can't leave white-on-white text.
   const btn: React.CSSProperties = {
-    padding: '0.4rem 0.75rem',
-    border: '1px solid #c7c7c7',
-    borderRadius: 6,
-    background: '#fff',
+    padding: '0.5rem 0.85rem',
+    border: '1px solid var(--line)',
+    borderRadius: 'var(--radius-sm)',
+    background: 'var(--surface)',
+    color: 'var(--ink)',
     cursor: 'pointer',
     fontSize: '0.9rem',
+    fontWeight: 500,
   };
 
   return (
@@ -78,7 +82,7 @@ export function ExportButtons() {
         {busy === 'jobs' ? 'Exporting…' : 'Export jobs (CSV)'}
       </button>
       {error && (
-        <span role="alert" style={{ color: '#b00020', fontSize: '0.85rem' }}>
+        <span role="alert" style={{ color: 'var(--danger)', fontSize: '0.85rem' }}>
           Export failed ({error}). Try again.
         </span>
       )}

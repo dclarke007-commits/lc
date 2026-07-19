@@ -1,0 +1,372 @@
+/* LovesCleaning design system — "Fresh & trustworthy".
+   Element-level base styles do the heavy lifting: pages use semantic HTML, so
+   restyling h1/input/button/table/a here lifts the whole app at once. Inline
+   styles on a page still win (higher specificity) — that's intentional, they
+   carry layout; color/type flows from the tokens below. */
+
+:root {
+  --bg: #fbfdfc;
+  --surface: #ffffff;
+  --surface-2: #f3f8f5;
+  --ink: #10241c;
+  --muted: #5a6b62;
+  --faint: #8a9a91;
+  --green: #1e7a3d;
+  --green-strong: #14602e;
+  --teal: #2fa5a0;
+  --mist: #e8f1ec;
+  --line: #dce7e0;
+  --amber: #a9660f;
+  --amber-bg: #fbf0de;
+  --danger: #b4432e;
+  --danger-bg: #fbebe6;
+  --success: #14602e;
+  --success-bg: #e7f4ec;
+
+  --radius: 14px;
+  --radius-sm: 9px;
+  --shadow: 0 1px 2px rgba(16, 36, 28, 0.05), 0 8px 24px rgba(16, 36, 28, 0.05);
+  --shadow-sm: 0 1px 2px rgba(16, 36, 28, 0.06);
+
+  --font-display: 'Bricolage Grotesque', system-ui, sans-serif;
+  --font-body: 'Inter', system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 16px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* Type — display face carries the personality, used with restraint on headings. */
+h1,
+h2,
+h3 {
+  font-family: var(--font-display);
+  color: var(--ink);
+  letter-spacing: -0.015em;
+  line-height: 1.15;
+}
+h1 {
+  font-weight: 700;
+  font-size: 1.6rem;
+}
+h2 {
+  font-weight: 600;
+}
+h3 {
+  font-weight: 600;
+}
+
+p {
+  color: var(--ink);
+}
+
+a {
+  color: var(--green);
+  text-decoration: none;
+  font-weight: 500;
+  text-underline-offset: 3px;
+}
+a:hover {
+  text-decoration: underline;
+}
+
+/* Forms — the fields strangers and the operator both touch. Calm, rounded, room
+   to tap on a phone (NFR1). Only styles where a page hasn't set its own inline. */
+label {
+  color: var(--ink);
+}
+
+input,
+select,
+textarea {
+  font-family: inherit;
+  font-size: 1rem;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 0.6rem 0.7rem;
+  width: 100%;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+input:focus,
+select:focus,
+textarea:focus {
+  outline: none;
+  border-color: var(--teal);
+  box-shadow: 0 0 0 3px rgba(47, 165, 160, 0.18);
+}
+
+button,
+input[type='submit'] {
+  font-family: inherit;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #fff;
+  background: var(--green);
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  padding: 0.6rem 1rem;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.05s;
+}
+button:hover,
+input[type='submit']:hover {
+  background: var(--green-strong);
+}
+button:active {
+  transform: translateY(1px);
+}
+button:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible {
+  outline: 2px solid var(--teal);
+  outline-offset: 2px;
+}
+
+/* Tables — the capacity/jobs grids. Airy rows, quiet hairlines. */
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.95rem;
+}
+th {
+  text-align: left;
+  font-family: var(--font-body);
+  font-weight: 600;
+  color: var(--muted);
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+td,
+th {
+  padding: 0.6rem 0.7rem;
+  border-bottom: 1px solid var(--line);
+}
+tbody tr:last-child td {
+  border-bottom: none;
+}
+
+hr {
+  border: none;
+  border-top: 1px solid var(--line);
+  margin: 1.25rem 0;
+}
+
+/* ---- App shell (operator) ---------------------------------------------- */
+.appbar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: rgba(251, 253, 252, 0.85);
+  backdrop-filter: saturate(1.4) blur(8px);
+  border-bottom: 1px solid var(--line);
+}
+.appbar__inner {
+  max-width: 880px;
+  margin: 0 auto;
+  padding: 0.7rem 1.25rem;
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+}
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 1.05rem;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+}
+.brand:hover {
+  text-decoration: none;
+}
+.brand__mark {
+  width: 26px;
+  height: 26px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: 8px 8px 8px 2px; /* droplet-ish: one sharp corner */
+  background: linear-gradient(150deg, var(--teal), var(--green));
+  color: #fff;
+  font-size: 15px;
+  line-height: 1;
+  box-shadow: var(--shadow-sm);
+}
+.brand__love {
+  color: var(--green);
+}
+.nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.15rem;
+  margin-left: auto;
+}
+.nav a {
+  color: var(--muted);
+  font-weight: 500;
+  font-size: 0.9rem;
+  padding: 0.35rem 0.6rem;
+  border-radius: 7px;
+}
+.nav a:hover {
+  color: var(--ink);
+  background: var(--mist);
+  text-decoration: none;
+}
+
+.container {
+  max-width: 880px;
+  margin: 0 auto;
+  padding: 0 1.25rem;
+}
+
+/* Auth shell — the un-authenticated centered form (sign-in). */
+.auth-shell {
+  min-height: 100dvh;
+  display: grid;
+  place-items: start center;
+  padding-top: 12vh;
+}
+.auth-shell main {
+  width: 100%;
+  max-width: 380px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 1.75rem !important;
+}
+.auth-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  justify-content: center;
+  margin-bottom: 1rem;
+}
+
+/* ---- Public booking shell ---------------------------------------------- */
+.public-shell {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: clamp(1.5rem, 5vw, 3rem) 1.25rem 3rem;
+  background:
+    radial-gradient(120% 60% at 50% -10%, var(--mist), transparent 60%),
+    var(--bg);
+}
+.public-shell__brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 1.25rem;
+}
+.public-shell main {
+  width: 100%;
+  max-width: 460px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 1.75rem !important;
+}
+
+/* ---- Dashboard tiles + capacity meter (the signature) ------------------ */
+.tile-accent {
+  position: relative;
+  overflow: hidden;
+}
+.tile-accent::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 3px;
+  background: var(--tile-bar, var(--green));
+}
+
+.meter {
+  --pct: 0%;
+  height: 12px;
+  border-radius: 999px;
+  background: var(--mist);
+  overflow: hidden;
+  border: 1px solid var(--line);
+}
+.meter__fill {
+  height: 100%;
+  width: var(--pct);
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--teal), var(--green));
+  transition: width 0.4s ease;
+}
+.meter__fill--full {
+  background: linear-gradient(90deg, #d98a3a, var(--danger));
+}
+
+/* Pill status tags (Open / Past / full). */
+.tag {
+  display: inline-block;
+  font-size: 0.78rem;
+  font-weight: 600;
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  line-height: 1.5;
+}
+.tag--open {
+  color: var(--success);
+  background: var(--success-bg);
+}
+.tag--muted {
+  color: var(--faint);
+  background: var(--surface-2);
+}
+.tag--warn {
+  color: var(--amber);
+  background: var(--amber-bg);
+}
+.tag--danger {
+  color: var(--danger);
+  background: var(--danger-bg);
+}
+
+@media (max-width: 560px) {
+  .appbar__inner {
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+  .nav {
+    width: 100%;
+    margin-left: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition: none !important;
+  }
+}
