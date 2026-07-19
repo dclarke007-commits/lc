@@ -15,8 +15,8 @@ const state = JSON.parse(
 test('dashboard shows capacity, then a booking can be created and completed', async ({
   page,
 }) => {
-  // Dashboard capacity/forecast is visible.
-  await page.goto('/');
+  // Dashboard capacity/forecast is visible ('/' is now the public homepage).
+  await page.goto('/dashboard');
   await expect(
     page.getByRole('heading', { name: 'Operator dashboard' }),
   ).toBeVisible();

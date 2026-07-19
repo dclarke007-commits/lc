@@ -20,8 +20,9 @@ setup('authenticate operator via the sign-in form', async ({ page }) => {
   await page.getByLabel('Passphrase').fill(passphrase!);
   await page.getByRole('button', { name: 'Sign in' }).click();
 
-  // On success the action sets the cookie server-side and the client routes to '/'.
-  await expect(page).toHaveURL('http://localhost:3000/');
+  // On success the action sets the cookie server-side and the client routes to
+  // '/dashboard' (the operator landing; '/' is now the public marketing homepage).
+  await expect(page).toHaveURL('http://localhost:3000/dashboard');
   await expect(
     page.getByRole('heading', { name: 'Operator dashboard' }),
   ).toBeVisible();
