@@ -10,7 +10,7 @@
 import { test, expect } from '@playwright/test';
 
 test('exporting jobs CSV from the dashboard fires a download', async ({ page }) => {
-  await page.goto('/');
+  await page.goto('/dashboard');
   await expect(page.getByRole('heading', { name: 'Own your data' })).toBeVisible();
 
   const exportButton = page.getByRole('button', { name: 'Export jobs (CSV)' });

@@ -2,13 +2,13 @@ import Link from 'next/link';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { SESSION_COOKIE, verifySession } from '@/lib/auth/session';
-import { ExportButtons } from './export/ExportButtons';
+import { ExportButtons } from '../export/ExportButtons';
 import {
   getDashboardCapacity,
   getDashboardMetrics,
   getLeakIndicators,
   getGoneColdList,
-} from './actions';
+} from '../actions';
 
 // Presentation-only: integer cents → "$1,234". No float math crosses the domain;
 // this is a label. Whole dollars — the operator reads trajectory, not pennies.

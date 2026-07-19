@@ -354,6 +354,134 @@ hr {
   background: var(--danger-bg);
 }
 
+/* ---- Public marketing homepage ----------------------------------------- */
+.marketing {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(2.5rem, 6vw, 4rem);
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 0 1.25rem clamp(3rem, 8vw, 5rem);
+}
+.marketing section {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+.marketing h2 {
+  font-size: 1.25rem;
+}
+
+.hero {
+  text-align: center;
+  gap: 0.75rem;
+  margin: 0 -1.25rem;
+  padding: clamp(2.5rem, 10vw, 4rem) 1.25rem 0.5rem;
+  background:
+    radial-gradient(120% 60% at 50% -10%, var(--mist), transparent 60%),
+    var(--bg);
+  border-radius: 0 0 var(--radius) var(--radius);
+}
+.hero h1 {
+  font-size: clamp(1.6rem, 5vw, 2.1rem);
+}
+.hero p {
+  color: var(--muted);
+  font-size: 1.05rem;
+  max-width: 32ch;
+  margin: 0 auto;
+}
+
+/* Amber signal reserved for the primary marketing CTA (green stays reserved for
+   paid/confirmed states elsewhere) — dark ink on amber keeps contrast readable. */
+.cta-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  align-self: center;
+  min-height: 44px;
+  padding: 0.75rem 1.5rem;
+  margin-top: 0.5rem;
+  background: var(--amber);
+  color: var(--ink);
+  font-weight: 700;
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-sm);
+}
+.cta-primary:hover {
+  color: var(--ink);
+  text-decoration: none;
+  filter: brightness(1.06);
+}
+
+.cards {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.9rem;
+}
+.cards li {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+  padding: 1rem 1.1rem;
+}
+.cards strong {
+  color: var(--ink);
+}
+.cards span {
+  color: var(--muted);
+  font-size: 0.92rem;
+}
+
+.steps {
+  margin: 0;
+  padding-left: 1.35rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+.steps li {
+  padding-left: 0.2rem;
+}
+
+.marketing-footer {
+  text-align: center;
+  border-top: 1px solid var(--line);
+  padding-top: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4rem;
+}
+.marketing-footer p {
+  color: var(--muted);
+  font-size: 0.9rem;
+  margin: 0;
+}
+.operator-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--faint);
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+.operator-link:hover {
+  color: var(--muted);
+}
+
+@media (min-width: 640px) {
+  .cards {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
 @media (max-width: 560px) {
   .appbar__inner {
     flex-wrap: wrap;

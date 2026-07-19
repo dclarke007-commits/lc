@@ -6,7 +6,7 @@
 // token chain (invalid / tampered / cross-capability / weak-secret), and the
 // re-derive-the-offered-set guard (a date the view never offered → no-availability).
 // Do NOT end the shared pool here.
-import { describe, it, expect, beforeAll, beforeEach } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest';
 import { eq, and } from 'drizzle-orm';
 import { db } from '../lib/db/client';
 import {
@@ -72,9 +72,25 @@ async function anOpenDate(): Promise<string> {
   return view.view.openSlots[0].date;
 }
 
+// Pin "now" to a fixed Monday so the open-week derive (openWeek.ts reads `new Date()`,
+// no clock injection) always offers a FULL week of slots. Without this, the F1 test —
+// which needs >=2 distinct open days in the current week — fails whenever the suite runs
+// late in the real week (e.g. a Sat/Sun CI run leaves <2 future days). Only Date is faked
+// (toFake:['Date']); setTimeout/setInterval stay real so the pg driver is unaffected.
+// Restored in afterAll — singleFork shares the process across files, so a leaked fake
+// clock would poison every later test file.
+const PINNED_NOW = new Date('2026-07-13T12:00:00Z'); // Monday
+
 beforeAll(async () => {
+  vi.useFakeTimers({ toFake: ['Date'] });
+  vi.setSystemTime(PINNED_NOW);
   await seedOperator();
   ownerId = await getOwnerId();
+});
+
+afterAll(() => {
+  // Restore the real clock so the pinned time never leaks into later serial test files.
+  vi.useRealTimers();
 });
 
 // Clean slate each test: no jobs/tokens/requests/inquiries, and a KNOWN-GOOD capacity

@@ -94,7 +94,7 @@ export default async function InquiriesPage({
   return (
     <main style={{ padding: '1.5rem', maxWidth: 640 }}>
       <p style={{ margin: '0 0 1rem' }}>
-        <Link href="/">&larr; Dashboard</Link>
+        <Link href="/dashboard">&larr; Dashboard</Link>
       </p>
       <h1 style={{ fontSize: '1.25rem', margin: '0 0 1rem' }}>Inquiries</h1>
 

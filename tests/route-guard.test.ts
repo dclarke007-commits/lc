@@ -14,7 +14,6 @@ describe('isPublicPath — operator gate classification', () => {
   });
 
   it('protects operator routes (dashboard root + nested)', () => {
-    expect(isPublicPath('/')).toBe(false);
     expect(isPublicPath('/ledger')).toBe(false);
     expect(isPublicPath('/schedule/today')).toBe(false);
   });
@@ -22,5 +21,17 @@ describe('isPublicPath — operator gate classification', () => {
   it('does not treat lookalike prefixes as public', () => {
     expect(isPublicPath('/bookkeeping')).toBe(false);
     expect(isPublicPath('/sign-in-elsewhere')).toBe(false);
+  });
+});
+
+describe('isPublicPath — homepage + request', () => {
+  it('opens the public homepage and request route', () => {
+    expect(isPublicPath('/')).toBe(true);
+    expect(isPublicPath('/request')).toBe(true);
+  });
+  it('keeps the moved dashboard and operator routes gated', () => {
+    expect(isPublicPath('/dashboard')).toBe(false);
+    expect(isPublicPath('/clients')).toBe(false);
+    expect(isPublicPath('/settings')).toBe(false);
   });
 });
