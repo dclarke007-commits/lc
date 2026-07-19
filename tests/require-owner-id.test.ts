@@ -4,10 +4,18 @@
 // cookie or a weak secret throws (fail-closed), so an operator action can never run
 // owner-scoped work without a verified session.
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { signSession, SESSION_COOKIE } from '../lib/auth/session';
 
 const SECRET = 'test-session-secret-at-least-32-chars-long!!';
+
+// Tests run in a single shared fork (vitest.config: singleFork), so process.env
+// is shared mutable state across files. Capture the ambient SESSION_SECRET and
+// restore it after every test — the weak-secret case below sets it to 'too-short',
+// which would otherwise leak and break any later file that signs a real session
+// (e.g. tests/action.test.ts → 'session-misconfigured'). Mirrors the save/restore
+// pattern in tests/public-token.test.ts.
+const ORIGINAL_SESSION_SECRET = process.env.SESSION_SECRET;
 
 // Mutable cookie value the next/headers mock returns for SESSION_COOKIE.
 let cookieValue: string | undefined;
@@ -34,6 +42,11 @@ describe('requireOwnerId — in-action session verification', () => {
   beforeEach(() => {
     process.env.SESSION_SECRET = SECRET;
     cookieValue = undefined;
+  });
+
+  afterEach(() => {
+    // Restore the ambient secret so the weak-secret case never leaks to later files.
+    process.env.SESSION_SECRET = ORIGINAL_SESSION_SECRET;
   });
 
   it('returns the session sub (owner id) for a valid, unexpired cookie', async () => {
