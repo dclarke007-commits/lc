@@ -61,6 +61,11 @@ export function readPublicFields(formData: FormData):
   if (name.length > MAX_FIELD) return { ok: false, reason: 'name-too-long' };
   if (phone.length > MAX_FIELD) return { ok: false, reason: 'phone-too-long' };
   if (addressRaw.length > MAX_FIELD) return { ok: false, reason: 'address-too-long' };
+  // `visit` is attacker-supplied FormData written verbatim into the unbounded `text`
+  // session_nonce columns; on the tokenless /request path it is reachable WITHOUT any
+  // token, so it needs the same bound as the other free-text fields (security review:
+  // unbounded-visit Medium). A legitimate nonce is a short generated token.
+  if (visit.length > MAX_FIELD) return { ok: false, reason: 'visit-too-long' };
 
   return {
     ok: true,
