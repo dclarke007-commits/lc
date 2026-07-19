@@ -37,6 +37,14 @@ export const CONSUMING_COMPLETIONS = ['booked', 'completed', 'no-show'] as const
  * AD-2 predicate: does this job consume a capacity slot? `booked`, `completed`,
  * and `no-show` consume; `cancelled` does not. The ONE definition — both
  * commitBooking and derive.roomLeft (Story 1.7) call this.
+ *
+ * DIVERGENCE NOTE (Epic 3 retro action item): lapse detection does NOT reuse this
+ * predicate. derive.hasFutureBooking (the "future booking on file" suppressor for
+ * goneCold) is deliberately narrower — `booked` ONLY — because for lapse a today/future
+ * `no-show` is the very lapse signal and must NOT suppress cold, and a `completed` is a
+ * past fact, not a future appointment. Capacity counts all three (a no-show still burned
+ * the slot); lapse counts only a live future booking. Two predicates, two intents — keep
+ * them distinct; do not collapse hasFutureBooking onto consumesSlot.
  */
 export function consumesSlot(j: { completion: string }): boolean {
   return (CONSUMING_COMPLETIONS as readonly string[]).includes(j.completion);

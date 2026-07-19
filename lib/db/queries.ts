@@ -1015,20 +1015,48 @@ export interface InsertInquiryInput {
   source: Inquiry['source'];
   // Optional: a bare manual log has no client (null); a known-contact log references one.
   clientId?: string | null;
+  // Optional per-render SUBMIT nonce (Epic 4 retro action item). When present it dedups a
+  // double-tapped manual log via the partial unique index (source<>'link'); when null/absent
+  // the log is never deduped (legacy behavior — each is a distinct inquiry).
+  sessionNonce?: string | null;
 }
 
 /**
- * Insert one manual inquiry (Story 4.4). `session_nonce` is ALWAYS null (a manual log
- * carries no token-visit session — that is the 4.2 `link` path's dedup key). `clientId`
- * defaults to null when absent. Owner-scoped (AD-8). Returns the inserted row.
+ * Insert one manual inquiry (Story 4.4). `clientId` defaults to null when absent. When a
+ * `sessionNonce` (per-render submit nonce) is supplied, the insert is IDEMPOTENT on
+ * (owner, session_nonce) among non-`link` rows: a double-tap of the SAME rendered form
+ * conflicts on `inquiry_owner_submit_manual_uq` → ON CONFLICT DO NOTHING → we return the
+ * already-logged row instead of writing a second (Epic 4 retro action item). A null nonce
+ * never conflicts (NULLs distinct), so nonce-less callers keep the original insert-always
+ * behavior. Owner-scoped (AD-8). Returns the inserted-or-existing row.
  */
 export async function insertInquiry(input: InsertInquiryInput): Promise<Inquiry> {
-  const { ownerId, source, clientId = null } = input;
+  const { ownerId, source, clientId = null, sessionNonce = null } = input;
   const [row] = await db
     .insert(inquiry)
-    .values({ ownerId, source, clientId, sessionNonce: null })
+    .values({ ownerId, source, clientId, sessionNonce })
+    // Arbiter = the MANUAL partial index (source<>'link'); its predicate must be restated so
+    // Postgres picks it and not the disjoint `link` index on the same columns.
+    .onConflictDoNothing({
+      target: [inquiry.ownerId, inquiry.sessionNonce],
+      where: sql`${inquiry.source} <> 'link'`,
+    })
     .returning();
-  return row;
+  if (row) return row;
+  // Conflict (a real double-tap: nonce non-null and already logged) — return the existing
+  // row so the caller reports idempotent success. Unreachable for a null nonce (never conflicts).
+  const [existing] = await db
+    .select()
+    .from(inquiry)
+    .where(
+      and(
+        eq(inquiry.ownerId, ownerId),
+        eq(inquiry.sessionNonce, sessionNonce as string),
+        sql`${inquiry.source} <> 'link'`,
+      ),
+    )
+    .limit(1);
+  return existing;
 }
 
 /** The minimal Inquiry projection the distinct-inquiry derive (AR12/FR24) + tests read. */

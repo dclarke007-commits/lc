@@ -56,6 +56,9 @@ export async function logInquiry(
   if (!isManualSource(source)) return fail('source-invalid');
 
   const clientIdRaw = String(formData.get('clientId') ?? '').trim();
+  // Per-render submit nonce (Epic 4 retro action item): dedups a double-tapped log of the
+  // SAME rendered form. Empty → null (no dedup). The surface embeds a fresh nonce per render.
+  const submitNonce = String(formData.get('submitNonce') ?? '').trim() || null;
 
   let ownerId: string;
   try {
@@ -77,7 +80,7 @@ export async function logInquiry(
   }
 
   try {
-    const row = await insertInquiry({ ownerId, source, clientId });
+    const row = await insertInquiry({ ownerId, source, clientId, sessionNonce: submitNonce });
     revalidatePath('/inquiries');
     return ok(row);
   } catch (err) {

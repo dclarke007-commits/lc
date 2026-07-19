@@ -498,9 +498,11 @@ export const inquiry = pgTable(
       onDelete: 'set null',
     }),
     source: inquirySource('source').notNull(),
-    // The per-render token-visit session nonce (AR12). Only `link` inquiries set it;
-    // it is the dedup key for the at-most-one-per-session invariant. Nullable so a
-    // future manual log (4.4) needs none.
+    // The per-render dedup nonce (AR12). A `link` inquiry sets the token-visit session
+    // nonce (Story 4.2); a MANUAL log sets a per-render SUBMIT nonce (Epic 4 retro action
+    // item — dedups a double-tapped manual log). Nullable: a manual log that carries no
+    // nonce is simply never deduped (each is a distinct inquiry). One column, two partial
+    // indexes below (source='link' vs source<>'link') keep the two dedup scopes disjoint.
     sessionNonce: text('session_nonce'),
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
       .defaultNow()
@@ -515,6 +517,14 @@ export const inquiry = pgTable(
     uniqueIndex('inquiry_owner_session_link_uq')
       .on(t.ownerId, t.sessionNonce)
       .where(sql`${t.source} = 'link'`),
+    // Epic 4 retro action item: at most one MANUAL inquiry per (owner, submit_nonce).
+    // PARTIAL — scoped to non-`link` rows (disjoint from the link index above, so the two
+    // dedup arbiters never collide), and the manual insert uses it as the ON CONFLICT DO
+    // NOTHING arbiter (queries.insertInquiry). A null nonce is exempt (Postgres treats NULLs
+    // as distinct in a unique index), so pre-existing/nonce-less manual logs never conflict.
+    uniqueIndex('inquiry_owner_submit_manual_uq')
+      .on(t.ownerId, t.sessionNonce)
+      .where(sql`${t.source} <> 'link'`),
   ],
 );
 
