@@ -81,7 +81,8 @@ FRs are grouped by capability. IDs are globally stable — never renumber; only 
 - **FR8** — On a **confirmed** booking, the system shall record the job (client, date, price) and produce a booking-confirmation message for the operator to send (see FR20). `[ASSUMPTION]` default job price $200, editable per job.
 - **FR9** — The system shall prevent a booking from being **confirmed** if it would exceed the per-day cap or the weekly 14-job ceiling, and shall communicate no availability rather than silently overbooking. The cap check is re-evaluated at approval time (FR36), so a pending request cannot be approved into an already-full slot. Client-facing flows (FR2, FR36) can never exceed a cap; only the operator, via explicit override (FR39), may book past one.
 - **FR36** — The system shall present the operator an **approval queue** of pending new-client requests (FR6). On approval, the request becomes a confirmed booking consuming capacity (subject to FR9); on decline, the slot is untouched. Until approved, a pending request does not reserve or consume the slot. `[ASSUMPTION]` multiple pending requests may target the same slot; the first approved wins and the rest are surfaced as no-longer-available.
-- **FR37** — The system shall let the operator **log an inquiry** with a source (`phone`, `walk-in`, `link`, `referral`, `other`), independent of whether it arrived through a booking link, so that phone/verbal inquiries are captured. Link visits that begin a booking are logged automatically as `link` inquiries. Inquiry → booking conversion (FR24) is measured against **all** logged inquiries, not only link-touch ones.
+- **FR37** — The system shall let the operator **log an inquiry** with a source (`phone`, `walk-in`, `link`, `referral`, `web`, `other`), independent of whether it arrived through a booking link, so that phone/verbal inquiries are captured. Link visits that begin a booking are logged automatically as `link` inquiries; homepage self-serve submissions (FR42) are logged as `web`. Inquiry → booking conversion (FR24) is measured against **all** logged inquiries, not only link-touch ones.
+- **FR42** — The system shall provide a **public marketing homepage** at `/`, usable without an account, presenting the business and a self-serve booking-request form. A submission creates a provisional client record + pending request (per FR6) and logs an inquiry with source `web` (FR37). All operator surfaces remain behind auth (FR33).
 
 ### 5.2 Rebooking & Nudges
 
@@ -148,6 +149,7 @@ The client-link flows (5.1) are not the only entry point. The operator's phone i
 - **NFR5 — Data ownership & durability.** Client and job data is durably stored and exportable (FR35); no data loss on the operator's single account.
 - **NFR6 — Security & privacy.** Tokenized client links are unguessable and scoped to one client; operator access is authenticated; client PII (name, phone, address) is protected at rest and in transit.
 - **NFR7 — Simplicity constraint.** No feature ships that doesn't touch a named leak or a capacity/cash decision. Scope creep is a defect.
+- **NFR8 — Visual design system.** A single fresh-and-trustworthy design system (tokens + shared components) is applied across every operator and public surface; the design/interaction contract is `ux-designs/ux-LovesCleaning-2026-07-18/` (DESIGN.md, EXPERIENCE.md).
 
 ## 7. Scope — In / Out
 
@@ -163,6 +165,8 @@ The client-link flows (5.1) are not the only entry point. The operator's phone i
 - Cash ledger with reminders (FR29–FR32).
 - Single-operator auth, no-login client links, data export (FR33–FR35).
 - Operator-initiated client creation, direct booking with cap-override, job-outcome (complete/no-show), cancel/reschedule with capacity release (FR38–FR41).
+- Public marketing homepage at `/` + self-serve booking request, logged as `web` inquiries (FR42).
+- Whole-app fresh-and-trustworthy design system (NFR8).
 
 **Out (explicit — deliberate exclusions, not oversights):**
 - **Card processing / auto-charge** — dropped from earlier plans; cash stays king, no client behavior change. (See addendum for rationale.)

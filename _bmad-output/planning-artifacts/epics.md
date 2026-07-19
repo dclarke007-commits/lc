@@ -27,7 +27,8 @@ This document provides the complete epic and story breakdown for LovesCleaning, 
 - **FR8** — On a confirmed booking, record the job (client, date, price) and produce a booking-confirmation message for the operator to send (FR20). Default price $200, editable per job.
 - **FR9** — Prevent a booking being confirmed if it would exceed the per-day cap or weekly-14 ceiling; communicate no-availability rather than silently overbook. Cap check re-evaluated at approval (FR36). Client flows can never exceed a cap; only the operator via explicit override (FR39) may book past one.
 - **FR36** — Present operator an approval queue of pending new-client requests (FR6). Approve → confirmed booking consuming capacity (subject to FR9); decline → slot untouched. Multiple pending requests may target one slot; first approved wins, rest surfaced as no-longer-available.
-- **FR37** — Let operator log an inquiry with a source (`phone|walk-in|link|referral|other`), independent of booking links. Link visits that begin a booking auto-log as `link`. Inquiry→booking conversion (FR24) measured against ALL logged inquiries.
+- **FR37** — Let operator log an inquiry with a source (`phone|walk-in|link|referral|web|other`), independent of booking links. Link visits that begin a booking auto-log as `link`; homepage self-serve submissions (FR42) auto-log as `web`. Inquiry→booking conversion (FR24) measured against ALL logged inquiries.
+- **FR42** — Provide a public marketing homepage at `/` (no account) presenting the business and a self-serve booking-request form. A submission creates a provisional client record + pending request (reusing FR6/AR5) and logs an Inquiry with source `web` (FR37). The homepage is the anonymous top-of-funnel entry; all operator surfaces remain behind auth (FR33).
 
 **Rebooking & Nudges**
 - **FR10** — Each completed/upcoming job exposes a one-tap rebooking action proposing the client's next open slot. Cadenced clients → slot at cadence interval; one-time clients → soonest open slot (this is the one-time→repeat conversion mechanism).
@@ -84,6 +85,7 @@ This document provides the complete epic and story breakdown for LovesCleaning, 
 - **NFR5 — Data ownership & durability.** Client/job data durably stored and exportable (FR35); no data loss on the operator's single account.
 - **NFR6 — Security & privacy.** Tokenized client links unguessable and scoped to one client; operator access authenticated; client PII protected at rest and in transit.
 - **NFR7 — Simplicity constraint.** No feature ships that doesn't touch a named leak or a capacity/cash decision. Scope creep is a defect.
+- **NFR8 — Visual design system.** A single fresh-and-trustworthy design system (color/type/spacing tokens + shared components) is applied across every operator and public surface. The visual + interaction contract lives in `_bmad-output/planning-artifacts/ux-designs/ux-LovesCleaning-2026-07-18/` (DESIGN.md, EXPERIENCE.md).
 
 ### Additional Requirements
 
@@ -106,7 +108,7 @@ Technical/infrastructure/integration constraints from the Architecture spine (AD
 - **AR9** (AD-8) — Every Client, Job, PendingRequest, Inquiry, MessageLog, and token row carries an `owner_id` FK, and the `owner_id` filter is present in every query from v1 (value hardcoded to the single operator). A one-row Operator seed migration establishes it. No tenant-scoping UI, no multi-user auth in v1.
 - **AR10** (AD-9) — Timestamps stored UTC; ALL capacity/cadence/week arithmetic computed in the operator's single local tz. Weekly-14 boundary is Mon–Sun operator-local.
 - **AR11** (AD-10) — Job `completion` state machine owned by `lib/domain/lifecycle`: `booked → completed|no-show|cancelled`; nothing transitions out of `no-show`/`cancelled` except explicit operator correction. `payment` orthogonal but gated: only a `completed` Job is ledger-eligible; `markPaid` never alters `completion`.
-- **AR12** (AD-11) — Every Inquiry carries `source` provenance; a link visit auto-logs at most one `link` Inquiry per token-visit session (server-side); conversion denominator dedupes to distinct inquiries.
+- **AR12** (AD-11) — Every Inquiry carries `source` provenance; a link visit auto-logs at most one `link` Inquiry per token-visit session, and a homepage self-serve submission (FR42) auto-logs one `web` Inquiry (server-side, deduped via partial unique index); conversion denominator dedupes to distinct inquiries.
 - **AR13** (AD-12) — `commitBooking` idempotent per booking attempt (idempotency key per token-submit); reschedule (FR41) releases the original slot and commits the new one inside one transaction.
 - **AR14** (AD-13) — Latency budget: booking/dashboard surfaces target <2s interactive on 4G (NFR3), client booking flow <60s (NFR2). Surfaces stay dynamic (never `use cache`), ship minimal client JS.
 - **AR15** (Conventions) — Server Actions return a typed `{ok, data} | {ok:false, reason}`; no thrown errors cross the action boundary; capacity rejections carry a machine reason (`day-maxed`|`week-full`). Errors land in Vercel platform logs; no separate APM in v1.
@@ -116,7 +118,7 @@ Technical/infrastructure/integration constraints from the Architecture spine (AD
 
 ### UX Design Requirements
 
-_None — no UX design contract exists for v1. UI is phone-web (RSC surfaces) + the operator's own WhatsApp/SMS; visual/interaction requirements are folded into the phone-first NFRs (NFR1–NFR3) and dashboard FRs (FR22–FR25)._
+_A visual/interaction design contract exists as of 2026-07-18: `ux-designs/ux-LovesCleaning-2026-07-18/` (DESIGN.md, EXPERIENCE.md), realized as the whole-app design system (NFR8). Phone-first behavior stays governed by NFR1–NFR3; the design system governs look, tone, and shared components across operator + public surfaces._
 
 ### FR Coverage Map
 
@@ -163,6 +165,7 @@ Every FR maps to exactly one owning epic. Epic order front-loads the recoverable
 - **FR39** → Epic 1 — operator direct booking with explicit cap-override
 - **FR40** → Epic 1 — mark job outcome (completed / no-show)
 - **FR41** → Epic 1 — cancel/reschedule with capacity release
+- **FR42** → Epic 4 — public marketing homepage (anonymous top-of-funnel + self-serve request)
 
 ## Epic List
 
@@ -185,8 +188,8 @@ The largest recoverable leak: one-time jobs that never repeat, and regulars who 
 
 ### Epic 4: Client Self-Booking — Plug the Inquiry Leak
 
-Strangers who ask but never get booked. A public self-serve link and a printable QR let anyone request a slot with no app and no account; new clients land in an operator approval queue that holds no capacity until approved; every inquiry is logged with its source so inquiry → booking conversion is measurable across phone, walk-in, and link.
-**FRs covered:** FR4, FR5, FR6, FR36, FR37
+Strangers who ask but never get booked. A public self-serve link and a printable QR let anyone request a slot with no app and no account; new clients land in an operator approval queue that holds no capacity until approved; every inquiry is logged with its source so inquiry → booking conversion is measurable across phone, walk-in, link, and the public homepage (web).
+**FRs covered:** FR4, FR5, FR6, FR36, FR37, FR42
 
 ### Epic 5: Cash Ledger — Plug the Payment Leak
 
@@ -615,11 +618,31 @@ So that inquiry → booking conversion reflects reality, not just link visits.
 
 **Given** a verbal inquiry
 **When** I log it
-**Then** it is recorded with a source (`phone|walk-in|link|referral|other`), independent of any booking link (FR37)
+**Then** it is recorded with a source (`phone|walk-in|link|referral|web|other`), independent of any booking link (FR37)
 
 **Given** an auto-logged link inquiry and a manual log for the same contact
 **When** conversion is computed
 **Then** the denominator dedupes to distinct inquiries so it is not double-counted (FR37, AR12)
+
+### Story 4.5: Public marketing homepage + self-serve request
+
+As a prospective client,
+I want a public homepage that explains the service and lets me request a booking,
+So that I can reach the business without a per-client link or a phone call.
+
+**Acceptance Criteria:**
+
+**Given** an anonymous visitor at `/`
+**When** the page loads
+**Then** they see the marketing homepage with no auth gate, while every operator surface stays behind sign-in (FR42, FR33)
+
+**Given** a visitor submits the self-serve request (name, phone, address)
+**When** processed
+**Then** a provisional `Client` + `PendingRequest` are created (reusing FR6/AR5) and one Inquiry is logged with source `web` (FR42, FR37, AR12)
+
+**Given** the public homepage submit surface is unauthenticated
+**When** submitted
+**Then** input is length-capped/validated; the write is subject to the accepted public-write rate-limit gap (LOCKED, sprint-status Epic-4 action item)
 
 ## Epic 5: Cash Ledger — Plug the Payment Leak
 
